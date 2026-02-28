@@ -1,5 +1,8 @@
 // lib/views/auth/login_screen.dart
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
+import '../../models/user_model.dart';
+import '../../config/app_routes.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,6 +21,8 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _rememberMe = false;
   String? _errorMessage;
 
+  final AuthService _authService = AuthService();
+
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -26,35 +31,70 @@ class _LoginScreenState extends State<LoginScreen> {
       _errorMessage = null;
     });
 
-    await Future.delayed(const Duration(seconds: 1));
+    final success = await _authService.login(
+      _emailController.text.trim(),
+      _passwordController.text,
+      rememberMe: _rememberMe,
+    );
 
-    String email = _emailController.text.trim();
-    String password = _passwordController.text;
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
 
-    if (email.isNotEmpty && password.isNotEmpty) {
-      if (mounted) {
+      if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Connexion réussie'),
+            content: Text('Bienvenue ${_authService.currentUser?.fullName ?? ''}'),
             backgroundColor: const Color.fromARGB(255, 12, 174, 74),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
           ),
         );
 
-        Navigator.pop(context);
+        // Redirection basée sur le rôle
+        final userRole = _authService.currentUser?.role;
+        
+        switch (userRole) {
+          case UserRole.COMMERCIAL:
+            Navigator.pushReplacementNamed(
+              context,
+              AppRoutes.commercialDashboard,
+              arguments: {'user': _authService.currentUser},
+            );
+            break;
+            
+          case UserRole.RESPONSABLE_ACHAT:
+            Navigator.pushReplacementNamed(
+              context,
+              AppRoutes.approvisionnementDashboard,
+              arguments: {'user': _authService.currentUser},
+            );
+            break;
+            
+          case UserRole.ADMIN:
+            // Gérer le cas ADMIN si nécessaire
+            Navigator.pushReplacementNamed(
+              context,
+              AppRoutes.approvisionnementDashboard,
+              arguments: {'user': _authService.currentUser},
+            );
+            break;
+            
+          default:
+            Navigator.pushReplacementNamed(
+              context,
+              AppRoutes.approvisionnementDashboard,
+              arguments: {'user': _authService.currentUser},
+            );
+        }
+      } else {
+        setState(() {
+          _errorMessage = _authService.error ?? 'Email ou mot de passe incorrect';
+        });
       }
-    } else {
-      setState(() {
-        _errorMessage = 'Email ou mot de passe incorrect';
-      });
     }
-
-    setState(() => _isLoading = false);
   }
 
+  // ✅ LA MÉTHODE build() DOIT ÊTRE PRÉSENTE
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -118,7 +158,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     child: Container(
                       decoration: BoxDecoration(
-                        // RENDU TRANSPARENT : réduction de l'opacité de 0.25 à 0.1
                         color: Colors.white.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(30),
                         border: Border.all(
