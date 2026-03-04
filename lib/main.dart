@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:invera_mobile/views/auth/welcome_screen.dart';
 import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/Commercial_dashboard.dart';
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/approvisionnement_Dashboard.dart';
+import 'package:invera_mobile/views/auth/forgot_password_screen.dart';
+import 'package:invera_mobile/views/auth/reset-password.dart';
 import 'config/app_routes.dart';
 import 'views/auth/login_screen.dart';
 
@@ -49,9 +51,11 @@ class MyApp extends StatelessWidget {
             }
             break;
             
-       /*   case AppRoutes.forgotPassword:
+          case AppRoutes.forgotPassword:
+            final args = settings.arguments as Map<String, dynamic>?;
+            final email = args?['email'] as String?;
             return MaterialPageRoute(
-              builder: (context) => const ForgotPasswordScreen(),
+              builder: (context) => ForgotPasswordScreen(initialEmail: email),
             );
             
           case AppRoutes.resetPassword:
@@ -59,7 +63,7 @@ class MyApp extends StatelessWidget {
             final email = args?['email'] as String?;
             return MaterialPageRoute(
               builder: (context) => ResetPasswordScreen(email: email ?? ''),
-            );*/
+            );
         }
         
         // Route par défaut si aucune correspondance
