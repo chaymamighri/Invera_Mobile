@@ -3,6 +3,7 @@ import 'package:invera_mobile/config/app_routes.dart';
 import 'package:invera_mobile/models/user_model.dart';
 import 'package:invera_mobile/services/auth_service.dart';
 import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/commercial_clients_section.dart';
+import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/commercial_commandes_section.dart';
 
 class CommercialDashboard extends StatefulWidget {
   final User user;
@@ -150,6 +151,9 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
   Widget _buildPageContent() {
     if (_activePage == 'clients') {
       return const CommercialClientsSection();
+    }
+    if (_activePage == 'commandes') {
+      return const CommercialCommandesSection();
     }
 
     final icon = switch (_activePage) {

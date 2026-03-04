@@ -5,6 +5,8 @@ class ApiConfig {
   
   static const String apiPrefix = '/api/auth';
   static const String clientsPrefix = '/api/clients';
+  static const String commandesPrefix = '/api/commandes';
+  static const String productsPrefix = '/api/produits';
   
   // Endpoints
   static const String loginEndpoint = '$apiPrefix/login';
@@ -22,6 +24,13 @@ class ApiConfig {
   static const String verifyClientPhoneEndpoint = '$clientsPrefix/verifier-telephone';
   static const String updateClientEndpoint = '$clientsPrefix/update';
   static const String clientTypesEndpoint = '$clientsPrefix/types';
+
+  // Commandes endpoints
+  static const String listCommandesEndpoint = '$commandesPrefix/getAllCommandes';
+  static const String createCommandeEndpoint = '$commandesPrefix/creer';
+
+  // Produits endpoints
+  static const String productsAllEndpoint = '$productsPrefix/all';
   
   // Headers
   static const String contentType = 'application/json';
