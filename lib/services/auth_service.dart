@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,6 +22,7 @@ class AuthService extends ChangeNotifier {
   String? _token;
   bool _isLoading = false;
   String? _error;
+  late final Future<void> _readyFuture;
 
   User? get currentUser => _currentUser;
   String? get token => _token;
@@ -30,8 +31,10 @@ class AuthService extends ChangeNotifier {
   bool get isAuthenticated => _token != null && _currentUser != null;
 
   AuthService() {
-    _loadStoredData();
+    _readyFuture = _loadStoredData();
   }
+
+  Future<void> ready() => _readyFuture;
 
   Future<void> _loadStoredData() async {
     try {
@@ -49,7 +52,11 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  Future<bool> login(String email, String password, {bool rememberMe = false}) async {
+  Future<bool> login(
+    String email,
+    String password, {
+    bool rememberMe = false,
+  }) async {
     _setLoading(true);
     _clearError();
 
@@ -72,7 +79,9 @@ class AuthService extends ChangeNotifier {
           );
 
       if (response.statusCode == 200) {
-        final loginResponse = LoginResponse.fromJson(json.decode(response.body));
+        final loginResponse = LoginResponse.fromJson(
+          json.decode(response.body),
+        );
 
         _token = loginResponse.token;
         _currentUser = User(
@@ -139,10 +148,84 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// ✅ FIXED:
+  /// âœ… FIXED:
   /// - First attempt: POST with JSON body { email: ... } (most common Spring)
   /// - Fallback attempt: POST with query param (your old behavior)
   /// - NEVER sends Authorization header
+  Future<AuthActionResult> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    _setLoading(true);
+    _clearError();
+
+    try {
+      await ready();
+      if (_token == null || _token!.trim().isEmpty) {
+        _setLoading(false);
+        return const AuthActionResult(
+          success: false,
+          message: 'Session invalide. Veuillez vous reconnecter.',
+        );
+      }
+
+      final url = Uri.parse(
+        '${ApiConfig.baseUrl}${ApiConfig.changePasswordEndpoint}',
+      );
+      final response = await http
+          .put(
+            url,
+            headers: _getAuthHeaders(),
+            body: json.encode(<String, dynamic>{
+              'oldPassword': oldPassword,
+              'newPassword': newPassword,
+            }),
+          )
+          .timeout(
+            const Duration(milliseconds: ApiConfig.connectionTimeout),
+            onTimeout: () => throw Exception('Delai de connexion depasse'),
+          );
+
+      _setLoading(false);
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return AuthActionResult(
+          success: true,
+          message: _extractResponseMessage(
+            response,
+            fallback: 'Mot de passe modifie avec succes',
+          ),
+          statusCode: response.statusCode,
+        );
+      }
+
+      final message = _extractResponseMessage(
+        response,
+        fallback: 'Erreur lors de la modification du mot de passe',
+      );
+
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        return AuthActionResult(
+          success: false,
+          message: '$message (session non autorisee)',
+          statusCode: response.statusCode,
+        );
+      }
+
+      return AuthActionResult(
+        success: false,
+        message: message,
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      _setLoading(false);
+      return AuthActionResult(
+        success: false,
+        message: e.toString().replaceFirst('Exception: ', ''),
+      );
+    }
+  }
+
   Future<AuthActionResult> forgotPassword(String email) async {
     _setLoading(true);
 
@@ -150,7 +233,9 @@ class AuthService extends ChangeNotifier {
       final normalizedEmail = email.trim().toLowerCase();
 
       // Attempt 1 (recommended): JSON body
-      final url1 = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.forgotPasswordEndpoint}');
+      final url1 = Uri.parse(
+        '${ApiConfig.baseUrl}${ApiConfig.forgotPasswordEndpoint}',
+      );
       final res1 = await http
           .post(
             url1,
@@ -166,14 +251,18 @@ class AuthService extends ChangeNotifier {
         _setLoading(false);
         return AuthActionResult(
           success: true,
-          message: _extractResponseMessage(res1, fallback: 'Code de reinitialisation envoye'),
+          message: _extractResponseMessage(
+            res1,
+            fallback: 'Code de reinitialisation envoye',
+          ),
           statusCode: res1.statusCode,
         );
       }
 
       // Attempt 2 (fallback): query param, no body
-      final url2 = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.forgotPasswordEndpoint}')
-          .replace(queryParameters: {'email': normalizedEmail});
+      final url2 = Uri.parse(
+        '${ApiConfig.baseUrl}${ApiConfig.forgotPasswordEndpoint}',
+      ).replace(queryParameters: {'email': normalizedEmail});
 
       final res2 = await http
           .post(
@@ -190,7 +279,10 @@ class AuthService extends ChangeNotifier {
       if (res2.statusCode >= 200 && res2.statusCode < 300) {
         return AuthActionResult(
           success: true,
-          message: _extractResponseMessage(res2, fallback: 'Code de reinitialisation envoye'),
+          message: _extractResponseMessage(
+            res2,
+            fallback: 'Code de reinitialisation envoye',
+          ),
           statusCode: res2.statusCode,
         );
       }
@@ -224,7 +316,7 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  /// ✅ FIXED:
+  /// âœ… FIXED:
   /// - NEVER sends Authorization header (no optional token attempts)
   /// - Cleans code spaces/newlines
   /// - Tries payload variants to match backend without changing backend
@@ -319,7 +411,7 @@ class AuthService extends ChangeNotifier {
     final response = await http
         .post(
           url,
-          headers: await _getPublicHeaders(), // ✅ ALWAYS NO AUTH
+          headers: await _getPublicHeaders(), // âœ… ALWAYS NO AUTH
           body: json.encode(payload),
         )
         .timeout(
@@ -330,10 +422,7 @@ class AuthService extends ChangeNotifier {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return AuthActionResult(
         success: true,
-        message: _extractResponseMessage(
-          response,
-          fallback: successFallback,
-        ),
+        message: _extractResponseMessage(response, fallback: successFallback),
         statusCode: response.statusCode,
       );
     }
@@ -342,7 +431,9 @@ class AuthService extends ChangeNotifier {
 
     if (response.statusCode == 403) {
       // ignore: avoid_print
-      print('PASSWORD 403 endpoint=$endpoint payload=$payload body=${response.body}');
+      print(
+        'PASSWORD 403 endpoint=$endpoint payload=$payload body=${response.body}',
+      );
       return AuthActionResult(
         success: false,
         message:
@@ -358,7 +449,10 @@ class AuthService extends ChangeNotifier {
     );
   }
 
-  String _extractResponseMessage(http.Response response, {required String fallback}) {
+  String _extractResponseMessage(
+    http.Response response, {
+    required String fallback,
+  }) {
     try {
       final decoded = json.decode(response.body);
       if (decoded is Map<String, dynamic>) {
@@ -380,7 +474,7 @@ class AuthService extends ChangeNotifier {
     return fallback;
   }
 
-  /// ✅ Public headers: NO Authorization here, ever.
+  /// âœ… Public headers: NO Authorization here, ever.
   Future<Map<String, String>> _getPublicHeaders() async {
     return <String, String>{
       'Content-Type': ApiConfig.contentType,

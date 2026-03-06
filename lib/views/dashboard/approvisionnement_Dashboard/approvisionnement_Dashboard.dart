@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:invera_mobile/config/app_routes.dart';
 import 'package:invera_mobile/models/user_model.dart';
 import 'package:invera_mobile/services/auth_service.dart';
@@ -9,10 +9,12 @@ class ApprovisionnementDashboard extends StatefulWidget {
   const ApprovisionnementDashboard({super.key, required this.user});
 
   @override
-  State<ApprovisionnementDashboard> createState() => _ApprovisionnementDashboardState();
+  State<ApprovisionnementDashboard> createState() =>
+      _ApprovisionnementDashboardState();
 }
 
-class _ApprovisionnementDashboardState extends State<ApprovisionnementDashboard> {
+class _ApprovisionnementDashboardState
+    extends State<ApprovisionnementDashboard> {
   bool _sidebarCollapsed = false;
 
   String _initials() {
@@ -26,7 +28,9 @@ class _ApprovisionnementDashboardState extends State<ApprovisionnementDashboard>
 
     if (parts.isEmpty) return 'US';
     if (parts.length == 1) {
-      return parts.first.substring(0, parts.first.length >= 2 ? 2 : 1).toUpperCase();
+      return parts.first
+          .substring(0, parts.first.length >= 2 ? 2 : 1)
+          .toUpperCase();
     }
 
     return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
@@ -77,6 +81,14 @@ class _ApprovisionnementDashboardState extends State<ApprovisionnementDashboard>
     }
   }
 
+  void _openProfile() {
+    Navigator.pushNamed(
+      context,
+      AppRoutes.profile,
+      arguments: {'user': widget.user},
+    );
+  }
+
   Widget _buildSidebar({required bool collapsed, required bool mobile}) {
     return Container(
       color: Colors.white,
@@ -116,8 +128,16 @@ class _ApprovisionnementDashboardState extends State<ApprovisionnementDashboard>
                 ] else
                   const Spacer(),
                 IconButton(
-                  onPressed: mobile ? () => Navigator.pop(context) : _toggleSidebar,
-                  icon: Icon(mobile ? Icons.close : (collapsed ? Icons.chevron_right : Icons.chevron_left)),
+                  onPressed: mobile
+                      ? () => Navigator.pop(context)
+                      : _toggleSidebar,
+                  icon: Icon(
+                    mobile
+                        ? Icons.close
+                        : (collapsed
+                              ? Icons.chevron_right
+                              : Icons.chevron_left),
+                  ),
                 ),
               ],
             ),
@@ -156,12 +176,18 @@ class _ApprovisionnementDashboardState extends State<ApprovisionnementDashboard>
             child: collapsed
                 ? Column(
                     children: [
-                      CircleAvatar(
-                        radius: 18,
-                        backgroundColor: const Color(0xFF2D47C8),
-                        child: Text(
-                          _initials(),
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                      GestureDetector(
+                        onTap: _openProfile,
+                        child: CircleAvatar(
+                          radius: 18,
+                          backgroundColor: const Color(0xFF2D47C8),
+                          child: Text(
+                            _initials(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -174,12 +200,18 @@ class _ApprovisionnementDashboardState extends State<ApprovisionnementDashboard>
                   )
                 : Row(
                     children: [
-                      CircleAvatar(
-                        radius: 18,
-                        backgroundColor: const Color(0xFF2D47C8),
-                        child: Text(
-                          _initials(),
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                      GestureDetector(
+                        onTap: _openProfile,
+                        child: CircleAvatar(
+                          radius: 18,
+                          backgroundColor: const Color(0xFF2D47C8),
+                          child: Text(
+                            _initials(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -257,8 +289,16 @@ class _ApprovisionnementDashboardState extends State<ApprovisionnementDashboard>
         appBar: AppBar(
           backgroundColor: Colors.white,
           foregroundColor: const Color(0xFF1F2A44),
-          title: const Text('Approvisionnement', style: TextStyle(fontWeight: FontWeight.w700)),
+          title: const Text(
+            'Approvisionnement',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
           actions: [
+            IconButton(
+              onPressed: _openProfile,
+              icon: const Icon(Icons.person_outline),
+              tooltip: 'Profil',
+            ),
             IconButton(
               onPressed: _confirmLogout,
               icon: const Icon(Icons.logout, color: Colors.red),
@@ -307,7 +347,9 @@ class _ApprovisionnementDashboardState extends State<ApprovisionnementDashboard>
                     padding: const EdgeInsets.symmetric(horizontal: 26),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.92),
-                      border: const Border(bottom: BorderSide(color: Color(0xFFE6EAF2))),
+                      border: const Border(
+                        bottom: BorderSide(color: Color(0xFFE6EAF2)),
+                      ),
                     ),
                     child: Row(
                       children: [
@@ -327,10 +369,18 @@ class _ApprovisionnementDashboardState extends State<ApprovisionnementDashboard>
                               SizedBox(height: 2),
                               Text(
                                 'Configuration initiale en cours',
-                                style: TextStyle(color: Color(0xFF607089), fontSize: 13),
+                                style: TextStyle(
+                                  color: Color(0xFF607089),
+                                  fontSize: 13,
+                                ),
                               ),
                             ],
                           ),
+                        ),
+                        IconButton(
+                          onPressed: _openProfile,
+                          icon: const Icon(Icons.person_outline),
+                          tooltip: 'Profil',
                         ),
                         IconButton(
                           onPressed: _confirmLogout,

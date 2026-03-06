@@ -5,6 +5,7 @@ import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/Commercial_da
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/approvisionnement_Dashboard.dart';
 import 'package:invera_mobile/views/auth/forgot_password_screen.dart';
 import 'package:invera_mobile/views/auth/reset-password.dart';
+import 'package:invera_mobile/views/profile/profile_screen.dart';
 import 'config/app_routes.dart';
 import 'views/auth/login_screen.dart';
 
@@ -25,7 +26,7 @@ class MyApp extends StatelessWidget {
       initialRoute: AppRoutes.login,
       routes: {
         // Routes sans paramètres
-        AppRoutes.Welcome: (context) => const WelcomeScreen(),
+        AppRoutes.welcome: (context) => const WelcomeScreen(),
         AppRoutes.login: (context) => const LoginScreen(),
       },
       onGenerateRoute: (settings) {
@@ -40,7 +41,7 @@ class MyApp extends StatelessWidget {
               );
             }
             break;
-            
+
           case AppRoutes.commercialDashboard:
             final args = settings.arguments as Map<String, dynamic>?;
             final user = args?['user'] as User?;
@@ -50,14 +51,24 @@ class MyApp extends StatelessWidget {
               );
             }
             break;
-            
+
+          case AppRoutes.profile:
+            final args = settings.arguments as Map<String, dynamic>?;
+            final user = args?['user'] as User?;
+            if (user != null) {
+              return MaterialPageRoute(
+                builder: (context) => ProfileScreen(user: user),
+              );
+            }
+            break;
+
           case AppRoutes.forgotPassword:
             final args = settings.arguments as Map<String, dynamic>?;
             final email = args?['email'] as String?;
             return MaterialPageRoute(
               builder: (context) => ForgotPasswordScreen(initialEmail: email),
             );
-            
+
           case AppRoutes.resetPassword:
             final args = settings.arguments as Map<String, dynamic>?;
             final email = args?['email'] as String?;
@@ -65,14 +76,11 @@ class MyApp extends StatelessWidget {
               builder: (context) => ResetPasswordScreen(email: email ?? ''),
             );
         }
-        
+
         // Route par défaut si aucune correspondance
         return MaterialPageRoute(
-          builder: (context) => const Scaffold(
-            body: Center(
-              child: Text('Page non trouvée'),
-            ),
-          ),
+          builder: (context) =>
+              const Scaffold(body: Center(child: Text('Page non trouvée'))),
         );
       },
       theme: ThemeData(

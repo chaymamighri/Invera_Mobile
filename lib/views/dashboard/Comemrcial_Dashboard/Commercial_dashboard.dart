@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:invera_mobile/config/app_routes.dart';
 import 'package:invera_mobile/models/user_model.dart';
 import 'package:invera_mobile/services/auth_service.dart';
@@ -22,15 +22,31 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     _SidebarSection(
       title: 'Tableau de bord',
       items: [
-        _SidebarItem(id: 'dashboard', label: 'Dashboard', icon: Icons.grid_view_rounded),
+        _SidebarItem(
+          id: 'dashboard',
+          label: 'Dashboard',
+          icon: Icons.grid_view_rounded,
+        ),
       ],
     ),
     _SidebarSection(
       title: 'Gestion commerciale',
       items: [
-        _SidebarItem(id: 'clients', label: 'Clients', icon: Icons.people_alt_outlined),
-        _SidebarItem(id: 'commandes', label: 'Commandes', icon: Icons.shopping_cart_outlined),
-        _SidebarItem(id: 'factures', label: 'Factures', icon: Icons.receipt_long_outlined),
+        _SidebarItem(
+          id: 'clients',
+          label: 'Clients',
+          icon: Icons.people_alt_outlined,
+        ),
+        _SidebarItem(
+          id: 'commandes',
+          label: 'Commandes',
+          icon: Icons.shopping_cart_outlined,
+        ),
+        _SidebarItem(
+          id: 'factures',
+          label: 'Factures',
+          icon: Icons.receipt_long_outlined,
+        ),
       ],
     ),
   ];
@@ -95,7 +111,9 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
 
     if (parts.isEmpty) return 'US';
     if (parts.length == 1) {
-      return parts.first.substring(0, parts.first.length >= 2 ? 2 : 1).toUpperCase();
+      return parts.first
+          .substring(0, parts.first.length >= 2 ? 2 : 1)
+          .toUpperCase();
     }
 
     return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
@@ -140,11 +158,11 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     }
   }
 
-  void _showProfilePlaceholder() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Page profil non developpee pour le moment.'),
-      ),
+  void _openProfile() {
+    Navigator.pushNamed(
+      context,
+      AppRoutes.profile,
+      arguments: {'user': widget.user},
     );
   }
 
@@ -197,10 +215,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
               Text(
                 'Module en cours de developpement',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.blueGrey[600],
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: Colors.blueGrey[600], fontSize: 14),
               ),
             ],
           ),
@@ -233,7 +248,10 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
             errorBuilder: (_, __, ___) => const Icon(Icons.business),
           ),
           const SizedBox(width: 8),
-          const Text('Commercial', style: TextStyle(fontWeight: FontWeight.w700)),
+          const Text(
+            'Commercial',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
         ],
       ),
       actions: _buildTopActions(),
@@ -255,7 +273,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
         tooltip: 'Menu utilisateur',
         onSelected: (value) {
           if (value == 'profile') {
-            _showProfilePlaceholder();
+            _openProfile();
           }
           if (value == 'logout') {
             _confirmLogout();
@@ -314,10 +332,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                 const SizedBox(height: 2),
                 Text(
                   _pageSubtitle(),
-                  style: TextStyle(
-                    color: Colors.blueGrey[600],
-                    fontSize: 13,
-                  ),
+                  style: TextStyle(color: Colors.blueGrey[600], fontSize: 13),
                 ),
               ],
             ),
@@ -336,9 +351,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
           Container(
             padding: const EdgeInsets.fromLTRB(16, 20, 12, 18),
             decoration: const BoxDecoration(
-              border: Border(
-                bottom: BorderSide(color: Color(0xFFE6EAF2)),
-              ),
+              border: Border(bottom: BorderSide(color: Color(0xFFE6EAF2))),
             ),
             child: Row(
               children: [
@@ -369,8 +382,16 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                 ] else
                   const Spacer(),
                 IconButton(
-                  onPressed: mobile ? () => Navigator.pop(context) : _toggleSidebar,
-                  icon: Icon(mobile ? Icons.close : (collapsed ? Icons.chevron_right : Icons.chevron_left)),
+                  onPressed: mobile
+                      ? () => Navigator.pop(context)
+                      : _toggleSidebar,
+                  icon: Icon(
+                    mobile
+                        ? Icons.close
+                        : (collapsed
+                              ? Icons.chevron_right
+                              : Icons.chevron_left),
+                  ),
                 ),
               ],
             ),
@@ -413,14 +434,17 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
             child: collapsed
                 ? Column(
                     children: [
-                      CircleAvatar(
-                        radius: 18,
-                        backgroundColor: const Color(0xFF2D47C8),
-                        child: Text(
-                          _initials(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
+                      GestureDetector(
+                        onTap: _openProfile,
+                        child: CircleAvatar(
+                          radius: 18,
+                          backgroundColor: const Color(0xFF2D47C8),
+                          child: Text(
+                            _initials(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ),
@@ -435,7 +459,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                 : Row(
                     children: [
                       GestureDetector(
-                        onTap: _showProfilePlaceholder,
+                        onTap: _openProfile,
                         child: CircleAvatar(
                           radius: 18,
                           backgroundColor: const Color(0xFF2D47C8),
@@ -486,7 +510,10 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     );
   }
 
-  Widget _buildSidebarItem({required _SidebarItem item, required bool collapsed}) {
+  Widget _buildSidebarItem({
+    required _SidebarItem item,
+    required bool collapsed,
+  }) {
     final isActive = _activePage == item.id;
 
     final itemWidget = Material(
@@ -505,12 +532,16 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
             ),
           ),
           child: Row(
-            mainAxisAlignment: collapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
+            mainAxisAlignment: collapsed
+                ? MainAxisAlignment.center
+                : MainAxisAlignment.start,
             children: [
               Icon(
                 item.icon,
                 size: 20,
-                color: isActive ? const Color(0xFF2D47C8) : const Color(0xFF607089),
+                color: isActive
+                    ? const Color(0xFF2D47C8)
+                    : const Color(0xFF607089),
               ),
               if (!collapsed) ...[
                 const SizedBox(width: 10),
@@ -520,7 +551,9 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                      color: isActive ? const Color(0xFF2D47C8) : const Color(0xFF334155),
+                      color: isActive
+                          ? const Color(0xFF2D47C8)
+                          : const Color(0xFF334155),
                     ),
                   ),
                 ),
@@ -581,9 +614,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
               child: Column(
                 children: [
                   _buildDesktopTopBar(),
-                  Expanded(
-                    child: _buildBodyArea(),
-                  ),
+                  Expanded(child: _buildBodyArea()),
                 ],
               ),
             ),
@@ -606,5 +637,9 @@ class _SidebarItem {
   final String label;
   final IconData icon;
 
-  const _SidebarItem({required this.id, required this.label, required this.icon});
+  const _SidebarItem({
+    required this.id,
+    required this.label,
+    required this.icon,
+  });
 }
