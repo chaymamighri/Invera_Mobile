@@ -4,7 +4,7 @@ import 'package:invera_mobile/models/commande_model.dart';
 import 'package:invera_mobile/services/client_service.dart';
 import 'package:invera_mobile/services/commande_service.dart';
 
-// ---------- THEME CONSTANTS ----------
+// ---------- THEME CONSTANTS (reuse from clients section) ----------
 const Color _primary = Color(0xFF2D47C8);
 const Color _primaryDark = Color(0xFF2037A7);
 const Color _accent = Color(0xFF0CAE4A);
@@ -26,6 +26,7 @@ class _StatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final normalized = status.trim().toUpperCase();
     late Color bg, fg;
+
     if (normalized == 'CONFIRMEE') {
       bg = const Color(0xFFE9F8EF);
       fg = const Color(0xFF11853F);
@@ -38,11 +39,14 @@ class _StatusChip extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: _baseUnit * 1.5,
+        vertical: _baseUnit,
+      ),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: fg.withOpacity(0.3)),
+        border: Border.all(color: fg.withValues(alpha: 0.3)),
       ),
       child: Text(
         _displayStatus(status),
@@ -68,7 +72,10 @@ class _InfoBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: _baseUnit * 1.5,
+        vertical: _baseUnit,
+      ),
       decoration: BoxDecoration(
         color: _background,
         borderRadius: BorderRadius.circular(12),
@@ -77,8 +84,18 @@ class _InfoBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('$label: ', style: const TextStyle(color: _textSecondary, fontSize: 12)),
-          Text(value, style: const TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 12)),
+          Text(
+            '$label: ',
+            style: TextStyle(color: _textSecondary, fontSize: 12),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              color: _textPrimary,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
         ],
       ),
     );
@@ -90,10 +107,12 @@ class CommercialCommandesSection extends StatefulWidget {
   const CommercialCommandesSection({super.key});
 
   @override
-  State<CommercialCommandesSection> createState() => _CommercialCommandesSectionState();
+  State<CommercialCommandesSection> createState() =>
+      _CommercialCommandesSectionState();
 }
 
-class _CommercialCommandesSectionState extends State<CommercialCommandesSection> {
+class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
+    with TickerProviderStateMixin {
   final CommandeService _commandeService = CommandeService();
   final ClientService _clientService = ClientService();
 
@@ -107,9 +126,15 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
 
   String _statusFilter = 'TOUS';
   int _draftLineSeed = 0;
-  bool _useGrid = false;
 
-  static const List<String> _statuses = ['TOUS', 'EN_ATTENTE', 'CONFIRMEE', 'ANNULEE'];
+  static const List<String> _statuses = [
+    'TOUS',
+    'EN_ATTENTE',
+    'CONFIRMEE',
+    'ANNULEE',
+  ];
+
+  bool _useGrid = false;
 
   @override
   void initState() {
@@ -161,21 +186,1595 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     }
   }
 
-  // CRUD operations (simplified, same as before)
   Future<void> _onCreate() async {
-    // ... (identical to previous version, omitted for brevity)
+    final result = await _openCommandeForm();
+    if (result == null) return;
+
+    setState(() => _isBusy = true);
+    try {
+      await _commandeService.createCommande(
+        CommandeCreatePayload(
+          clientId: result.clientId,
+          produits: result.produits,
+          remiseTotale: result.remiseTotale,
+        ),
+      );
+      await _reloadCommandes();
+      _showMessage('Commande créée');
+    } catch (e) {
+      _showMessage(e.toString(), isError: true);
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
   }
 
   Future<void> _onEdit(CommandeModel cmd) async {
-    // ... (identical)
+    if (!cmd.canEdit) {
+      _showMessage(
+        'Seules les commandes en attente sont modifiables.',
+        isError: true,
+      );
+      return;
+    }
+
+    final result = await _openCommandeForm(initialCommande: cmd);
+    if (result == null) return;
+
+    setState(() => _isBusy = true);
+    try {
+      await _commandeService.updateCommande(
+        cmd.idCommandeClient,
+        CommandeUpdatePayload(
+          clientId: result.clientId,
+          clientAdresse: result.clientAdresse,
+          clientTelephone: result.clientTelephone,
+          clientEmail: result.clientEmail,
+          produits: result.produits,
+        ),
+      );
+      await _reloadCommandes();
+      _showMessage('Commande modifiée');
+    } catch (e) {
+      _showMessage(e.toString(), isError: true);
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
+  }
+
+  Future<void> _onConfirm(CommandeModel cmd) async {
+    final status = cmd.statut.trim().toUpperCase();
+
+    if (status != 'EN_ATTENTE') {
+      _showMessage(
+        'Seules les commandes en attente peuvent être confirmées.',
+        isError: true,
+      );
+      return;
+    }
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirmer commande'),
+        content: Text('Confirmer ${cmd.referenceCommandeClient} ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Non'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: _success),
+            child: const Text('Oui'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+
+    setState(() => _isBusy = true);
+    try {
+      await _commandeService.confirmerCommande(cmd.idCommandeClient);
+      await _reloadCommandes();
+      _showMessage('Commande confirmée');
+    } catch (e) {
+      _showMessage(e.toString(), isError: true);
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
   }
 
   Future<void> _onCancel(CommandeModel cmd) async {
-    // ... (identical)
+    if (!cmd.canCancel) {
+      _showMessage(
+        'Seules les commandes en attente peuvent être annulées.',
+        isError: true,
+      );
+      return;
+    }
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Annuler commande'),
+        content: Text('Annuler ${cmd.referenceCommandeClient} ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Non'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: _error),
+            child: const Text('Oui'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+
+    setState(() => _isBusy = true);
+    try {
+      await _commandeService.rejeterCommande(cmd.idCommandeClient);
+      await _reloadCommandes();
+      _showMessage('Commande annulée');
+    } catch (e) {
+      _showMessage(e.toString(), isError: true);
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
   }
 
   Future<void> _onDetails(CommandeModel cmd) async {
-    // ... (identical)
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        final client = cmd.client;
+
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Container(
+            width: 1000,
+            constraints: const BoxConstraints(maxHeight: 760),
+            padding: EdgeInsets.all(_baseUnit * 3),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: _primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(
+                        Icons.receipt_long_outlined,
+                        color: _primary,
+                        size: 26,
+                      ),
+                    ),
+                    const SizedBox(width: _baseUnit * 1.5),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Détails de la commande',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: _textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            cmd.referenceCommandeClient,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: _textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _StatusChip(status: cmd.statut),
+                    const SizedBox(width: _baseUnit),
+                    IconButton(
+                      tooltip: 'Fermer',
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: _baseUnit * 2),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compact = constraints.maxWidth < 860;
+
+                      final leftPanel = SingleChildScrollView(
+                        child: Column(
+                          children: [
+                            _buildDetailsSection(
+                              title: 'Informations générales',
+                              child: Wrap(
+                                spacing: _baseUnit,
+                                runSpacing: _baseUnit,
+                                children: [
+                                  _buildDetailInfoCard(
+                                    icon: Icons.calendar_today_outlined,
+                                    label: 'Date',
+                                    value: cmd.dateCommandeFormatted,
+                                  ),
+                                  _buildDetailInfoCard(
+                                    icon: Icons.person_outline,
+                                    label: 'Client',
+                                    value: client?.fullName ?? '-',
+                                  ),
+                                  _buildDetailInfoCard(
+                                    icon: Icons.local_offer_outlined,
+                                    label: 'Référence',
+                                    value: cmd.referenceCommandeClient,
+                                  ),
+                                  _buildDetailInfoCard(
+                                    icon: Icons.percent_outlined,
+                                    label: 'Remise',
+                                    value:
+                                        '${cmd.tauxRemise.toStringAsFixed(2)}%',
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: _baseUnit * 2),
+                            _buildDetailsSection(
+                              title: 'Coordonnées client',
+                              child: Column(
+                                children: [
+                                  _buildDetailRow(
+                                    icon: Icons.person_outline,
+                                    label: 'Nom complet',
+                                    value: client?.fullName ?? '-',
+                                  ),
+                                  _buildDetailRow(
+                                    icon: Icons.phone_outlined,
+                                    label: 'Téléphone',
+                                    value: client?.telephone ?? '-',
+                                  ),
+                                  _buildDetailRow(
+                                    icon: Icons.email_outlined,
+                                    label: 'Email',
+                                    value: client?.email ?? '-',
+                                  ),
+                                  _buildDetailRow(
+                                    icon: Icons.location_on_outlined,
+                                    label: 'Adresse',
+                                    value: client?.adresse ?? '-',
+                                    isLast: true,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: _baseUnit * 2),
+                            _buildDetailsSection(
+                              title: 'Produits commandés',
+                              child: Column(
+                                children: [
+                                  if (cmd.produits.isEmpty)
+                                    Container(
+                                      width: double.infinity,
+                                      padding: EdgeInsets.all(_baseUnit * 2),
+                                      decoration: BoxDecoration(
+                                        color: _background,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(color: _borderLight),
+                                      ),
+                                      child: const Text(
+                                        'Aucun produit dans cette commande.',
+                                        style: TextStyle(color: _textSecondary),
+                                      ),
+                                    )
+                                  else
+                                    ...cmd.produits.asMap().entries.map((
+                                      entry,
+                                    ) {
+                                      final index = entry.key;
+                                      final p = entry.value;
+                                      return _buildProduitDetailCard(
+                                        index: index + 1,
+                                        produit: p,
+                                      );
+                                    }),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      final rightPanel = SingleChildScrollView(
+                        child: Column(
+                          children: [
+                            _buildDetailsSection(
+                              title: 'Résumé financier',
+                              child: Column(
+                                children: [
+                                  _buildSummaryTile(
+                                    label: 'Nombre de lignes',
+                                    value: '${cmd.produits.length}',
+                                  ),
+                                  const SizedBox(height: _baseUnit),
+                                  _buildSummaryTile(
+                                    label: 'Statut',
+                                    value: _displayStatus(cmd.statut),
+                                  ),
+                                  const SizedBox(height: _baseUnit),
+                                  _buildSummaryTile(
+                                    label: 'Remise appliquée',
+                                    value:
+                                        '${cmd.tauxRemise.toStringAsFixed(2)}%',
+                                  ),
+                                  const SizedBox(height: _baseUnit * 1.5),
+                                  const Divider(color: _borderLight),
+                                  const SizedBox(height: _baseUnit * 1.5),
+                                  _buildAmountRow(
+                                    'Sous-total estimé',
+                                    _buildCommandeSubtotal(cmd),
+                                  ),
+                                  const SizedBox(height: _baseUnit),
+                                  _buildAmountRow(
+                                    'Total final',
+                                    '${cmd.total.toStringAsFixed(2)} DT',
+                                    isPrimary: true,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: _baseUnit * 2),
+                            _buildDetailsSection(
+                              title: 'Aperçu rapide',
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Produits',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      color: _textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: _baseUnit),
+                                  if (cmd.produits.isEmpty)
+                                    const Text(
+                                      'Aucun produit',
+                                      style: TextStyle(color: _textSecondary),
+                                    )
+                                  else
+                                    ...cmd.produits.map((p) {
+                                      return Container(
+                                        margin: EdgeInsets.only(
+                                          bottom: _baseUnit,
+                                        ),
+                                        padding: EdgeInsets.all(
+                                          _baseUnit * 1.25,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: _background,
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          border: Border.all(
+                                            color: _borderLight,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                '${p.libelle} x${p.quantite}',
+                                                style: const TextStyle(
+                                                  color: _textPrimary,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                            Text(
+                                              '${p.sousTotal.toStringAsFixed(2)} DT',
+                                              style: const TextStyle(
+                                                color: _textSecondary,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (compact) {
+                        return Column(
+                          children: [
+                            Expanded(child: leftPanel),
+                            const SizedBox(height: _baseUnit * 2),
+                            Expanded(child: rightPanel),
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(flex: 3, child: leftPanel),
+                          const SizedBox(width: _baseUnit * 2),
+                          Expanded(flex: 2, child: rightPanel),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: _baseUnit * 2),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (_canConfirm(cmd))
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          await _onConfirm(cmd);
+                        },
+                        icon: const Icon(Icons.check_circle_outline),
+                        label: const Text('Confirmer'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _success,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    if (_canConfirm(cmd)) const SizedBox(width: _baseUnit),
+                    TextButton.icon(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(Icons.close),
+                      label: const Text('Fermer'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<_CommandeFormResult?> _openCommandeForm({
+    CommandeModel? initialCommande,
+  }) async {
+    final isEdit = initialCommande != null;
+    final formKey = GlobalKey<FormState>();
+
+    int? selectedClientId = initialCommande?.client?.idClient;
+    final remiseCtrl = TextEditingController(
+      text: (initialCommande?.tauxRemise ?? 0).toStringAsFixed(2),
+    );
+
+    final lines = <_DraftLine>[
+      if (isEdit && initialCommande.produits.isNotEmpty)
+        ...initialCommande.produits.map(
+          (p) => _newDraftLine(
+            produitId: p.produitId,
+            quantite: p.quantite,
+            fallbackPrix: p.prixUnitaire,
+          ),
+        )
+      else
+        _newDraftLine(produitId: _firstAvailableProduitId([])),
+    ];
+
+    final removedLines = <_DraftLine>[];
+
+    final result = await showDialog<_CommandeFormResult>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (ctx, setModal) {
+            double subTotal() {
+              double total = 0;
+              for (final line in lines) {
+                final qty = int.tryParse(line.quantiteController.text) ?? 0;
+                final prod = _findProduitById(line.produitId);
+                final prix = prod?.prixVente ?? line.fallbackPrix ?? 0;
+                total += qty * prix;
+              }
+              return total;
+            }
+
+            double remiseValue() {
+              return double.tryParse(remiseCtrl.text) ?? 0;
+            }
+
+            double totalAfterRemise() {
+              final r = remiseValue().clamp(0, 100);
+              return subTotal() * (1 - r / 100);
+            }
+
+            bool canAddProduct() {
+              return _firstAvailableProduitId(lines) != null;
+            }
+
+            ClientModel? selectedClient() {
+              try {
+                return _clients.firstWhere((c) => c.id == selectedClientId);
+              } catch (_) {
+                return null;
+              }
+            }
+
+            Future<void> save() async {
+              final hasValidLines = lines.any((l) {
+                final q = int.tryParse(l.quantiteController.text) ?? 0;
+                return l.produitId != null && q > 0;
+              });
+
+              if (selectedClientId == null) {
+                _showMessage('Veuillez sélectionner un client', isError: true);
+                return;
+              }
+
+              if (!hasValidLines) {
+                _showMessage(
+                  'Ajoutez au moins un produit valide',
+                  isError: true,
+                );
+                return;
+              }
+
+              if (!(formKey.currentState?.validate() ?? false)) {
+                return;
+              }
+
+              final produits = _buildProduitPayload(lines);
+              Navigator.pop(
+                ctx,
+                _CommandeFormResult(
+                  clientId: selectedClientId!,
+                  produits: produits,
+                  remiseTotale: remiseValue(),
+                  clientAdresse: null,
+                  clientTelephone: null,
+                  clientEmail: null,
+                ),
+              );
+            }
+
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Container(
+                width: 980,
+                constraints: const BoxConstraints(maxHeight: 760),
+                padding: EdgeInsets.all(_baseUnit * 3),
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              isEdit
+                                  ? 'Modifier la commande'
+                                  : 'Nouvelle commande',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: _textPrimary,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: _baseUnit * 1.5,
+                              vertical: _baseUnit,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _background,
+                              borderRadius: BorderRadius.circular(30),
+                              border: Border.all(color: _borderLight),
+                            ),
+                            child: Text(
+                              'Interface unique',
+                              style: TextStyle(
+                                color: _primaryDark,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: _baseUnit),
+                          IconButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: _baseUnit * 2),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            children: [
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final compact = constraints.maxWidth < 860;
+
+                                  final leftPanel = Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _buildFormSection(
+                                        title: 'Informations générales',
+                                        child: Column(
+                                          children: [
+                                            DropdownButtonFormField<int>(
+                                              initialValue: selectedClientId,
+                                              isExpanded: true,
+                                              decoration: InputDecoration(
+                                                labelText: 'Client',
+                                                prefixIcon: const Icon(
+                                                  Icons.person_outline,
+                                                ),
+                                                border: OutlineInputBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                              ),
+                                              items: _clients.map((c) {
+                                                return DropdownMenuItem(
+                                                  value: c.id,
+                                                  child: Text(
+                                                    '${c.nom} (${c.telephone})',
+                                                  ),
+                                                );
+                                              }).toList(),
+                                              onChanged: isEdit
+                                                  ? null
+                                                  : (v) => setModal(
+                                                      () =>
+                                                          selectedClientId = v,
+                                                    ),
+                                              validator: (v) =>
+                                                  v == null ? 'Requis' : null,
+                                            ),
+                                            const SizedBox(
+                                              height: _baseUnit * 1.5,
+                                            ),
+                                            TextFormField(
+                                              controller: remiseCtrl,
+                                              keyboardType:
+                                                  const TextInputType.numberWithOptions(
+                                                    decimal: true,
+                                                  ),
+                                              decoration: InputDecoration(
+                                                labelText: 'Remise (%)',
+                                                prefixIcon: const Icon(
+                                                  Icons.percent,
+                                                ),
+                                                border: OutlineInputBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                              ),
+                                              onChanged: (_) => setModal(() {}),
+                                              validator: (v) {
+                                                final value = double.tryParse(
+                                                  v ?? '',
+                                                );
+                                                if (value == null) {
+                                                  return 'Valeur invalide';
+                                                }
+                                                if (value < 0 || value > 100) {
+                                                  return 'Entre 0 et 100';
+                                                }
+                                                return null;
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(height: _baseUnit * 2),
+                                      _buildFormSection(
+                                        title: 'Produits',
+                                        child: Column(
+                                          children: [
+                                            ...List.generate(lines.length, (
+                                              idx,
+                                            ) {
+                                              final line = lines[idx];
+                                              final available =
+                                                  _availableProductsForLine(
+                                                    lines,
+                                                    line,
+                                                  );
+                                              final prod = _findProduitById(
+                                                line.produitId,
+                                              );
+                                              final qty =
+                                                  int.tryParse(
+                                                    line
+                                                        .quantiteController
+                                                        .text,
+                                                  ) ??
+                                                  0;
+                                              final unitPrice =
+                                                  prod?.prixVente ??
+                                                  line.fallbackPrix ??
+                                                  0;
+                                              final lineTotal = qty * unitPrice;
+
+                                              return Container(
+                                                margin: EdgeInsets.only(
+                                                  bottom: _baseUnit * 1.5,
+                                                ),
+                                                padding: EdgeInsets.all(
+                                                  _baseUnit * 1.5,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: _background,
+                                                  borderRadius:
+                                                      BorderRadius.circular(16),
+                                                  border: Border.all(
+                                                    color: _borderLight,
+                                                  ),
+                                                ),
+                                                child: Column(
+                                                  children: [
+                                                    Row(
+                                                      children: [
+                                                        Expanded(
+                                                          child: Text(
+                                                            'Ligne ${idx + 1}',
+                                                            style: const TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w700,
+                                                              color:
+                                                                  _textPrimary,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        IconButton(
+                                                          icon: const Icon(
+                                                            Icons
+                                                                .delete_outline,
+                                                            color: _error,
+                                                          ),
+                                                          onPressed:
+                                                              lines.length <= 1
+                                                              ? null
+                                                              : () {
+                                                                  removedLines.add(
+                                                                    lines
+                                                                        .removeAt(
+                                                                          idx,
+                                                                        ),
+                                                                  );
+                                                                  setModal(
+                                                                    () {},
+                                                                  );
+                                                                },
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    const SizedBox(
+                                                      height: _baseUnit,
+                                                    ),
+                                                    DropdownButtonFormField<
+                                                      int
+                                                    >(
+                                                      initialValue:
+                                                          available.any(
+                                                            (p) =>
+                                                                p.idProduit ==
+                                                                line.produitId,
+                                                          )
+                                                          ? line.produitId
+                                                          : null,
+                                                      isExpanded: true,
+                                                      decoration: InputDecoration(
+                                                        labelText: 'Produit',
+                                                        border: OutlineInputBorder(
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                12,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                      items: available.map((p) {
+                                                        return DropdownMenuItem(
+                                                          value: p.idProduit,
+                                                          child: Text(
+                                                            '${p.libelle} (stock: ${p.quantiteStock})',
+                                                          ),
+                                                        );
+                                                      }).toList(),
+                                                      onChanged: (v) =>
+                                                          setModal(
+                                                            () =>
+                                                                line.produitId =
+                                                                    v,
+                                                          ),
+                                                      validator: (v) =>
+                                                          v == null
+                                                          ? 'Requis'
+                                                          : null,
+                                                    ),
+                                                    const SizedBox(
+                                                      height: _baseUnit,
+                                                    ),
+                                                    Row(
+                                                      children: [
+                                                        Expanded(
+                                                          child: TextFormField(
+                                                            controller: line
+                                                                .quantiteController,
+                                                            keyboardType:
+                                                                TextInputType
+                                                                    .number,
+                                                            decoration: InputDecoration(
+                                                              labelText:
+                                                                  'Quantité',
+                                                              border: OutlineInputBorder(
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      12,
+                                                                    ),
+                                                              ),
+                                                            ),
+                                                            onChanged: (_) =>
+                                                                setModal(() {}),
+                                                            validator: (v) {
+                                                              final q =
+                                                                  int.tryParse(
+                                                                    v ?? '',
+                                                                  );
+                                                              return (q ==
+                                                                          null ||
+                                                                      q <= 0)
+                                                                  ? 'Invalide'
+                                                                  : null;
+                                                            },
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                          width: _baseUnit,
+                                                        ),
+                                                        Expanded(
+                                                          child: Container(
+                                                            padding:
+                                                                EdgeInsets.symmetric(
+                                                                  horizontal:
+                                                                      _baseUnit *
+                                                                      1.5,
+                                                                  vertical:
+                                                                      _baseUnit *
+                                                                      1.8,
+                                                                ),
+                                                            decoration: BoxDecoration(
+                                                              color: _surface,
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    12,
+                                                                  ),
+                                                              border: Border.all(
+                                                                color:
+                                                                    _borderLight,
+                                                              ),
+                                                            ),
+                                                            child: Column(
+                                                              crossAxisAlignment:
+                                                                  CrossAxisAlignment
+                                                                      .start,
+                                                              children: [
+                                                                const Text(
+                                                                  'Prix unitaire',
+                                                                  style: TextStyle(
+                                                                    color:
+                                                                        _textSecondary,
+                                                                    fontSize:
+                                                                        12,
+                                                                  ),
+                                                                ),
+                                                                const SizedBox(
+                                                                  height: 4,
+                                                                ),
+                                                                Text(
+                                                                  '${unitPrice.toStringAsFixed(2)} DT',
+                                                                  style: const TextStyle(
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w700,
+                                                                    color:
+                                                                        _textPrimary,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                          width: _baseUnit,
+                                                        ),
+                                                        Expanded(
+                                                          child: Container(
+                                                            padding:
+                                                                EdgeInsets.symmetric(
+                                                                  horizontal:
+                                                                      _baseUnit *
+                                                                      1.5,
+                                                                  vertical:
+                                                                      _baseUnit *
+                                                                      1.8,
+                                                                ),
+                                                            decoration: BoxDecoration(
+                                                              color: _surface,
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    12,
+                                                                  ),
+                                                              border: Border.all(
+                                                                color:
+                                                                    _borderLight,
+                                                              ),
+                                                            ),
+                                                            child: Column(
+                                                              crossAxisAlignment:
+                                                                  CrossAxisAlignment
+                                                                      .start,
+                                                              children: [
+                                                                const Text(
+                                                                  'Sous-total',
+                                                                  style: TextStyle(
+                                                                    color:
+                                                                        _textSecondary,
+                                                                    fontSize:
+                                                                        12,
+                                                                  ),
+                                                                ),
+                                                                const SizedBox(
+                                                                  height: 4,
+                                                                ),
+                                                                Text(
+                                                                  '${lineTotal.toStringAsFixed(2)} DT',
+                                                                  style: const TextStyle(
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w700,
+                                                                    color:
+                                                                        _textPrimary,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                            }),
+                                            Align(
+                                              alignment: Alignment.centerLeft,
+                                              child: TextButton.icon(
+                                                onPressed: canAddProduct()
+                                                    ? () {
+                                                        final newId =
+                                                            _firstAvailableProduitId(
+                                                              lines,
+                                                            );
+                                                        if (newId != null) {
+                                                          lines.add(
+                                                            _newDraftLine(
+                                                              produitId: newId,
+                                                            ),
+                                                          );
+                                                          setModal(() {});
+                                                        }
+                                                      }
+                                                    : null,
+                                                icon: const Icon(Icons.add),
+                                                label: const Text(
+                                                  'Ajouter un produit',
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  );
+
+                                  final rightPanel = _buildFormSection(
+                                    title: 'Résumé de la commande',
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        _buildSummaryTile(
+                                          label: 'Client',
+                                          value: selectedClient()?.nom ?? '-',
+                                        ),
+                                        const SizedBox(height: _baseUnit),
+                                        _buildSummaryTile(
+                                          label: 'Téléphone',
+                                          value:
+                                              selectedClient()?.telephone ??
+                                              '-',
+                                        ),
+                                        const SizedBox(height: _baseUnit),
+                                        _buildSummaryTile(
+                                          label: 'Nombre de lignes',
+                                          value: '${lines.length}',
+                                        ),
+                                        const SizedBox(height: _baseUnit),
+                                        _buildSummaryTile(
+                                          label: 'Remise',
+                                          value:
+                                              '${remiseValue().toStringAsFixed(2)}%',
+                                        ),
+                                        const SizedBox(height: _baseUnit * 1.5),
+                                        const Divider(color: _borderLight),
+                                        const SizedBox(height: _baseUnit * 1.5),
+                                        _buildAmountRow(
+                                          'Sous-total',
+                                          '${subTotal().toStringAsFixed(2)} DT',
+                                        ),
+                                        const SizedBox(height: _baseUnit),
+                                        _buildAmountRow(
+                                          'Total final',
+                                          '${totalAfterRemise().toStringAsFixed(2)} DT',
+                                          isPrimary: true,
+                                        ),
+                                        const SizedBox(height: _baseUnit * 2),
+                                        const Text(
+                                          'Aperçu produits',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 14,
+                                            color: _textPrimary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: _baseUnit),
+                                        if (lines.isEmpty)
+                                          const Text(
+                                            'Aucun produit',
+                                            style: TextStyle(
+                                              color: _textSecondary,
+                                            ),
+                                          )
+                                        else
+                                          ...lines.map((l) {
+                                            final prod = _findProduitById(
+                                              l.produitId,
+                                            );
+                                            final qty =
+                                                int.tryParse(
+                                                  l.quantiteController.text,
+                                                ) ??
+                                                0;
+                                            final amount =
+                                                qty *
+                                                (prod?.prixVente ??
+                                                    l.fallbackPrix ??
+                                                    0);
+
+                                            return Container(
+                                              margin: EdgeInsets.only(
+                                                bottom: _baseUnit,
+                                              ),
+                                              padding: EdgeInsets.all(
+                                                _baseUnit * 1.25,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: _background,
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                border: Border.all(
+                                                  color: _borderLight,
+                                                ),
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Text(
+                                                      '${prod?.libelle ?? 'Produit'} x$qty',
+                                                      style: const TextStyle(
+                                                        color: _textPrimary,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Text(
+                                                    '${amount.toStringAsFixed(2)} DT',
+                                                    style: const TextStyle(
+                                                      color: _textSecondary,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          }),
+                                      ],
+                                    ),
+                                  );
+
+                                  if (compact) {
+                                    return Column(
+                                      children: [
+                                        leftPanel,
+                                        const SizedBox(height: _baseUnit * 2),
+                                        rightPanel,
+                                      ],
+                                    );
+                                  }
+
+                                  return Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(flex: 3, child: leftPanel),
+                                      const SizedBox(width: _baseUnit * 2),
+                                      Expanded(flex: 2, child: rightPanel),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: _baseUnit * 2),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('Annuler'),
+                          ),
+                          const SizedBox(width: _baseUnit),
+                          ElevatedButton.icon(
+                            onPressed: save,
+                            icon: const Icon(Icons.save_outlined),
+                            label: Text(isEdit ? 'Enregistrer' : 'Créer'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _accent,
+                              foregroundColor: Colors.white,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: _baseUnit * 2,
+                                vertical: _baseUnit * 1.5,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    for (final l in lines) {
+      l.dispose();
+    }
+    for (final l in removedLines) {
+      l.dispose();
+    }
+    remiseCtrl.dispose();
+    return result;
+  }
+
+  Widget _buildFormSection({required String title, required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(_baseUnit * 2),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _borderLight),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: _textPrimary,
+            ),
+          ),
+          const SizedBox(height: _baseUnit * 1.5),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailsSection({required String title, required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(_baseUnit * 2),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _borderLight),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: _textPrimary,
+            ),
+          ),
+          const SizedBox(height: _baseUnit * 1.5),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailInfoCard({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 190),
+      padding: EdgeInsets.all(_baseUnit * 1.5),
+      decoration: BoxDecoration(
+        color: _background,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _borderLight),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: _surface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _borderLight),
+            ),
+            child: Icon(icon, size: 18, color: _primary),
+          ),
+          const SizedBox(width: _baseUnit),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(color: _textSecondary, fontSize: 12),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    bool isLast = false,
+  }) {
+    return Container(
+      margin: EdgeInsets.only(bottom: isLast ? 0 : _baseUnit),
+      padding: EdgeInsets.all(_baseUnit * 1.25),
+      decoration: BoxDecoration(
+        color: _background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borderLight),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: _textSecondary),
+          const SizedBox(width: _baseUnit),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(color: _textSecondary, fontSize: 12),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: _textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProduitDetailCard({
+    required int index,
+    required dynamic produit,
+  }) {
+    return Container(
+      margin: EdgeInsets.only(bottom: _baseUnit * 1.25),
+      padding: EdgeInsets.all(_baseUnit * 1.5),
+      decoration: BoxDecoration(
+        color: _background,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _borderLight),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: _surface,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _borderLight),
+                ),
+                child: Text(
+                  '$index',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: _primary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: _baseUnit),
+              Expanded(
+                child: Text(
+                  produit.libelle,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: _textPrimary,
+                  ),
+                ),
+              ),
+              Text(
+                '${produit.sousTotal.toStringAsFixed(2)} DT',
+                style: const TextStyle(
+                  color: _primaryDark,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: _baseUnit * 1.25),
+          Wrap(
+            spacing: _baseUnit,
+            runSpacing: _baseUnit,
+            children: [
+              _InfoBadge(label: 'Quantité', value: '${produit.quantite}'),
+              _InfoBadge(
+                label: 'Prix unitaire',
+                value: '${produit.prixUnitaire.toStringAsFixed(2)} DT',
+              ),
+              _InfoBadge(
+                label: 'Sous-total',
+                value: '${produit.sousTotal.toStringAsFixed(2)} DT',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryTile({required String label, required String value}) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: _baseUnit * 1.5,
+        vertical: _baseUnit * 1.3,
+      ),
+      decoration: BoxDecoration(
+        color: _background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borderLight),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: _textSecondary, fontSize: 12),
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: _textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAmountRow(String label, String value, {bool isPrimary = false}) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isPrimary ? _textPrimary : _textSecondary,
+              fontWeight: isPrimary ? FontWeight.w700 : FontWeight.w600,
+              fontSize: isPrimary ? 15 : 13,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: isPrimary ? _accent : _textPrimary,
+            fontWeight: FontWeight.w800,
+            fontSize: isPrimary ? 18 : 14,
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _buildCommandeSubtotal(CommandeModel cmd) {
+    final subtotal = cmd.produits.fold<double>(
+      0,
+      (sum, p) => sum + p.sousTotal,
+    );
+    return '${subtotal.toStringAsFixed(2)} DT';
+  }
+
+  bool _canConfirm(CommandeModel cmd) {
+    return !_isBusy && cmd.statut.trim().toUpperCase() == 'EN_ATTENTE';
+  }
+
+  _DraftLine _newDraftLine({
+    int? produitId,
+    int quantite = 1,
+    double? fallbackPrix,
+  }) {
+    _draftLineSeed += 1;
+    return _DraftLine(
+      rowKey: 'line_$_draftLineSeed',
+      produitId: produitId,
+      quantite: quantite,
+      fallbackPrix: fallbackPrix,
+    );
+  }
+
+  List<ProduitOption> _availableProductsForLine(
+    List<_DraftLine> lines,
+    _DraftLine currentLine,
+  ) {
+    final selected = <int>{};
+    for (final l in lines) {
+      if (l.rowKey == currentLine.rowKey) continue;
+      if (l.produitId != null) selected.add(l.produitId!);
+    }
+    return _produits
+        .where(
+          (p) =>
+              p.idProduit == currentLine.produitId ||
+              !selected.contains(p.idProduit),
+        )
+        .toList();
+  }
+
+  int? _firstAvailableProduitId(List<_DraftLine> lines) {
+    final selected = lines.map((l) => l.produitId).whereType<int>().toSet();
+    for (final p in _produits) {
+      if (!selected.contains(p.idProduit)) return p.idProduit;
+    }
+    return null;
+  }
+
+  ProduitOption? _findProduitById(int? id) {
+    if (id == null) return null;
+    try {
+      return _produits.firstWhere((p) => p.idProduit == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<CommandeProduitPayload> _buildProduitPayload(List<_DraftLine> lines) {
+    final map = <int, CommandeProduitPayload>{};
+    for (final l in lines) {
+      final pid = l.produitId;
+      final qty = int.tryParse(l.quantiteController.text) ?? 0;
+      if (pid == null || qty <= 0) continue;
+      final prod = _findProduitById(pid);
+      final prix = prod?.prixVente ?? l.fallbackPrix;
+      if (map.containsKey(pid)) {
+        final existing = map[pid]!;
+        map[pid] = CommandeProduitPayload(
+          produitId: pid,
+          quantite: existing.quantite + qty,
+          prixUnitaire: existing.prixUnitaire ?? prix,
+        );
+      } else {
+        map[pid] = CommandeProduitPayload(
+          produitId: pid,
+          quantite: qty,
+          prixUnitaire: prix,
+        );
+      }
+    }
+    return map.values.toList();
   }
 
   void _showMessage(String msg, {bool isError = false}) {
@@ -189,12 +1788,6 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     );
   }
 
-  void _setFilter(String status) {
-    setState(() => _statusFilter = status);
-    _reloadCommandes(showBusy: true);
-  }
-
-  // ---------- UI ----------
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -207,10 +1800,13 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.error_outline, color: _error, size: 48),
-            const SizedBox(height: 16),
+            const SizedBox(height: _baseUnit * 2),
             Text(_errorMessage!, style: const TextStyle(color: _error)),
-            const SizedBox(height: 16),
-            ElevatedButton(onPressed: _loadInitialData, child: const Text('Réessayer')),
+            const SizedBox(height: _baseUnit * 2),
+            ElevatedButton(
+              onPressed: _loadInitialData,
+              child: const Text('Réessayer'),
+            ),
           ],
         ),
       );
@@ -218,338 +1814,313 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
 
     return Container(
       color: _background,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _Header(
-            commandes: _commandes,
-            isBusy: _isBusy,
-            statusFilter: _statusFilter,
-            onFilterChanged: _setFilter,
-            onRefresh: () => _reloadCommandes(showBusy: true),
-            onCreate: _onCreate,
-            useGrid: _useGrid,
-            onToggleView: () => setState(() => _useGrid = !_useGrid),
-          ),
-          if (_isBusy) const LinearProgressIndicator(minHeight: 2),
-          Expanded(
-            child: _commandes.isEmpty
-                ? _EmptyState(isBusy: _isBusy, onCreate: _onCreate)
-                : _CommandesList(
-                    commandes: _commandes,
-                    isBusy: _isBusy,
-                    useGrid: _useGrid,
-                    onDetails: _onDetails,
-                    onEdit: _onEdit,
-                    onCancel: _onCancel,
-                  ),
-          ),
+      child: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(child: _buildHeader()),
+          if (_isBusy)
+            const SliverToBoxAdapter(
+              child: LinearProgressIndicator(minHeight: 2),
+            ),
+          if (_commandes.isEmpty)
+            SliverFillRemaining(hasScrollBody: false, child: _buildEmptyState())
+          else
+            ..._buildOrderSlivers(),
         ],
       ),
     );
   }
-}
 
-// ---------- DECOUPAGE ----------
-class _Header extends StatelessWidget {
-  final List<CommandeModel> commandes;
-  final bool isBusy;
-  final String statusFilter;
-  final void Function(String) onFilterChanged;
-  final VoidCallback onRefresh;
-  final VoidCallback onCreate;
-  final bool useGrid;
-  final VoidCallback onToggleView;
-
-  const _Header({
-    required this.commandes,
-    required this.isBusy,
-    required this.statusFilter,
-    required this.onFilterChanged,
-    required this.onRefresh,
-    required this.onCreate,
-    required this.useGrid,
-    required this.onToggleView,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final pending = commandes.where((c) => c.statut.toUpperCase() == 'EN_ATTENTE').length;
-    final confirmed = commandes.where((c) => c.statut.toUpperCase() == 'CONFIRMEE').length;
-    final cancelled = commandes.where((c) => c.statut.toUpperCase() == 'ANNULEE').length;
-
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _borderLight),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 20, offset: const Offset(0, 10)),
-        ],
+  Widget _buildHeader() {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        _baseUnit * 2,
+        _baseUnit * 2,
+        _baseUnit * 2,
+        _baseUnit,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [_primary, _primaryDark]),
-                  borderRadius: BorderRadius.circular(12),
+          Container(
+            padding: EdgeInsets.all(_baseUnit * 2),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [_primary, _primaryDark],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x3A2D47C8),
+                  blurRadius: 20,
+                  offset: Offset(0, 10),
                 ),
-                child: const Icon(Icons.shopping_cart_outlined, color: Colors.white),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text(
-                  'Gestion des commandes',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _textPrimary),
-                ),
-              ),
-              _CountPill(count: commandes.length),
-              const SizedBox(width: 8),
-              IconButton(
-                tooltip: 'Actualiser',
-                onPressed: isBusy ? null : onRefresh,
-                icon: const Icon(Icons.refresh),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _SummaryCard(
-                label: 'Total',
-                value: commandes.length.toString(),
-                color: _primary,
-                icon: Icons.shopping_bag_outlined,
-                onTap: () => onFilterChanged('TOUS'),
-              ),
-              _SummaryCard(
-                label: 'En attente',
-                value: pending.toString(),
-                color: _primary,
-                icon: Icons.timelapse_outlined,
-                onTap: () => onFilterChanged('EN_ATTENTE'),
-              ),
-              _SummaryCard(
-                label: 'Confirmées',
-                value: confirmed.toString(),
-                color: _success,
-                icon: Icons.verified_outlined,
-                onTap: () => onFilterChanged('CONFIRMEE'),
-              ),
-              _SummaryCard(
-                label: 'Annulées',
-                value: cancelled.toString(),
-                color: _error,
-                icon: Icons.cancel_outlined,
-                onTap: () => onFilterChanged('ANNULEE'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isCompact = constraints.maxWidth < 600;
-              if (isCompact) {
-                return Column(
-                  children: [
-                    _StatusFilter(
-                      statuses: const ['TOUS', 'EN_ATTENTE', 'CONFIRMEE', 'ANNULEE'],
-                      currentFilter: statusFilter,
-                      onChanged: onFilterChanged,
+              ],
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 760;
+                final titleBlock = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'Commandes Commerciales',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 6),
+                    Text(
+                      'Workflow de vente, suivi et actions sur commandes dans une interface unifiée.',
+                      style: TextStyle(color: Color(0xFFE3EBFF), fontSize: 13),
+                    ),
+                  ],
+                );
+
+                final counter = _buildCountPill(
+                  _commandes.length,
+                  onDark: true,
+                );
+
+                if (compact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      titleBlock,
+                      const SizedBox(height: _baseUnit * 1.5),
+                      counter,
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Expanded(child: titleBlock),
+                    counter,
+                  ],
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: _baseUnit * 1.5),
+          Container(
+            padding: EdgeInsets.all(_baseUnit * 2),
+            decoration: BoxDecoration(
+              color: _surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _borderLight),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 760;
+                if (compact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Filtres & Actions',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: _textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: _baseUnit),
+                      _buildStatusFilter(),
+                      const SizedBox(height: _baseUnit * 1.5),
+                      Wrap(
+                        spacing: _baseUnit,
+                        runSpacing: _baseUnit,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: _isBusy ? null : _onCreate,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Nouvelle commande'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _accent,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _isBusy
+                                ? null
+                                : () => _reloadCommandes(showBusy: true),
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Actualiser'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () =>
+                                setState(() => _useGrid = !_useGrid),
+                            icon: Icon(
+                              _useGrid
+                                  ? Icons.view_agenda_outlined
+                                  : Icons.grid_view_rounded,
+                            ),
+                            label: Text(_useGrid ? 'Vue liste' : 'Vue grille'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Row(
                       children: [
-                        Expanded(
-                          child: _CreateOrderButton(onPressed: onCreate, isBusy: isBusy),
+                        const Expanded(
+                          child: Text(
+                            'Filtres & Actions',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: _textPrimary,
+                            ),
+                          ),
                         ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: Icon(useGrid ? Icons.view_list : Icons.grid_view),
-                          onPressed: onToggleView,
+                        OutlinedButton.icon(
+                          onPressed: _isBusy
+                              ? null
+                              : () => _reloadCommandes(showBusy: true),
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Actualiser'),
+                        ),
+                        const SizedBox(width: _baseUnit),
+                        OutlinedButton.icon(
+                          onPressed: () => setState(() => _useGrid = !_useGrid),
+                          icon: Icon(
+                            _useGrid
+                                ? Icons.view_agenda_outlined
+                                : Icons.grid_view_rounded,
+                          ),
+                          label: Text(_useGrid ? 'Vue liste' : 'Vue grille'),
+                        ),
+                        const SizedBox(width: _baseUnit),
+                        ElevatedButton.icon(
+                          onPressed: _isBusy ? null : _onCreate,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Nouvelle commande'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _accent,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
                         ),
                       ],
                     ),
+                    const SizedBox(height: _baseUnit * 1.5),
+                    _buildStatusFilter(),
                   ],
                 );
-              } else {
-                return Row(
-                  children: [
-                    Expanded(
-                      child: _StatusFilter(
-                        statuses: const ['TOUS', 'EN_ATTENTE', 'CONFIRMEE', 'ANNULEE'],
-                        currentFilter: statusFilter,
-                        onChanged: onFilterChanged,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    _CreateOrderButton(onPressed: onCreate, isBusy: isBusy),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: Icon(useGrid ? Icons.view_list : Icons.grid_view),
-                      onPressed: onToggleView,
-                    ),
-                  ],
-                );
-              }
-            },
+              },
+            ),
           ),
         ],
       ),
     );
   }
-}
 
-class _CountPill extends StatelessWidget {
-  final int count;
-  const _CountPill({required this.count});
+  void _setFilter(String status) {
+    setState(() => _statusFilter = status);
+    _reloadCommandes(showBusy: true);
+  }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildCountPill(int count, {bool onDark = false}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: _baseUnit * 1.5,
+        vertical: _baseUnit,
+      ),
       decoration: BoxDecoration(
-        color: _primary.withOpacity(0.1),
+        color: onDark
+            ? Colors.white.withValues(alpha: 0.18)
+            : _primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: _primary.withOpacity(0.3)),
-      ),
-      child: Text('$count', style: TextStyle(color: _primary, fontWeight: FontWeight.w800)),
-    );
-  }
-}
-
-class _SummaryCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _SummaryCard({
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        constraints: const BoxConstraints(minWidth: 130),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: _surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _borderLight),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
-          ],
+        border: Border.all(
+          color: onDark
+              ? Colors.white.withValues(alpha: 0.28)
+              : _primary.withValues(alpha: 0.3),
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: _textPrimary)),
-                Text(label, style: TextStyle(color: _textSecondary, fontSize: 12)),
-              ],
-            ),
-          ],
+      ),
+      child: Text(
+        '$count commandes',
+        style: TextStyle(
+          color: onDark ? Colors.white : _primary,
+          fontWeight: FontWeight.w800,
         ),
       ),
     );
   }
-}
 
-class _StatusFilter extends StatelessWidget {
-  final List<String> statuses;
-  final String currentFilter;
-  final void Function(String) onChanged;
+  Widget _buildStatusFilter() {
+    final icons = <String, IconData>{
+      'TOUS': Icons.all_inbox_outlined,
+      'EN_ATTENTE': Icons.hourglass_top_outlined,
+      'CONFIRMEE': Icons.verified_outlined,
+      'ANNULEE': Icons.block_outlined,
+    };
 
-  const _StatusFilter({
-    required this.statuses,
-    required this.currentFilter,
-    required this.onChanged,
-  });
-
-  String _display(String s) {
-    if (s == 'TOUS') return 'Tous';
-    if (s == 'EN_ATTENTE') return 'En attente';
-    if (s == 'CONFIRMEE') return 'Confirmée';
-    if (s == 'ANNULEE') return 'Annulée';
-    return s;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SegmentedButton<String>(
-      segments: statuses.map((s) => ButtonSegment(value: s, label: Text(_display(s)))).toList(),
-      selected: {currentFilter},
-      onSelectionChanged: (Set<String> newSelection) => onChanged(newSelection.first),
-      style: ButtonStyle(
-        backgroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return _primary;
-          return _surface;
-        }),
-        foregroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return Colors.white;
-          return _textPrimary;
-        }),
-      ),
+    return Wrap(
+      spacing: _baseUnit,
+      runSpacing: _baseUnit,
+      children: _statuses.map((status) {
+        final selected = _statusFilter == status;
+        return ChoiceChip(
+          label: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icons[status] ?? Icons.tune,
+                size: 16,
+                color: selected ? _primaryDark : _textSecondary,
+              ),
+              const SizedBox(width: 6),
+              Text(status == 'TOUS' ? 'Tous' : _displayStatus(status)),
+            ],
+          ),
+          selected: selected,
+          selectedColor: _primary.withValues(alpha: 0.16),
+          backgroundColor: _surface,
+          side: BorderSide(color: selected ? _primary : _borderLight),
+          labelStyle: TextStyle(
+            color: selected ? _primaryDark : _textPrimary,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+          ),
+          onSelected: (_) => _setFilter(status),
+        );
+      }).toList(),
     );
   }
-}
 
-class _CreateOrderButton extends StatelessWidget {
-  final VoidCallback onPressed;
-  final bool isBusy;
-  const _CreateOrderButton({required this.onPressed, required this.isBusy});
-
-  @override
-  Widget build(BuildContext context) {
-    return ElevatedButton.icon(
-      onPressed: isBusy ? null : onPressed,
-      icon: const Icon(Icons.add),
-      label: const Text('Nouvelle commande'),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: _accent,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+  String _displayStatus(String raw) {
+    if (raw == 'EN_ATTENTE') return 'En attente';
+    if (raw == 'CONFIRMEE') return 'Confirmée';
+    if (raw == 'ANNULEE') return 'Annulée';
+    return raw;
   }
-}
 
-class _EmptyState extends StatelessWidget {
-  final bool isBusy;
-  final VoidCallback onCreate;
-  const _EmptyState({required this.isBusy, required this.onCreate});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildEmptyState() {
     return Center(
       child: Container(
-        padding: const EdgeInsets.all(32),
-        margin: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(_baseUnit * 4),
+        margin: EdgeInsets.all(_baseUnit * 2),
         decoration: BoxDecoration(
           color: _surface,
           borderRadius: BorderRadius.circular(20),
@@ -559,26 +2130,32 @@ class _EmptyState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.shopping_cart_outlined, size: 64, color: _textSecondary),
-            const SizedBox(height: 16),
+            const SizedBox(height: _baseUnit * 2),
             const Text(
               'Aucune commande disponible',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _textPrimary),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: _textPrimary,
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: _baseUnit),
             const Text(
               'Créez votre première commande en cliquant sur le bouton ci-dessous.',
               style: TextStyle(color: _textSecondary),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: _baseUnit * 2),
             ElevatedButton.icon(
-              onPressed: isBusy ? null : onCreate,
+              onPressed: _isBusy ? null : _onCreate,
               icon: const Icon(Icons.add),
               label: const Text('Créer une commande'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _accent,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
               ),
             ),
           ],
@@ -586,188 +2163,285 @@ class _EmptyState extends StatelessWidget {
       ),
     );
   }
-}
 
-class _CommandesList extends StatelessWidget {
-  final List<CommandeModel> commandes;
-  final bool isBusy;
-  final bool useGrid;
-  final Future<void> Function(CommandeModel) onDetails;
-  final Future<void> Function(CommandeModel) onEdit;
-  final Future<void> Function(CommandeModel) onCancel;
-
-  const _CommandesList({
-    required this.commandes,
-    required this.isBusy,
-    required this.useGrid,
-    required this.onDetails,
-    required this.onEdit,
-    required this.onCancel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (useGrid) {
-      return GridView.builder(
-        padding: const EdgeInsets.all(16),
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 400,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 1.6,
-        ),
-        itemCount: commandes.length,
-        itemBuilder: (context, index) => _OrderCard(
-          commande: commandes[index],
-          isBusy: isBusy,
-          grid: true,
-          onDetails: onDetails,
-          onEdit: onEdit,
-          onCancel: onCancel,
-        ),
-      );
-    } else {
-      return ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: commandes.length,
-        itemExtent: 200, // hauteur approximative d'une carte en mode liste
-        itemBuilder: (context, index) => Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _OrderCard(
-            commande: commandes[index],
-            isBusy: isBusy,
-            grid: false,
-            onDetails: onDetails,
-            onEdit: onEdit,
-            onCancel: onCancel,
+  List<Widget> _buildOrderSlivers() {
+    if (_useGrid) {
+      return [
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(
+            _baseUnit * 2,
+            _baseUnit,
+            _baseUnit * 2,
+            _baseUnit * 2,
+          ),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 430,
+              crossAxisSpacing: _baseUnit * 2,
+              mainAxisSpacing: _baseUnit * 2,
+              mainAxisExtent: 300,
+            ),
+            delegate: SliverChildBuilderDelegate((context, index) {
+              return _buildOrderCard(_commandes[index], grid: true);
+            }, childCount: _commandes.length),
           ),
         ),
-      );
+      ];
     }
-  }
-}
 
-class _OrderCard extends StatelessWidget {
-  final CommandeModel commande;
-  final bool isBusy;
-  final bool grid;
-  final Future<void> Function(CommandeModel) onDetails;
-  final Future<void> Function(CommandeModel) onEdit;
-  final Future<void> Function(CommandeModel) onCancel;
-
-  const _OrderCard({
-    required this.commande,
-    required this.isBusy,
-    required this.grid,
-    required this.onDetails,
-    required this.onEdit,
-    required this.onCancel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: _borderLight),
+    return [
+      SliverPadding(
+        padding: EdgeInsets.fromLTRB(
+          _baseUnit * 2,
+          _baseUnit,
+          _baseUnit * 2,
+          _baseUnit * 2,
+        ),
+        sliver: SliverList.builder(
+          itemCount: _commandes.length,
+          itemBuilder: (context, index) {
+            return Padding(
+              padding: EdgeInsets.only(bottom: _baseUnit * 1.5),
+              child: _buildOrderCard(_commandes[index], grid: false),
+            );
+          },
+        ),
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => onDetails(commande),
-        hoverColor: _primary.withOpacity(0.05),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      commande.referenceCommandeClient,
-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                      overflow: TextOverflow.ellipsis,
+    ];
+  }
+
+  Widget _buildMetaTile({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: _baseUnit * 1.25,
+        vertical: _baseUnit,
+      ),
+      decoration: BoxDecoration(
+        color: _background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borderLight),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: _textSecondary),
+          const SizedBox(width: 6),
+          Text(
+            '$label: ',
+            style: const TextStyle(color: _textSecondary, fontSize: 12),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: _textPrimary,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrderCard(CommandeModel cmd, {required bool grid}) {
+    final canEdit = !_isBusy && cmd.canEdit;
+    final canCancel = !_isBusy && cmd.canCancel;
+    final canConfirm = _canConfirm(cmd);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _borderLight),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => _onDetails(cmd),
+          child: Padding(
+            padding: EdgeInsets.all(_baseUnit * 2),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: _primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.receipt_long_outlined,
+                        color: _primary,
+                      ),
                     ),
+                    const SizedBox(width: _baseUnit * 1.25),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            cmd.referenceCommandeClient,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: _textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            cmd.dateCommandeFormatted,
+                            style: const TextStyle(
+                              color: _textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: _baseUnit),
+                    _StatusChip(status: cmd.statut),
+                  ],
+                ),
+                const SizedBox(height: _baseUnit * 1.5),
+                Wrap(
+                  spacing: _baseUnit,
+                  runSpacing: _baseUnit,
+                  children: [
+                    _buildMetaTile(
+                      icon: Icons.person_outline,
+                      label: 'Client',
+                      value: cmd.client?.fullName ?? '-',
+                    ),
+                    _buildMetaTile(
+                      icon: Icons.payments_outlined,
+                      label: 'Total',
+                      value: '${cmd.total.toStringAsFixed(2)} DT',
+                    ),
+                    _buildMetaTile(
+                      icon: Icons.shopping_bag_outlined,
+                      label: 'Lignes',
+                      value: '${cmd.produits.length}',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: _baseUnit * 1.5),
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: _baseUnit * 1.25,
+                    vertical: _baseUnit,
                   ),
-                  _StatusChip(status: commande.statut),
+                  decoration: BoxDecoration(
+                    color: _background,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _borderLight),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.inventory_2_outlined,
+                        size: 16,
+                        color: _textSecondary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _productsPreview(cmd),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: _textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (!grid) ...[
+                  const SizedBox(height: _baseUnit * 1.5),
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: _baseUnit,
+                    runSpacing: _baseUnit,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () => _onDetails(cmd),
+                        icon: const Icon(Icons.visibility_outlined),
+                        label: const Text('Détails'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: canEdit ? () => _onEdit(cmd) : null,
+                        icon: const Icon(Icons.edit_outlined),
+                        label: const Text('Modifier'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: canConfirm ? () => _onConfirm(cmd) : null,
+                        icon: const Icon(Icons.check_circle_outline),
+                        label: const Text('Confirmer'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _success,
+                        ),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: canCancel ? () => _onCancel(cmd) : null,
+                        icon: const Icon(Icons.cancel_outlined),
+                        label: const Text('Annuler'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _error,
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  const Spacer(),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      IconButton(
+                        tooltip: 'Détails',
+                        onPressed: () => _onDetails(cmd),
+                        icon: const Icon(Icons.visibility_outlined),
+                      ),
+                      IconButton(
+                        tooltip: 'Modifier',
+                        onPressed: canEdit ? () => _onEdit(cmd) : null,
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
+                      IconButton(
+                        tooltip: 'Confirmer',
+                        onPressed: canConfirm ? () => _onConfirm(cmd) : null,
+                        icon: const Icon(Icons.check_circle_outline),
+                      ),
+                      IconButton(
+                        tooltip: 'Annuler',
+                        onPressed: canCancel ? () => _onCancel(cmd) : null,
+                        icon: const Icon(Icons.cancel_outlined),
+                      ),
+                    ],
+                  ),
                 ],
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _InfoBadge(label: 'Client', value: commande.client?.fullName ?? '-'),
-                  _InfoBadge(label: 'Date', value: commande.dateCommandeFormatted),
-                  _InfoBadge(label: 'Total', value: '${commande.total.toStringAsFixed(2)} DT'),
-                ],
-              ),
-              const SizedBox(height: 12),
-              // Product preview
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _background,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  _productsPreview(commande),
-                  style: const TextStyle(color: _textSecondary, fontSize: 12),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (!grid) ...[
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: () => onDetails(commande),
-                      icon: const Icon(Icons.visibility_outlined),
-                      label: const Text('Détails'),
-                    ),
-                    const SizedBox(width: 8),
-                    OutlinedButton.icon(
-                      onPressed: (!isBusy && commande.canEdit) ? () => onEdit(commande) : null,
-                      icon: Icon(Icons.edit_outlined, color: _primary),
-                      label: const Text('Modifier'),
-                    ),
-                    const SizedBox(width: 8),
-                    OutlinedButton.icon(
-                      onPressed: (!isBusy && commande.canCancel) ? () => onCancel(commande) : null,
-                      icon: Icon(Icons.cancel_outlined, color: _error),
-                      label: const Text('Annuler'),
-                      style: OutlinedButton.styleFrom(foregroundColor: _error),
-                    ),
-                  ],
-                ),
-              ] else ...[
-                const Spacer(),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    IconButton(
-                      tooltip: 'Détails',
-                      onPressed: () => onDetails(commande),
-                      icon: const Icon(Icons.visibility_outlined),
-                    ),
-                    IconButton(
-                      tooltip: 'Modifier',
-                      onPressed: (!isBusy && commande.canEdit) ? () => onEdit(commande) : null,
-                      icon: Icon(Icons.edit_outlined, color: _primary),
-                    ),
-                    IconButton(
-                      tooltip: 'Annuler',
-                      onPressed: (!isBusy && commande.canEdit) ? () => onCancel(commande) : null,
-                      icon: Icon(Icons.cancel_outlined, color: _error),
-                    ),
-                  ],
-                ),
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -780,4 +2454,39 @@ class _OrderCard extends StatelessWidget {
     if (names.length <= 2) return names.join(' + ');
     return '${names[0]} + ${names[1]} + ${names.length - 2} autres';
   }
+}
+
+// Helper classes
+class _DraftLine {
+  final String rowKey;
+  int? produitId;
+  final TextEditingController quantiteController;
+  final double? fallbackPrix;
+
+  _DraftLine({
+    required this.rowKey,
+    this.produitId,
+    int quantite = 1,
+    this.fallbackPrix,
+  }) : quantiteController = TextEditingController(text: '$quantite');
+
+  void dispose() => quantiteController.dispose();
+}
+
+class _CommandeFormResult {
+  final int clientId;
+  final List<CommandeProduitPayload> produits;
+  final double remiseTotale;
+  final String? clientAdresse;
+  final String? clientTelephone;
+  final String? clientEmail;
+
+  _CommandeFormResult({
+    required this.clientId,
+    required this.produits,
+    required this.remiseTotale,
+    this.clientAdresse,
+    this.clientTelephone,
+    this.clientEmail,
+  });
 }

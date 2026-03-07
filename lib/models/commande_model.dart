@@ -85,7 +85,10 @@ class CommandeProduitDetail {
       prixUnitaire: _readDouble(json, ['prixUnitaire', 'prix']),
       quantite: _readInt(json, ['quantite']),
       sousTotal: _readDouble(json, ['sousTotal', 'totalLigne']),
-      categorieNom: _readString(json, ['categorieNom', 'categorie'], fallback: '-'),
+      categorieNom: _readString(json, [
+        'categorieNom',
+        'categorie',
+      ], fallback: '-'),
     );
   }
 }
@@ -116,7 +119,7 @@ class CommandeModel {
   });
 
   bool get canEdit => statut.toUpperCase() == 'EN_ATTENTE';
-  bool get canCancel => statut.toUpperCase() != 'ANNULEE';
+  bool get canCancel => statut.toUpperCase() == 'EN_ATTENTE';
 
   factory CommandeModel.fromJson(Map<String, dynamic> json) {
     final rawClient = json['client'];
@@ -125,21 +128,29 @@ class CommandeModel {
 
     return CommandeModel(
       idCommandeClient: _readInt(json, ['idCommandeClient', 'id']),
-      referenceCommandeClient:
-          _readString(json, ['referenceCommandeClient', 'reference'], fallback: '-'),
-      client: rawClient is Map<String, dynamic> ? CommandeClientInfo.fromJson(rawClient) : null,
+      referenceCommandeClient: _readString(json, [
+        'referenceCommandeClient',
+        'reference',
+      ], fallback: '-'),
+      client: rawClient is Map<String, dynamic>
+          ? CommandeClientInfo.fromJson(rawClient)
+          : null,
       statut: _readString(json, ['statut'], fallback: 'EN_ATTENTE'),
-      statutDisplay: _readString(json, ['statutDisplay', 'statut'], fallback: 'En attente'),
-      dateCommandeFormatted:
-          _readString(json, ['dateCommandeFormatted'], fallback: fallbackDate.isEmpty ? '-' : fallbackDate),
+      statutDisplay: _readString(json, [
+        'statutDisplay',
+        'statut',
+      ], fallback: 'En attente'),
+      dateCommandeFormatted: _readString(json, [
+        'dateCommandeFormatted',
+      ], fallback: fallbackDate.isEmpty ? '-' : fallbackDate),
       sousTotal: _readDouble(json, ['sousTotal']),
       tauxRemise: _readDouble(json, ['tauxRemise', 'remiseTotale']),
       total: _readDouble(json, ['total']),
       produits: rawProduits is List
           ? rawProduits
-              .whereType<Map<String, dynamic>>()
-              .map(CommandeProduitDetail.fromJson)
-              .toList()
+                .whereType<Map<String, dynamic>>()
+                .map(CommandeProduitDetail.fromJson)
+                .toList()
           : <CommandeProduitDetail>[],
     );
   }
@@ -228,7 +239,11 @@ class CommandeUpdatePayload {
   }
 }
 
-String _readString(Map<String, dynamic> json, List<String> keys, {String fallback = ''}) {
+String _readString(
+  Map<String, dynamic> json,
+  List<String> keys, {
+  String fallback = '',
+}) {
   for (final key in keys) {
     final value = json[key];
     if (value is String && value.trim().isNotEmpty) {
@@ -251,7 +266,11 @@ int _readInt(Map<String, dynamic> json, List<String> keys, {int fallback = 0}) {
   return fallback;
 }
 
-double _readDouble(Map<String, dynamic> json, List<String> keys, {double fallback = 0}) {
+double _readDouble(
+  Map<String, dynamic> json,
+  List<String> keys, {
+  double fallback = 0,
+}) {
   for (final key in keys) {
     final value = json[key];
     if (value is double) return value;

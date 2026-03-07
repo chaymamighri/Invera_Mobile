@@ -7,8 +7,12 @@ import '../config/api_config.dart';
 import '../models/commande_model.dart';
 
 class CommandeService {
-  Future<List<CommandeModel>> getCommandes({String? statut, int? clientId}) async {
+  Future<List<CommandeModel>> getCommandes({
+    String? statut,
+    int? clientId,
+  }) async {
     final query = <String, String>{};
+
     if (statut != null && statut.trim().isNotEmpty) {
       query['statut'] = statut.trim().toUpperCase();
     }
@@ -16,16 +20,21 @@ class CommandeService {
       query['clientId'] = clientId.toString();
     }
 
-    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.listCommandesEndpoint}')
-        .replace(queryParameters: query.isEmpty ? null : query);
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.listCommandesEndpoint}',
+    ).replace(queryParameters: query.isEmpty ? null : query);
 
-    final response = await http.get(uri, headers: await _buildHeaders()).timeout(
-          const Duration(milliseconds: ApiConfig.connectionTimeout),
-        );
+    final response = await http
+        .get(uri, headers: await _buildHeaders())
+        .timeout(const Duration(milliseconds: ApiConfig.connectionTimeout));
     final body = _decodeResponse(response);
 
-    if (response.statusCode < 200 || response.statusCode >= 300 || body['success'] != true) {
-      throw Exception(_extractMessage(body, 'Erreur lors du chargement des commandes'));
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300 ||
+        body['success'] != true) {
+      throw Exception(
+        _extractMessage(body, 'Erreur lors du chargement des commandes'),
+      );
     }
 
     final commandes = body['commandes'];
@@ -38,108 +47,174 @@ class CommandeService {
   }
 
   Future<CommandeModel> getCommandeById(int id) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.commandesPrefix}/$id');
-    final response = await http.get(uri, headers: await _buildHeaders()).timeout(
-          const Duration(milliseconds: ApiConfig.connectionTimeout),
-        );
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.commandesPrefix}/$id',
+    );
+
+    final response = await http
+        .get(uri, headers: await _buildHeaders())
+        .timeout(const Duration(milliseconds: ApiConfig.connectionTimeout));
     final body = _decodeResponse(response);
 
-    if (response.statusCode < 200 || response.statusCode >= 300 || body['success'] != true) {
-      throw Exception(_extractMessage(body, 'Erreur lors du chargement de la commande'));
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300 ||
+        body['success'] != true) {
+      throw Exception(
+        _extractMessage(body, 'Erreur lors du chargement de la commande'),
+      );
     }
 
     final commande = body['commande'];
     if (commande is! Map<String, dynamic>) {
-      throw Exception('Reponse commande invalide');
+      throw Exception('Réponse commande invalide');
     }
 
     return CommandeModel.fromJson(commande);
   }
 
   Future<CommandeModel> createCommande(CommandeCreatePayload payload) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.createCommandeEndpoint}');
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.createCommandeEndpoint}',
+    );
+
     final response = await http
         .post(
           uri,
           headers: await _buildHeaders(),
           body: json.encode(payload.toJson()),
         )
-        .timeout(
-          const Duration(milliseconds: ApiConfig.connectionTimeout),
-        );
+        .timeout(const Duration(milliseconds: ApiConfig.connectionTimeout));
 
     final body = _decodeResponse(response);
-    if (response.statusCode < 200 || response.statusCode >= 300 || body['success'] != true) {
-      throw Exception(_extractMessage(body, 'Erreur lors de la creation de la commande'));
+
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300 ||
+        body['success'] != true) {
+      throw Exception(
+        _extractMessage(body, 'Erreur lors de la création de la commande'),
+      );
     }
 
     final commande = body['commande'];
     if (commande is! Map<String, dynamic>) {
-      throw Exception('Reponse commande invalide');
+      throw Exception('Réponse commande invalide');
     }
 
     return CommandeModel.fromJson(commande);
   }
 
-  Future<CommandeModel> updateCommande(int id, CommandeUpdatePayload payload) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.commandesPrefix}/$id');
+  Future<CommandeModel> updateCommande(
+    int id,
+    CommandeUpdatePayload payload,
+  ) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.commandesPrefix}/$id',
+    );
+
     final response = await http
         .put(
           uri,
           headers: await _buildHeaders(),
           body: json.encode(payload.toJson()),
         )
-        .timeout(
-          const Duration(milliseconds: ApiConfig.connectionTimeout),
-        );
+        .timeout(const Duration(milliseconds: ApiConfig.connectionTimeout));
 
     final body = _decodeResponse(response);
-    if (response.statusCode < 200 || response.statusCode >= 300 || body['success'] != true) {
-      throw Exception(_extractMessage(body, 'Erreur lors de la mise a jour de la commande'));
+
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300 ||
+        body['success'] != true) {
+      throw Exception(
+        _extractMessage(body, 'Erreur lors de la mise à jour de la commande'),
+      );
     }
 
     final commande = body['commande'];
     if (commande is! Map<String, dynamic>) {
-      throw Exception('Reponse commande invalide');
+      throw Exception('Réponse commande invalide');
     }
 
     return CommandeModel.fromJson(commande);
   }
 
-  Future<CommandeModel> rejeterCommande(int id) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.commandesPrefix}/$id/rejeter');
+  Future<CommandeModel> confirmerCommande(int id) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.commandesPrefix}/$id/valider',
+    );
+
     final response = await http
         .put(
           uri,
           headers: await _buildHeaders(),
           body: json.encode(<String, dynamic>{}),
         )
-        .timeout(
-          const Duration(milliseconds: ApiConfig.connectionTimeout),
-        );
+        .timeout(const Duration(milliseconds: ApiConfig.connectionTimeout));
+
     final body = _decodeResponse(response);
 
-    if (response.statusCode < 200 || response.statusCode >= 300 || body['success'] != true) {
-      throw Exception(_extractMessage(body, 'Erreur lors de l\'annulation de la commande'));
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300 ||
+        body['success'] != true) {
+      throw Exception(
+        _extractMessage(body, 'Erreur lors de la confirmation de la commande'),
+      );
     }
 
     final commande = body['commande'];
     if (commande is! Map<String, dynamic>) {
-      throw Exception('Reponse commande invalide');
+      throw Exception('Réponse commande invalide');
+    }
+
+    return CommandeModel.fromJson(commande);
+  }
+
+  Future<CommandeModel> rejeterCommande(int id) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.commandesPrefix}/$id/rejeter',
+    );
+
+    final response = await http
+        .put(
+          uri,
+          headers: await _buildHeaders(),
+          body: json.encode(<String, dynamic>{}),
+        )
+        .timeout(const Duration(milliseconds: ApiConfig.connectionTimeout));
+
+    final body = _decodeResponse(response);
+
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300 ||
+        body['success'] != true) {
+      throw Exception(
+        _extractMessage(body, 'Erreur lors de l\'annulation de la commande'),
+      );
+    }
+
+    final commande = body['commande'];
+    if (commande is! Map<String, dynamic>) {
+      throw Exception('Réponse commande invalide');
     }
 
     return CommandeModel.fromJson(commande);
   }
 
   Future<List<ProduitOption>> getProduits() async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.productsAllEndpoint}');
-    final response = await http.get(uri, headers: await _buildHeaders()).timeout(
-          const Duration(milliseconds: ApiConfig.connectionTimeout),
-        );
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.productsAllEndpoint}',
+    );
+
+    final response = await http
+        .get(uri, headers: await _buildHeaders())
+        .timeout(const Duration(milliseconds: ApiConfig.connectionTimeout));
     final body = _decodeResponse(response);
 
-    if (response.statusCode < 200 || response.statusCode >= 300 || body['success'] != true) {
-      throw Exception(_extractMessage(body, 'Erreur lors du chargement des produits'));
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300 ||
+        body['success'] != true) {
+      throw Exception(
+        _extractMessage(body, 'Erreur lors du chargement des produits'),
+      );
     }
 
     final produits = body['produits'];
@@ -153,8 +228,12 @@ class CommandeService {
 
   Map<String, dynamic> _decodeResponse(http.Response response) {
     try {
-      final decoded = json.decode(response.body);
-      if (decoded is Map<String, dynamic>) return decoded;
+      final decodedBody = utf8.decode(response.bodyBytes);
+      final decoded = json.decode(decodedBody);
+
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
       return {};
     } catch (_) {
       return {};
@@ -171,6 +250,7 @@ class CommandeService {
 
   Future<Map<String, String>> _buildHeaders() async {
     final headers = <String, String>{'Content-Type': ApiConfig.contentType};
+
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 

@@ -25,7 +25,10 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: _baseUnit * 1.5, vertical: _baseUnit),
+      padding: EdgeInsets.symmetric(
+        horizontal: _baseUnit * 1.5,
+        vertical: _baseUnit,
+      ),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
@@ -51,7 +54,10 @@ class _InfoBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: _baseUnit * 1.5, vertical: _baseUnit),
+      padding: EdgeInsets.symmetric(
+        horizontal: _baseUnit * 1.5,
+        vertical: _baseUnit,
+      ),
       decoration: BoxDecoration(
         color: _background,
         borderRadius: BorderRadius.circular(12),
@@ -83,7 +89,8 @@ class CommercialClientsSection extends StatefulWidget {
   const CommercialClientsSection({super.key});
 
   @override
-  State<CommercialClientsSection> createState() => _CommercialClientsSectionState();
+  State<CommercialClientsSection> createState() =>
+      _CommercialClientsSectionState();
 }
 
 class _CommercialClientsSectionState extends State<CommercialClientsSection>
@@ -156,10 +163,22 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
     if (showBusy && mounted) setState(() => _isBusy = true);
 
     try {
-      final clients = await _clientService.getClients(query: _composeQuery());
+      final textQuery = _query.trim();
+      final clients = await _clientService.getClients(
+        query: textQuery.isEmpty ? null : textQuery,
+      );
+
+      final selectedType = (_selectedType ?? '').trim().toUpperCase();
+      final filtered = selectedType.isEmpty
+          ? clients
+          : clients.where((client) {
+              final clientType = (client.typeClient ?? '').trim().toUpperCase();
+              return clientType == selectedType;
+            }).toList();
+
       if (!mounted) return;
       setState(() {
-        _clients = clients;
+        _clients = filtered;
         _sortClients();
       });
     } catch (e) {
@@ -167,15 +186,6 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
     } finally {
       if (showBusy && mounted) setState(() => _isBusy = false);
     }
-  }
-
-  String _composeQuery() {
-    final q = _query.trim();
-    final t = (_selectedType ?? '').trim();
-    if (q.isEmpty && t.isEmpty) return '';
-    if (q.isEmpty) return t;
-    if (t.isEmpty) return q;
-    return '$q $t';
   }
 
   void _onSearchChanged() {
@@ -201,9 +211,10 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
   void _sortClients() {
     switch (_sortColumnIndex) {
       case 0: // name
-        _clients.sort((a, b) => _sortAscending
-            ? a.nom.compareTo(b.nom)
-            : b.nom.compareTo(a.nom));
+        _clients.sort(
+          (a, b) =>
+              _sortAscending ? a.nom.compareTo(b.nom) : b.nom.compareTo(a.nom),
+        );
         break;
       case 1: // type
         _clients.sort((a, b) {
@@ -213,9 +224,11 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
         });
         break;
       case 2: // phone
-        _clients.sort((a, b) => _sortAscending
-            ? a.telephone.compareTo(b.telephone)
-            : b.telephone.compareTo(a.telephone));
+        _clients.sort(
+          (a, b) => _sortAscending
+              ? a.telephone.compareTo(b.telephone)
+              : b.telephone.compareTo(a.telephone),
+        );
         break;
       case 3: // email
         _clients.sort((a, b) {
@@ -245,7 +258,9 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
 
     setState(() => _isBusy = true);
     try {
-      final exists = await _clientService.checkTelephoneExists(payload.telephone);
+      final exists = await _clientService.checkTelephoneExists(
+        payload.telephone,
+      );
       if (exists) {
         _showMessage('Ce numéro est déjà utilisé.', isError: true);
         return;
@@ -283,7 +298,10 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
         title: const Text('Supprimer client'),
         content: Text('Confirmer la suppression de "${client.nom}" ?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: _error),
@@ -315,7 +333,9 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
     final emailCtrl = TextEditingController(text: initialClient?.email ?? '');
     final addrCtrl = TextEditingController(text: initialClient?.adresse ?? '');
     final typeCtrl = TextEditingController(
-      text: initialClient?.typeClient ?? (_clientTypes.isNotEmpty ? _clientTypes.first : ''),
+      text:
+          initialClient?.typeClient ??
+          (_clientTypes.isNotEmpty ? _clientTypes.first : ''),
     );
 
     // Decide on presentation: bottom sheet for small screens, dialog for larger
@@ -327,42 +347,68 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildTextField(nomCtrl, 'Nom', Icons.person_outline,
-                validator: (v) => v!.isEmpty ? 'Requis' : null),
+            _buildTextField(
+              nomCtrl,
+              'Nom',
+              Icons.person_outline,
+              validator: (v) => v!.isEmpty ? 'Requis' : null,
+            ),
             SizedBox(height: _baseUnit * 1.5),
-            _buildTextField(telCtrl, 'Téléphone', Icons.phone_outlined,
-                keyboardType: TextInputType.phone,
-                validator: (v) => v!.isEmpty ? 'Requis' : null),
+            _buildTextField(
+              telCtrl,
+              'Téléphone',
+              Icons.phone_outlined,
+              keyboardType: TextInputType.phone,
+              validator: (v) => v!.isEmpty ? 'Requis' : null,
+            ),
             SizedBox(height: _baseUnit * 1.5),
-            _buildTextField(emailCtrl, 'Email', Icons.email_outlined,
-                keyboardType: TextInputType.emailAddress,
-                validator: (v) {
-                  if (v!.isEmpty) return 'Requis';
-                  if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)) return 'Invalide';
-                  return null;
-                }),
+            _buildTextField(
+              emailCtrl,
+              'Email',
+              Icons.email_outlined,
+              keyboardType: TextInputType.emailAddress,
+              validator: (v) {
+                if (v!.isEmpty) return 'Requis';
+                if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v))
+                  return 'Invalide';
+                return null;
+              },
+            ),
             SizedBox(height: _baseUnit * 1.5),
-            _buildTextField(addrCtrl, 'Adresse', Icons.location_on_outlined,
-                maxLines: 2, validator: (v) => v!.isEmpty ? 'Requis' : null),
+            _buildTextField(
+              addrCtrl,
+              'Adresse',
+              Icons.location_on_outlined,
+              maxLines: 2,
+              validator: (v) => v!.isEmpty ? 'Requis' : null,
+            ),
             SizedBox(height: _baseUnit * 1.5),
-            _buildTextField(typeCtrl, 'Type client', Icons.category_outlined,
-                validator: (v) {
-                  if (v!.isEmpty) return 'Requis';
-                  if (_clientTypes.isNotEmpty) {
-                    final allowed = _clientTypes.map((e) => e.trim().toUpperCase()).toSet();
-                    if (!allowed.contains(v.trim().toUpperCase())) {
-                      return 'Utilisez: ${allowed.join(', ')}';
-                    }
+            _buildTextField(
+              typeCtrl,
+              'Type client',
+              Icons.category_outlined,
+              validator: (v) {
+                if (v!.isEmpty) return 'Requis';
+                if (_clientTypes.isNotEmpty) {
+                  final allowed = _clientTypes
+                      .map((e) => e.trim().toUpperCase())
+                      .toSet();
+                  if (!allowed.contains(v.trim().toUpperCase())) {
+                    return 'Utilisez: ${allowed.join(', ')}';
                   }
-                  return null;
-                }),
+                }
+                return null;
+              },
+            ),
             if (_clientTypes.isNotEmpty) ...[
               SizedBox(height: _baseUnit * 2),
               Wrap(
                 spacing: _baseUnit,
                 runSpacing: _baseUnit,
                 children: _clientTypes.map((type) {
-                  final isSelected = typeCtrl.text.trim().toUpperCase() == type.trim().toUpperCase();
+                  final isSelected =
+                      typeCtrl.text.trim().toUpperCase() ==
+                      type.trim().toUpperCase();
                   return ChoiceChip(
                     label: Text(type),
                     selected: isSelected,
@@ -397,15 +443,23 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(isEditing ? 'Modifier client' : 'Nouveau client',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text(
+                  isEditing ? 'Modifier client' : 'Nouveau client',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 SizedBox(height: _baseUnit * 2),
                 buildForm(),
                 SizedBox(height: _baseUnit * 2),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Annuler'),
+                    ),
                     ElevatedButton(
                       onPressed: () {
                         if (!formKey.currentState!.validate()) return;
@@ -433,9 +487,15 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
           context: context,
           builder: (ctx) => AlertDialog(
             title: Text(isEditing ? 'Modifier client' : 'Nouveau client'),
-            content: SizedBox(width: 560, child: SingleChildScrollView(child: buildForm())),
+            content: SizedBox(
+              width: 560,
+              child: SingleChildScrollView(child: buildForm()),
+            ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Annuler'),
+              ),
               ElevatedButton(
                 onPressed: () {
                   if (!formKey.currentState!.validate()) return;
@@ -531,7 +591,10 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
             const SizedBox(height: _baseUnit * 2),
             Text(_errorMessage!, style: const TextStyle(color: _error)),
             const SizedBox(height: _baseUnit * 2),
-            ElevatedButton(onPressed: _loadInitialData, child: const Text('Réessayer')),
+            ElevatedButton(
+              onPressed: _loadInitialData,
+              child: const Text('Réessayer'),
+            ),
           ],
         ),
       );
@@ -577,10 +640,15 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [_primary, _primaryDark]),
+                  gradient: const LinearGradient(
+                    colors: [_primary, _primaryDark],
+                  ),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.people_alt_outlined, color: Colors.white),
+                child: const Icon(
+                  Icons.people_alt_outlined,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(width: _baseUnit * 1.5),
               Expanded(
@@ -589,7 +657,11 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                   children: [
                     const Text(
                       'Gestion des clients',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _textPrimary),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: _textPrimary,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -626,7 +698,9 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _accent,
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
                     ),
@@ -646,7 +720,9 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _accent,
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
                     ),
@@ -666,7 +742,10 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
 
   Widget _buildCountPill(int count) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: _baseUnit * 1.5, vertical: _baseUnit),
+      padding: EdgeInsets.symmetric(
+        horizontal: _baseUnit * 1.5,
+        vertical: _baseUnit,
+      ),
       decoration: BoxDecoration(
         color: _primary.withOpacity(0.1),
         borderRadius: BorderRadius.circular(30),
@@ -689,7 +768,10 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
           prefixIcon: const Icon(Icons.search),
           suffixIcon: _searchController.text.isEmpty
               ? null
-              : IconButton(icon: const Icon(Icons.close), onPressed: _clearSearch),
+              : IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: _clearSearch,
+                ),
           filled: true,
           fillColor: _background,
           border: OutlineInputBorder(
@@ -749,7 +831,11 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
               _query.isEmpty && _selectedType == null
                   ? 'Aucun client disponible'
                   : 'Aucun client trouvé',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _textPrimary),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: _textPrimary,
+              ),
             ),
             const SizedBox(height: _baseUnit),
             Text(
@@ -766,7 +852,9 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _accent,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
                 ),
               ),
           ],
@@ -800,10 +888,15 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
         children: [
           // Sortable header
           Container(
-            padding: EdgeInsets.symmetric(horizontal: _baseUnit * 2, vertical: _baseUnit * 1.5),
+            padding: EdgeInsets.symmetric(
+              horizontal: _baseUnit * 2,
+              vertical: _baseUnit * 1.5,
+            ),
             decoration: BoxDecoration(
               color: _background,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
             ),
             child: Row(
               children: [
@@ -811,7 +904,10 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                 _buildSortableHeader('Téléphone', 2, flex: 2),
                 _buildSortableHeader('Email', 3, flex: 3),
                 _buildSortableHeader('Type', 1, flex: 2),
-                Expanded(flex: 4, child: _buildSortableHeader('Adresse', -1, disableSort: true)),
+                Expanded(
+                  flex: 4,
+                  child: _buildSortableHeader('Adresse', -1, disableSort: true),
+                ),
                 const SizedBox(width: 120, child: _TableHeader('Actions')),
               ],
             ),
@@ -820,7 +916,8 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
           Expanded(
             child: ListView.separated(
               itemCount: _clients.length,
-              separatorBuilder: (_, __) => const Divider(height: 1, color: _borderLight),
+              separatorBuilder: (_, __) =>
+                  const Divider(height: 1, color: _borderLight),
               itemBuilder: (context, index) {
                 final client = _clients[index];
                 return MouseRegion(
@@ -833,14 +930,51 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                         : Colors.transparent,
                     child: ListTile(
                       onTap: _isBusy ? null : () => _onEditClient(client),
-                      contentPadding: EdgeInsets.symmetric(horizontal: _baseUnit * 2, vertical: _baseUnit),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: _baseUnit * 2,
+                        vertical: _baseUnit,
+                      ),
                       title: Row(
                         children: [
-                          Expanded(flex: 2, child: Text(client.nom, style: const TextStyle(fontWeight: FontWeight.w600))),
-                          Expanded(flex: 2, child: Text(client.telephone, style: TextStyle(color: _textSecondary))),
-                          Expanded(flex: 3, child: Text(client.email ?? '-', style: TextStyle(color: _textSecondary))),
-                          Expanded(flex: 2, child: _StatusChip(label: client.typeClient ?? '-', color: _primary)),
-                          Expanded(flex: 4, child: Text(client.adresse ?? '-', style: TextStyle(color: _textSecondary), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              client.nom,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              client.telephone,
+                              style: TextStyle(color: _textSecondary),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 3,
+                            child: Text(
+                              client.email ?? '-',
+                              style: TextStyle(color: _textSecondary),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: _StatusChip(
+                              label: client.typeClient ?? '-',
+                              color: _primary,
+                            ),
+                          ),
+                          Expanded(
+                            flex: 4,
+                            child: Text(
+                              client.adresse ?? '-',
+                              style: TextStyle(color: _textSecondary),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                           SizedBox(
                             width: 120,
                             child: Row(
@@ -848,13 +982,23 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                               children: [
                                 IconButton(
                                   tooltip: 'Modifier',
-                                  onPressed: _isBusy ? null : () => _onEditClient(client),
-                                  icon: Icon(Icons.edit_outlined, color: _primary),
+                                  onPressed: _isBusy
+                                      ? null
+                                      : () => _onEditClient(client),
+                                  icon: Icon(
+                                    Icons.edit_outlined,
+                                    color: _primary,
+                                  ),
                                 ),
                                 IconButton(
                                   tooltip: 'Supprimer',
-                                  onPressed: _isBusy ? null : () => _onDeleteClient(client),
-                                  icon: Icon(Icons.delete_outline, color: _error),
+                                  onPressed: _isBusy
+                                      ? null
+                                      : () => _onDeleteClient(client),
+                                  icon: Icon(
+                                    Icons.delete_outline,
+                                    color: _error,
+                                  ),
                                 ),
                               ],
                             ),
@@ -872,7 +1016,12 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
     );
   }
 
-  Widget _buildSortableHeader(String label, int columnIndex, {int flex = 1, bool disableSort = false}) {
+  Widget _buildSortableHeader(
+    String label,
+    int columnIndex, {
+    int flex = 1,
+    bool disableSort = false,
+  }) {
     return Expanded(
       flex: flex,
       child: GestureDetector(
@@ -880,9 +1029,19 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w700, color: _textSecondary)),
+            Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                color: _textSecondary,
+              ),
+            ),
             if (!disableSort && _sortColumnIndex == columnIndex)
-              Icon(_sortAscending ? Icons.arrow_upward : Icons.arrow_downward, size: 16, color: _primary),
+              Icon(
+                _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                size: 16,
+                color: _primary,
+              ),
           ],
         ),
       ),
@@ -891,8 +1050,14 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
 
   void _setHover(int index, bool hovering) {
     _rowHoverControllers.putIfAbsent(index, () {
-      final c = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
-      if (hovering) c.forward(); else c.reverse();
+      final c = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 200),
+      );
+      if (hovering)
+        c.forward();
+      else
+        c.reverse();
       return c;
     });
     if (hovering) {
@@ -923,9 +1088,18 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                 Row(
                   children: [
                     Expanded(
-                      child: Text(client.nom, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                      child: Text(
+                        client.nom,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
+                      ),
                     ),
-                    _StatusChip(label: client.typeClient ?? '-', color: _primary),
+                    _StatusChip(
+                      label: client.typeClient ?? '-',
+                      color: _primary,
+                    ),
                   ],
                 ),
                 const SizedBox(height: _baseUnit * 1.5),
@@ -978,7 +1152,10 @@ class _TableHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(fontWeight: FontWeight.w700, color: _textSecondary),
+      style: const TextStyle(
+        fontWeight: FontWeight.w700,
+        color: _textSecondary,
+      ),
     );
   }
 }
