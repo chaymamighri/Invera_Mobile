@@ -7,6 +7,7 @@ import 'package:invera_mobile/views/auth/forgot_password_screen.dart';
 import 'package:invera_mobile/views/auth/reset-password.dart';
 import 'package:invera_mobile/views/profile/profile_screen.dart';
 import 'config/app_routes.dart';
+import 'config/app_globals.dart';
 import 'views/auth/login_screen.dart';
 
 import 'models/user_model.dart';
@@ -23,6 +24,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'ERP Invera',
       debugShowCheckedModeBanner: false,
+      navigatorKey: appNavigatorKey,
+      scaffoldMessengerKey: appScaffoldMessengerKey,
       initialRoute: AppRoutes.login,
       routes: {
         // Routes sans paramètres

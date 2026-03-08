@@ -226,6 +226,93 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  Future<AuthActionResult> updateProfile({
+    required String nom,
+    required String prenom,
+    required String email,
+  }) async {
+    _setLoading(true);
+    _clearError();
+
+    try {
+      await ready();
+      if (_token == null || _token!.trim().isEmpty) {
+        _setLoading(false);
+        return const AuthActionResult(
+          success: false,
+          message: 'Session invalide. Veuillez vous reconnecter.',
+        );
+      }
+
+      final normalizedNom = nom.trim();
+      final normalizedPrenom = prenom.trim();
+      final normalizedEmail = email.trim().toLowerCase();
+
+      final url = Uri.parse(
+        '${ApiConfig.baseUrl}${ApiConfig.updateProfileEndpoint}',
+      );
+
+      final response = await http
+          .put(
+            url,
+            headers: _getAuthHeaders(),
+            body: json.encode(<String, dynamic>{
+              'nom': normalizedNom,
+              'prenom': normalizedPrenom,
+              'email': normalizedEmail,
+            }),
+          )
+          .timeout(
+            const Duration(milliseconds: ApiConfig.connectionTimeout),
+            onTimeout: () => throw Exception('Delai de connexion depasse'),
+          );
+
+      final message = _extractResponseMessage(
+        response,
+        fallback: response.statusCode >= 200 && response.statusCode < 300
+            ? 'Profil mis a jour avec succes'
+            : 'Erreur lors de la mise a jour du profil (${response.statusCode})',
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final refreshed = await fetchCurrentUser();
+
+        if (!refreshed && _currentUser != null) {
+          _currentUser = User(
+            id: _currentUser!.id,
+            email: normalizedEmail,
+            nom: normalizedNom,
+            prenom: normalizedPrenom,
+            role: _currentUser!.role,
+            active: _currentUser!.active,
+          );
+          await _saveUserData(true);
+          notifyListeners();
+        }
+
+        _setLoading(false);
+        return AuthActionResult(
+          success: true,
+          message: message,
+          statusCode: response.statusCode,
+        );
+      }
+
+      _setLoading(false);
+      return AuthActionResult(
+        success: false,
+        message: message,
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      _setLoading(false);
+      return AuthActionResult(
+        success: false,
+        message: e.toString().replaceFirst('Exception: ', ''),
+      );
+    }
+  }
+
   Future<AuthActionResult> forgotPassword(String email) async {
     _setLoading(true);
 

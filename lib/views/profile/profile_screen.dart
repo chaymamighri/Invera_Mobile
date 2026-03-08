@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:invera_mobile/models/client_model.dart';
 import 'package:invera_mobile/models/commande_model.dart';
 import 'package:invera_mobile/models/user_model.dart';
+import 'package:invera_mobile/config/app_routes.dart';
 import 'package:invera_mobile/services/auth_service.dart';
 import 'package:invera_mobile/services/client_service.dart';
 import 'package:invera_mobile/services/commande_service.dart';
@@ -69,7 +70,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       await _authService.ready();
       final refreshed = await _authService.fetchCurrentUser();
-      if (refreshed && _authService.currentUser != null) {
+      if ((refreshed || _authService.currentUser != null) &&
+          _authService.currentUser != null) {
         _user = _authService.currentUser!;
       }
 
@@ -172,26 +174,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _passwordInput({
+  Widget _securePasswordInput({
     required TextEditingController controller,
     required String label,
+    required String hint,
+    required IconData icon,
     required bool obscure,
     required VoidCallback onToggle,
+    required VoidCallback onChanged,
+    TextInputAction textInputAction = TextInputAction.next,
     String? Function(String?)? validator,
   }) {
     return TextFormField(
       controller: controller,
       obscureText: obscure,
+      onChanged: (_) => onChanged(),
+      textInputAction: textInputAction,
       decoration: InputDecoration(
         labelText: label,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        hintText: hint,
+        filled: true,
+        fillColor: _background,
+        prefixIcon: Icon(icon, color: _primary),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: _border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: _primary, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _danger),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _danger, width: 2),
         ),
         suffixIcon: IconButton(
           onPressed: onToggle,
@@ -204,26 +224,470 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  int _passwordScore(String value) {
+    var score = 0;
+    if (value.length >= 8) score += 1;
+    if (RegExp(r'[A-Z]').hasMatch(value)) score += 1;
+    if (RegExp(r'[0-9]').hasMatch(value)) score += 1;
+    if (RegExp(r'[!@#$%^&*(),.?":{}|<>_\-\[\]\\\/+=;]').hasMatch(value)) {
+      score += 1;
+    }
+    return score;
+  }
+
+  Color _passwordStrengthColor(int score) {
+    if (score <= 1) return _danger;
+    if (score == 2) return const Color(0xFFD97706);
+    if (score == 3) return const Color(0xFF0284C7);
+    return _success;
+  }
+
+  String _passwordStrengthLabel(int score) {
+    if (score <= 1) return 'Faible';
+    if (score == 2) return 'Moyen';
+    if (score == 3) return 'Fort';
+    return 'Tres fort';
+  }
+
+  Widget _passwordRule({required bool valid, required String label}) {
+    final color = valid ? _success : _textSecondary;
+    return Row(
+      children: [
+        Icon(
+          valid ? Icons.check_circle_outline : Icons.radio_button_unchecked,
+          size: 16,
+          color: color,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12.5,
+              fontWeight: valid ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _profileSettingInput({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    required VoidCallback onChanged,
+    TextInputType keyboardType = TextInputType.text,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      onChanged: (_) => onChanged(),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        filled: true,
+        fillColor: _background,
+        prefixIcon: Icon(icon, color: _primary),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _primary, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _danger),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _danger, width: 2),
+        ),
+      ),
+      validator: validator,
+    );
+  }
+
+  Future<void> _showProfileSettingsDialog() async {
+    final formKey = GlobalKey<FormState>();
+    final nomCtrl = TextEditingController(text: _user.nom);
+    final prenomCtrl = TextEditingController(text: _user.prenom);
+    final emailCtrl = TextEditingController(text: _user.email);
+
+    var submitting = false;
+    String? serverError;
+    var successMessage = 'Profil mis a jour avec succes';
+    var requireReauth = false;
+
+    final didSave = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            void onInputsChanged() {
+              if (serverError != null) {
+                setDialogState(() => serverError = null);
+              }
+            }
+
+            Future<void> submit() async {
+              FocusScope.of(dialogContext).unfocus();
+              if (!(formKey.currentState?.validate() ?? false) || submitting) {
+                return;
+              }
+
+              setDialogState(() {
+                submitting = true;
+                serverError = null;
+              });
+
+              final result = await _authService.updateProfile(
+                nom: nomCtrl.text,
+                prenom: prenomCtrl.text,
+                email: emailCtrl.text,
+              );
+
+              if (!mounted || !dialogContext.mounted) return;
+
+              if (result.success) {
+                successMessage = result.message;
+                final newEmail = emailCtrl.text.trim().toLowerCase();
+                final currentEmail = _user.email.trim().toLowerCase();
+                requireReauth = newEmail != currentEmail;
+                Navigator.of(dialogContext, rootNavigator: true).pop(true);
+                return;
+              }
+
+              setDialogState(() {
+                submitting = false;
+                serverError = result.message;
+              });
+            }
+
+            final compact = MediaQuery.of(context).size.width < 760;
+
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              insetPadding: EdgeInsets.symmetric(
+                horizontal: compact ? 14 : 28,
+                vertical: 24,
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(18, 16, 12, 16),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [_primary, _primaryDark],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(24),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.manage_accounts_outlined,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Parametres du profil',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Mettez a jour vos informations personnelles.',
+                                  style: TextStyle(
+                                    color: Color(0xFFE7EEFF),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: submitting
+                                ? null
+                                : () => Navigator.of(
+                                    dialogContext,
+                                    rootNavigator: true,
+                                  ).pop(false),
+                            icon: const Icon(Icons.close, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: Form(
+                          key: formKey,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          child: Column(
+                            children: [
+                              if (compact) ...[
+                                _profileSettingInput(
+                                  controller: prenomCtrl,
+                                  label: 'Prenom',
+                                  hint: 'Votre prenom',
+                                  icon: Icons.person_outline,
+                                  onChanged: onInputsChanged,
+                                  validator: (v) {
+                                    final value = (v ?? '').trim();
+                                    if (value.isEmpty) return 'Prenom requis';
+                                    if (value.length < 2) {
+                                      return 'Minimum 2 caracteres';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 12),
+                                _profileSettingInput(
+                                  controller: nomCtrl,
+                                  label: 'Nom',
+                                  hint: 'Votre nom',
+                                  icon: Icons.person_outline,
+                                  onChanged: onInputsChanged,
+                                  validator: (v) {
+                                    final value = (v ?? '').trim();
+                                    if (value.isEmpty) return 'Nom requis';
+                                    if (value.length < 2) {
+                                      return 'Minimum 2 caracteres';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ] else ...[
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _profileSettingInput(
+                                        controller: prenomCtrl,
+                                        label: 'Prenom',
+                                        hint: 'Votre prenom',
+                                        icon: Icons.person_outline,
+                                        onChanged: onInputsChanged,
+                                        validator: (v) {
+                                          final value = (v ?? '').trim();
+                                          if (value.isEmpty) {
+                                            return 'Prenom requis';
+                                          }
+                                          if (value.length < 2) {
+                                            return 'Minimum 2 caracteres';
+                                          }
+                                          return null;
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _profileSettingInput(
+                                        controller: nomCtrl,
+                                        label: 'Nom',
+                                        hint: 'Votre nom',
+                                        icon: Icons.person_outline,
+                                        onChanged: onInputsChanged,
+                                        validator: (v) {
+                                          final value = (v ?? '').trim();
+                                          if (value.isEmpty) {
+                                            return 'Nom requis';
+                                          }
+                                          if (value.length < 2) {
+                                            return 'Minimum 2 caracteres';
+                                          }
+                                          return null;
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                              const SizedBox(height: 12),
+                              _profileSettingInput(
+                                controller: emailCtrl,
+                                label: 'Email',
+                                hint: 'exemple@email.com',
+                                icon: Icons.email_outlined,
+                                keyboardType: TextInputType.emailAddress,
+                                onChanged: onInputsChanged,
+                                validator: (v) {
+                                  final value = (v ?? '').trim();
+                                  if (value.isEmpty) return 'Email requis';
+                                  if (!RegExp(
+                                    r'^[^@]+@[^@]+\.[^@]+$',
+                                  ).hasMatch(value)) {
+                                    return 'Email invalide';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              if (serverError != null) ...[
+                                const SizedBox(height: 14),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: _danger.withValues(alpha: 0.08),
+                                    border: Border.all(
+                                      color: _danger.withValues(alpha: 0.22),
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    serverError!,
+                                    style: const TextStyle(
+                                      color: _danger,
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                      decoration: const BoxDecoration(
+                        border: Border(top: BorderSide(color: _border)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          OutlinedButton(
+                            onPressed: submitting
+                                ? null
+                                : () => Navigator.of(
+                                    dialogContext,
+                                    rootNavigator: true,
+                                  ).pop(false),
+                            child: const Text('Annuler'),
+                          ),
+                          const SizedBox(width: 10),
+                          ElevatedButton.icon(
+                            onPressed: submitting ? null : submit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _primary,
+                              foregroundColor: Colors.white,
+                            ),
+                            icon: submitting
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.save_outlined),
+                            label: const Text('Enregistrer'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    nomCtrl.dispose();
+    prenomCtrl.dispose();
+    emailCtrl.dispose();
+
+    if (didSave == true && mounted) {
+      if (requireReauth) {
+        await _authService.logout();
+        if (!mounted) return;
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          AppRoutes.login,
+          (route) => false,
+        );
+        return;
+      }
+
+      await _reload();
+      if (!mounted) return;
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text(successMessage),
+          backgroundColor: _success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   Future<void> _showChangePasswordDialog() async {
     final formKey = GlobalKey<FormState>();
     final oldCtrl = TextEditingController();
     final newCtrl = TextEditingController();
     final confirmCtrl = TextEditingController();
 
-    bool oldObscure = true;
-    bool newObscure = true;
-    bool confirmObscure = true;
-    bool submitting = false;
+    var oldObscure = true;
+    var newObscure = true;
+    var confirmObscure = true;
+    var submitting = false;
     String? serverError;
 
-    await showDialog<void>(
+    final didUpdate = await showDialog<bool>(
       context: context,
-      barrierDismissible: !submitting,
+      barrierDismissible: false,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            void onInputsChanged() {
+              if (serverError != null) {
+                setDialogState(() => serverError = null);
+              } else {
+                setDialogState(() {});
+              }
+            }
+
             Future<void> submit() async {
-              if (!(formKey.currentState?.validate() ?? false)) return;
+              FocusScope.of(dialogContext).unfocus();
+              if (!(formKey.currentState?.validate() ?? false) || submitting) {
+                return;
+              }
 
               setDialogState(() {
                 submitting = true;
@@ -236,15 +700,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               );
 
               if (!mounted || !dialogContext.mounted) return;
+
               if (result.success) {
-                Navigator.pop(dialogContext);
-                ScaffoldMessenger.of(this.context).showSnackBar(
-                  SnackBar(
-                    content: Text(result.message),
-                    backgroundColor: _success,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
+                Navigator.of(dialogContext, rootNavigator: true).pop(true);
                 return;
               }
 
@@ -254,116 +712,340 @@ class _ProfileScreenState extends State<ProfileScreen> {
               });
             }
 
-            return AlertDialog(
-              title: const Text('Modifier le mot de passe'),
-              content: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 440),
-                child: Form(
-                  key: formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _passwordInput(
-                        controller: oldCtrl,
-                        label: 'Mot de passe actuel',
-                        obscure: oldObscure,
-                        onToggle: () =>
-                            setDialogState(() => oldObscure = !oldObscure),
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) {
-                            return 'Mot de passe actuel requis';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      _passwordInput(
-                        controller: newCtrl,
-                        label: 'Nouveau mot de passe',
-                        obscure: newObscure,
-                        onToggle: () =>
-                            setDialogState(() => newObscure = !newObscure),
-                        validator: (v) {
-                          final value = (v ?? '').trim();
-                          if (value.isEmpty) {
-                            return 'Nouveau mot de passe requis';
-                          }
-                          if (value.length < 8) {
-                            return 'Minimum 8 caracteres';
-                          }
-                          if (value == oldCtrl.text) {
-                            return 'Doit etre different de l ancien';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      _passwordInput(
-                        controller: confirmCtrl,
-                        label: 'Confirmer le nouveau mot de passe',
-                        obscure: confirmObscure,
-                        onToggle: () => setDialogState(
-                          () => confirmObscure = !confirmObscure,
+            final pass = newCtrl.text;
+            final score = _passwordScore(pass);
+            final strengthColor = _passwordStrengthColor(score);
+            final isCompact = MediaQuery.of(context).size.width < 780;
+            final hasLength = pass.length >= 8;
+            final hasUpper = RegExp(r'[A-Z]').hasMatch(pass);
+            final hasNumber = RegExp(r'[0-9]').hasMatch(pass);
+            final hasSpecial = RegExp(
+              r'[!@#$%^&*(),.?":{}|<>_\-\[\]\\\/+=;]',
+            ).hasMatch(pass);
+            final matches =
+                confirmCtrl.text.isNotEmpty && confirmCtrl.text == newCtrl.text;
+
+            Widget buildFormColumn() {
+              return Column(
+                children: [
+                  _securePasswordInput(
+                    controller: oldCtrl,
+                    label: 'Mot de passe actuel',
+                    hint: 'Entrez votre mot de passe actuel',
+                    icon: Icons.lock_outline,
+                    obscure: oldObscure,
+                    onToggle: () =>
+                        setDialogState(() => oldObscure = !oldObscure),
+                    onChanged: onInputsChanged,
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) {
+                        return 'Mot de passe actuel requis';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _securePasswordInput(
+                    controller: newCtrl,
+                    label: 'Nouveau mot de passe',
+                    hint: 'Choisissez un mot de passe robuste',
+                    icon: Icons.password_outlined,
+                    obscure: newObscure,
+                    onToggle: () =>
+                        setDialogState(() => newObscure = !newObscure),
+                    onChanged: onInputsChanged,
+                    validator: (v) {
+                      final value = (v ?? '').trim();
+                      if (value.isEmpty) return 'Nouveau mot de passe requis';
+                      if (value.length < 8) return 'Minimum 8 caracteres';
+                      if (value == oldCtrl.text) {
+                        return 'Doit etre different de l ancien';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _securePasswordInput(
+                    controller: confirmCtrl,
+                    label: 'Confirmation',
+                    hint: 'Retapez le nouveau mot de passe',
+                    icon: Icons.verified_user_outlined,
+                    obscure: confirmObscure,
+                    onToggle: () =>
+                        setDialogState(() => confirmObscure = !confirmObscure),
+                    onChanged: onInputsChanged,
+                    textInputAction: TextInputAction.done,
+                    validator: (v) {
+                      if ((v ?? '').isEmpty) return 'Confirmation requise';
+                      if (v != newCtrl.text) {
+                        return 'Les mots de passe ne correspondent pas';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              );
+            }
+
+            Widget buildSecurityColumn() {
+              return Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _background,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.verified_user_outlined,
+                          color: strengthColor,
                         ),
-                        validator: (v) {
-                          if ((v ?? '').isEmpty) {
-                            return 'Confirmation requise';
-                          }
-                          if (v != newCtrl.text) {
-                            return 'Les mots de passe ne correspondent pas';
-                          }
-                          return null;
-                        },
-                      ),
-                      if (serverError != null) ...[
-                        const SizedBox(height: 10),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: _danger.withValues(alpha: 0.08),
-                            border: Border.all(
-                              color: _danger.withValues(alpha: 0.22),
-                            ),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            serverError!,
-                            style: const TextStyle(
-                              color: _danger,
-                              fontSize: 12,
-                            ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Niveau de securite',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: _textPrimary,
                           ),
                         ),
                       ],
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 10),
+                    LinearProgressIndicator(
+                      minHeight: 7,
+                      value: score / 4,
+                      backgroundColor: const Color(0xFFE5E7EB),
+                      valueColor: AlwaysStoppedAnimation<Color>(strengthColor),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _passwordStrengthLabel(score),
+                      style: TextStyle(
+                        color: strengthColor,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _passwordRule(
+                      valid: hasLength,
+                      label: 'Au moins 8 caracteres',
+                    ),
+                    const SizedBox(height: 8),
+                    _passwordRule(
+                      valid: hasUpper,
+                      label: 'Au moins une majuscule',
+                    ),
+                    const SizedBox(height: 8),
+                    _passwordRule(
+                      valid: hasNumber,
+                      label: 'Au moins un chiffre',
+                    ),
+                    const SizedBox(height: 8),
+                    _passwordRule(
+                      valid: hasSpecial,
+                      label: 'Au moins un caractere special',
+                    ),
+                    const SizedBox(height: 8),
+                    _passwordRule(
+                      valid: matches,
+                      label: 'Confirmation identique',
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              insetPadding: EdgeInsets.symmetric(
+                horizontal: isCompact ? 14 : 28,
+                vertical: 24,
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 860),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(18, 16, 12, 16),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [_primary, _primaryDark],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(24),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.lock_reset_outlined,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Mise a jour mot de passe',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Renforcez la securite de votre compte avec un mot de passe solide.',
+                                  style: TextStyle(
+                                    color: Color(0xFFE7EEFF),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: submitting
+                                ? null
+                                : () => Navigator.of(
+                                    dialogContext,
+                                    rootNavigator: true,
+                                  ).pop(false),
+                            icon: const Icon(Icons.close, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: Form(
+                          key: formKey,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          child: Column(
+                            children: [
+                              if (isCompact) ...[
+                                buildFormColumn(),
+                                const SizedBox(height: 14),
+                                buildSecurityColumn(),
+                              ] else ...[
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(flex: 7, child: buildFormColumn()),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      flex: 5,
+                                      child: buildSecurityColumn(),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                              if (serverError != null) ...[
+                                const SizedBox(height: 14),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: _danger.withValues(alpha: 0.08),
+                                    border: Border.all(
+                                      color: _danger.withValues(alpha: 0.22),
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    serverError!,
+                                    style: const TextStyle(
+                                      color: _danger,
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                      decoration: const BoxDecoration(
+                        border: Border(top: BorderSide(color: _border)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          OutlinedButton(
+                            onPressed: submitting
+                                ? null
+                                : () => Navigator.of(
+                                    dialogContext,
+                                    rootNavigator: true,
+                                  ).pop(false),
+                            child: const Text('Annuler'),
+                          ),
+                          const SizedBox(width: 10),
+                          ElevatedButton.icon(
+                            onPressed: submitting ? null : submit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _primary,
+                              foregroundColor: Colors.white,
+                            ),
+                            icon: submitting
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.lock_reset_outlined),
+                            label: const Text('Mettre a jour'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: submitting
-                      ? null
-                      : () => Navigator.pop(dialogContext),
-                  child: const Text('Annuler'),
-                ),
-                ElevatedButton.icon(
-                  onPressed: submitting ? null : submit,
-                  icon: submitting
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.lock_reset_outlined),
-                  label: const Text('Mettre a jour'),
-                ),
-              ],
             );
           },
         );
       },
     );
+
+    if (didUpdate == true && mounted) {
+      await _authService.logout();
+      if (!mounted) return;
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.login,
+        (route) => false,
+      );
+    }
 
     oldCtrl.dispose();
     newCtrl.dispose();
@@ -499,6 +1181,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Parametres profil',
+            onPressed: _showProfileSettingsDialog,
+            icon: const Icon(Icons.manage_accounts_outlined),
+          ),
           IconButton(
             tooltip: 'Modifier mot de passe',
             onPressed: _showChangePasswordDialog,
@@ -675,6 +1362,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 Icons.work_outline,
                                 'Role',
                                 _roleLabel(_user.role),
+                              ),
+                              const SizedBox(height: 10),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: OutlinedButton.icon(
+                                  onPressed: _showProfileSettingsDialog,
+                                  icon: const Icon(Icons.edit_outlined),
+                                  label: const Text('Modifier profil'),
+                                ),
                               ),
                             ],
                           ),

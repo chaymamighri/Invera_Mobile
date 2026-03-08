@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:invera_mobile/config/app_globals.dart';
 import 'package:invera_mobile/models/client_model.dart';
 import 'package:invera_mobile/models/commande_model.dart';
 import 'package:invera_mobile/services/client_service.dart';
@@ -189,6 +190,8 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
   Future<void> _onCreate() async {
     final result = await _openCommandeForm();
     if (result == null) return;
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
 
     setState(() => _isBusy = true);
     try {
@@ -199,10 +202,12 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
           remiseTotale: result.remiseTotale,
         ),
       );
+      if (!mounted) return;
       await _reloadCommandes();
+      if (!mounted) return;
       _showMessage('Commande créée');
     } catch (e) {
-      _showMessage(e.toString(), isError: true);
+      if (mounted) _showMessage(e.toString(), isError: true);
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
@@ -219,6 +224,8 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
 
     final result = await _openCommandeForm(initialCommande: cmd);
     if (result == null) return;
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
 
     setState(() => _isBusy = true);
     try {
@@ -232,10 +239,12 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
           produits: result.produits,
         ),
       );
+      if (!mounted) return;
       await _reloadCommandes();
+      if (!mounted) return;
       _showMessage('Commande modifiée');
     } catch (e) {
-      _showMessage(e.toString(), isError: true);
+      if (mounted) _showMessage(e.toString(), isError: true);
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
@@ -259,11 +268,11 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
         content: Text('Confirmer ${cmd.referenceCommandeClient} ?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
+            onPressed: () => Navigator.of(ctx, rootNavigator: true).pop(false),
             child: const Text('Non'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: () => Navigator.of(ctx, rootNavigator: true).pop(true),
             style: ElevatedButton.styleFrom(backgroundColor: _success),
             child: const Text('Oui'),
           ),
@@ -272,14 +281,18 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     );
 
     if (ok != true) return;
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
 
     setState(() => _isBusy = true);
     try {
       await _commandeService.confirmerCommande(cmd.idCommandeClient);
+      if (!mounted) return;
       await _reloadCommandes();
+      if (!mounted) return;
       _showMessage('Commande confirmée');
     } catch (e) {
-      _showMessage(e.toString(), isError: true);
+      if (mounted) _showMessage(e.toString(), isError: true);
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
@@ -301,11 +314,11 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
         content: Text('Annuler ${cmd.referenceCommandeClient} ?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
+            onPressed: () => Navigator.of(ctx, rootNavigator: true).pop(false),
             child: const Text('Non'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: () => Navigator.of(ctx, rootNavigator: true).pop(true),
             style: ElevatedButton.styleFrom(backgroundColor: _error),
             child: const Text('Oui'),
           ),
@@ -314,14 +327,18 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     );
 
     if (ok != true) return;
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
 
     setState(() => _isBusy = true);
     try {
       await _commandeService.rejeterCommande(cmd.idCommandeClient);
+      if (!mounted) return;
       await _reloadCommandes();
+      if (!mounted) return;
       _showMessage('Commande annulée');
     } catch (e) {
-      _showMessage(e.toString(), isError: true);
+      if (mounted) _showMessage(e.toString(), isError: true);
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
@@ -630,9 +647,12 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                   children: [
                     if (_canConfirm(cmd))
                       ElevatedButton.icon(
-                        onPressed: () async {
-                          Navigator.pop(ctx);
-                          await _onConfirm(cmd);
+                        onPressed: () {
+                          Navigator.of(ctx, rootNavigator: true).pop();
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (!mounted) return;
+                            _onConfirm(cmd);
+                          });
                         },
                         icon: const Icon(Icons.check_circle_outline),
                         label: const Text('Confirmer'),
@@ -643,7 +663,8 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                       ),
                     if (_canConfirm(cmd)) const SizedBox(width: _baseUnit),
                     TextButton.icon(
-                      onPressed: () => Navigator.pop(ctx),
+                      onPressed: () =>
+                          Navigator.of(ctx, rootNavigator: true).pop(),
                       icon: const Icon(Icons.close),
                       label: const Text('Fermer'),
                     ),
@@ -745,8 +766,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
               }
 
               final produits = _buildProduitPayload(lines);
-              Navigator.pop(
-                ctx,
+              Navigator.of(dialogContext, rootNavigator: true).pop(
                 _CommandeFormResult(
                   clientId: selectedClientId!,
                   produits: produits,
@@ -804,7 +824,10 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                           ),
                           const SizedBox(width: _baseUnit),
                           IconButton(
-                            onPressed: () => Navigator.pop(ctx),
+                            onPressed: () => Navigator.of(
+                              dialogContext,
+                              rootNavigator: true,
+                            ).pop(),
                             icon: const Icon(Icons.close),
                           ),
                         ],
@@ -923,6 +946,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                               final lineTotal = qty * unitPrice;
 
                                               return Container(
+                                                key: ValueKey(line.rowKey),
                                                 margin: EdgeInsets.only(
                                                   bottom: _baseUnit * 1.5,
                                                 ),
@@ -982,6 +1006,9 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                                     DropdownButtonFormField<
                                                       int
                                                     >(
+                                                      key: ValueKey(
+                                                        'product_${line.rowKey}',
+                                                      ),
                                                       initialValue:
                                                           available.any(
                                                             (p) =>
@@ -1026,6 +1053,9 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                                       children: [
                                                         Expanded(
                                                           child: TextFormField(
+                                                            key: ValueKey(
+                                                              'qty_${line.rowKey}',
+                                                            ),
                                                             controller: line
                                                                 .quantiteController,
                                                             keyboardType:
@@ -1352,7 +1382,10 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           TextButton(
-                            onPressed: () => Navigator.pop(ctx),
+                            onPressed: () => Navigator.of(
+                              dialogContext,
+                              rootNavigator: true,
+                            ).pop(),
                             child: const Text('Annuler'),
                           ),
                           const SizedBox(width: _baseUnit),
@@ -1778,14 +1811,21 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
   }
 
   void _showMessage(String msg, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: isError ? _error : _success,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+    final messenger = appScaffoldMessengerKey.currentState;
+    if (messenger == null) return;
+
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: isError ? _error : _success,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
   }
 
   @override
