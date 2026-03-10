@@ -158,7 +158,9 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
       if (!mounted) return;
 
       setState(() {
-        _commandes = results[0] as List<CommandeModel>;
+        _commandes = _sortCommandesByCreation(
+          results[0] as List<CommandeModel>,
+        );
         _clients = results[1] as List<ClientModel>;
         _produits = results[2] as List<ProduitOption>;
         _isLoading = false;
@@ -179,12 +181,65 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
       final statut = _statusFilter == 'TOUS' ? null : _statusFilter;
       final data = await _commandeService.getCommandes(statut: statut);
       if (!mounted) return;
-      setState(() => _commandes = data);
+      setState(() => _commandes = _sortCommandesByCreation(data));
     } catch (e) {
       if (mounted) _showMessage(e.toString(), isError: true);
     } finally {
       if (showBusy && mounted) setState(() => _isBusy = false);
     }
+  }
+
+  List<CommandeModel> _sortCommandesByCreation(List<CommandeModel> commandes) {
+    final sorted = List<CommandeModel>.from(commandes);
+    sorted.sort((a, b) {
+      final aDate = _parseCommandeCreationDate(a);
+      final bDate = _parseCommandeCreationDate(b);
+
+      if (aDate != null && bDate != null) {
+        final cmp = bDate.compareTo(aDate);
+        if (cmp != 0) return cmp;
+      } else if (aDate == null && bDate != null) {
+        return 1;
+      } else if (aDate != null && bDate == null) {
+        return -1;
+      }
+
+      return b.idCommandeClient.compareTo(a.idCommandeClient);
+    });
+    return sorted;
+  }
+
+  DateTime? _parseCommandeCreationDate(CommandeModel commande) {
+    final raw = commande.dateCommande.trim();
+    if (raw.isNotEmpty) {
+      final parsedRaw = DateTime.tryParse(raw);
+      if (parsedRaw != null) return parsedRaw;
+    }
+
+    final formatted = commande.dateCommandeFormatted.trim();
+    if (formatted.isEmpty || formatted == '-') return null;
+
+    final parsedFormatted = DateTime.tryParse(formatted);
+    if (parsedFormatted != null) return parsedFormatted;
+
+    final normalized = formatted.replaceFirst(' ', 'T');
+    final parsedNormalized = DateTime.tryParse(normalized);
+    if (parsedNormalized != null) return parsedNormalized;
+
+    final match = RegExp(
+      r'^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$',
+    ).firstMatch(formatted);
+    if (match == null) return null;
+
+    final day = int.tryParse(match.group(1) ?? '');
+    final month = int.tryParse(match.group(2) ?? '');
+    final year = int.tryParse(match.group(3) ?? '');
+    final hour = int.tryParse(match.group(4) ?? '0') ?? 0;
+    final minute = int.tryParse(match.group(5) ?? '0') ?? 0;
+    final second = int.tryParse(match.group(6) ?? '0') ?? 0;
+
+    if (day == null || month == null || year == null) return null;
+    return DateTime(year, month, day, hour, minute, second);
   }
 
   Future<void> _onCreate() async {
@@ -1417,6 +1472,11 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
       },
     );
 
+    // Important fix:
+    // wait until the dialog is fully removed from the widget tree
+    // before disposing controllers used by TextFormField.
+    await WidgetsBinding.instance.endOfFrame;
+
     for (final l in lines) {
       l.dispose();
     }
@@ -1424,6 +1484,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
       l.dispose();
     }
     remiseCtrl.dispose();
+
     return result;
   }
 

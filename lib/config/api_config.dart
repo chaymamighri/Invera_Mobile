@@ -6,6 +6,7 @@ class ApiConfig {
   static const String apiPrefix = '/api/auth';
   static const String clientsPrefix = '/api/clients';
   static const String commandesPrefix = '/api/commandes';
+  static const String facturesPrefix = '/api/factures';
   static const String productsPrefix = '/api/produits';
 
   // Endpoints
@@ -31,6 +32,10 @@ class ApiConfig {
   static const String listCommandesEndpoint =
       '$commandesPrefix/getAllCommandes';
   static const String createCommandeEndpoint = '$commandesPrefix/creer';
+
+  // Factures endpoints
+  static const String facturesAllEndpoint = '$facturesPrefix/all';
+  static const String facturesGenerateEndpoint = '$facturesPrefix/generer';
 
   // Produits endpoints
   static const String productsAllEndpoint = '$productsPrefix/all';

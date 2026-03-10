@@ -9,6 +9,7 @@ import 'package:invera_mobile/services/client_service.dart';
 import 'package:invera_mobile/services/commande_service.dart';
 import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/commercial_clients_section.dart';
 import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/commercial_commandes_section.dart';
+import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/commercial_factures_section.dart';
 
 class CommercialDashboard extends StatefulWidget {
   final User user;
@@ -182,11 +183,14 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     if (_activePage == 'commandes') {
       return const CommercialCommandesSection();
     }
+    if (_activePage == 'factures') {
+      return const CommercialFacturesSection();
+    }
 
-    final icon = _activePage == 'factures'
-        ? Icons.receipt_long_outlined
-        : Icons.grid_view_rounded;
-    return _buildModulePlaceholder(title: _pageTitle(), icon: icon);
+    return _buildModulePlaceholder(
+      title: _pageTitle(),
+      icon: Icons.grid_view_rounded,
+    );
   }
 
   Widget _buildModulePlaceholder({
@@ -238,7 +242,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
   }
 
   Widget _buildBodyArea() {
-    if (_activePage == 'dashboard') {
+    if (_activePage == 'dashboard' || _activePage == 'factures') {
       return _buildPageContent();
     }
 

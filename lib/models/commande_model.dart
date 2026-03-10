@@ -99,6 +99,7 @@ class CommandeModel {
   final CommandeClientInfo? client;
   final String statut;
   final String statutDisplay;
+  final String dateCommande;
   final String dateCommandeFormatted;
   final double sousTotal;
   final double tauxRemise;
@@ -111,6 +112,7 @@ class CommandeModel {
     required this.client,
     required this.statut,
     required this.statutDisplay,
+    required this.dateCommande,
     required this.dateCommandeFormatted,
     required this.sousTotal,
     required this.tauxRemise,
@@ -140,6 +142,7 @@ class CommandeModel {
         'statutDisplay',
         'statut',
       ], fallback: 'En attente'),
+      dateCommande: fallbackDate,
       dateCommandeFormatted: _readString(json, [
         'dateCommandeFormatted',
       ], fallback: fallbackDate.isEmpty ? '-' : fallbackDate),
