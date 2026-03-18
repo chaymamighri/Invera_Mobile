@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:invera_mobile/core/ui/adaptive_layout.dart';
+import 'package:invera_mobile/models/client_model.dart';
 import 'package:invera_mobile/models/commande_model.dart';
 import 'package:invera_mobile/models/facture_model.dart';
 import 'package:invera_mobile/services/commande_service.dart';
 import 'package:invera_mobile/services/facture_service.dart';
-
-enum _FacturePeriod { day, week, month, year }
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 const Color _primary = Color(0xFF2D47C8);
 const Color _primaryDark = Color(0xFF2037A7);
@@ -14,9 +18,12 @@ const Color _surface = Colors.white;
 const Color _textPrimary = Color(0xFF1F2A44);
 const Color _textSecondary = Color(0xFF607089);
 const Color _borderLight = Color(0xFFE6EAF2);
-const Color _success = Color(0xFF0CAE4A);
-const Color _error = Color(0xFFB42318);
 const double _baseUnit = 8.0;
+const double _pdfVatRate = 0.19;
+const String _pdfCompanyAddress = '123 Rue de la Republique, 1000 Tunis';
+const String _pdfCompanyPhone = '+216 00 000 000';
+const String _pdfCompanyEmail = 'contact@invera.tn';
+const String _pdfCompanyTaxId = 'MF: 0000000/A/M/000';
 
 class CommercialFacturesSection extends StatefulWidget {
   const CommercialFacturesSection({super.key});
@@ -35,14 +42,12 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
 
   bool _loading = true;
   bool _refreshing = false;
-  bool _generating = false;
-  bool _showOnlyPending = true;
+  int? _generatingCommandeId;
   String? _error;
 
   List<CommandeModel> _confirmedCommandes = <CommandeModel>[];
   final Map<int, FactureModel> _facturesByCommandeId = <int, FactureModel>{};
-  final Set<int> _selectedCommandeIds = <int>{};
-  _FacturePeriod _period = _FacturePeriod.month;
+  DateTimeRange? _selectedDateRange;
   String _searchQuery = '';
 
   @override
@@ -95,14 +100,11 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
 
       if (!mounted) return;
 
-      final availableIds = confirmed.map((e) => e.idCommandeClient).toSet();
-
       setState(() {
         _confirmedCommandes = confirmed;
         _facturesByCommandeId
           ..clear()
           ..addAll(facturesByCommande);
-        _selectedCommandeIds.removeWhere((id) => !availableIds.contains(id));
         _loading = false;
         _refreshing = false;
       });
@@ -177,27 +179,17 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     return DateTime(parsed.year, parsed.month, parsed.day);
   }
 
-  bool _belongsToPeriod(CommandeModel cmd, _FacturePeriod period) {
+  bool _belongsToDateRange(CommandeModel cmd) {
+    final selected = _selectedDateRange;
+    if (selected == null) return true;
+
     final date = _parseCommandeDate(cmd);
     if (date == null) return false;
 
-    final today = _dayOnly(DateTime.now());
+    final start = _dayOnly(selected.start);
+    final end = _dayOnly(selected.end);
     final order = _dayOnly(date);
-
-    switch (period) {
-      case _FacturePeriod.day:
-        return order == today;
-      case _FacturePeriod.week:
-        final weekStart = today.subtract(
-          Duration(days: today.weekday - DateTime.monday),
-        );
-        final weekEnd = weekStart.add(const Duration(days: 6));
-        return !order.isBefore(weekStart) && !order.isAfter(weekEnd);
-      case _FacturePeriod.month:
-        return order.year == today.year && order.month == today.month;
-      case _FacturePeriod.year:
-        return order.year == today.year;
-    }
+    return !order.isBefore(start) && !order.isAfter(end);
   }
 
   bool _isInvoiced(int commandeId) {
@@ -211,43 +203,337 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
   }
 
   List<CommandeModel> get _visibleCommandes {
-    final query = _searchQuery.trim().toLowerCase();
-    final base = _showOnlyPending ? _pendingCommandes : _confirmedCommandes;
-    if (query.isEmpty) return base;
+    final terms = _searchQueryTerms;
 
-    return base.where((cmd) {
-      final ref = cmd.referenceCommandeClient.toLowerCase();
-      final client = (cmd.client?.fullName ?? '').toLowerCase();
-      final date = cmd.dateCommandeFormatted.toLowerCase();
-      return ref.contains(query) ||
-          client.contains(query) ||
-          date.contains(query);
+    return _confirmedCommandes.where((cmd) {
+      if (!_belongsToDateRange(cmd)) return false;
+      if (terms.isEmpty) return true;
+      final haystack = _buildSearchHaystack(cmd);
+      return terms.every(haystack.contains);
     }).toList();
   }
 
-  List<CommandeModel> get _selectedCommandes {
-    return _confirmedCommandes
-        .where((cmd) => _selectedCommandeIds.contains(cmd.idCommandeClient))
-        .toList();
+  String _formatDateForUi(DateTime value) {
+    final day = value.day.toString().padLeft(2, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    return '$day/$month/${value.year}';
   }
 
-  List<CommandeModel> get _periodCandidates {
-    return _pendingCommandes
-        .where((cmd) => _belongsToPeriod(cmd, _period))
-        .toList();
+  String get _dateRangeLabel {
+    final selected = _selectedDateRange;
+    if (selected == null) return 'Toutes dates';
+    return '${_formatDateForUi(selected.start)} -> ${_formatDateForUi(selected.end)}';
   }
 
-  String _periodLabel(_FacturePeriod value) {
-    switch (value) {
-      case _FacturePeriod.day:
-        return 'Jour';
-      case _FacturePeriod.week:
-        return 'Semaine';
-      case _FacturePeriod.month:
-        return 'Mois';
-      case _FacturePeriod.year:
-        return 'Annee';
+  bool _isSameDateRange(DateTimeRange? a, DateTimeRange? b) {
+    if (a == null || b == null) return a == b;
+    final startA = _dayOnly(a.start);
+    final endA = _dayOnly(a.end);
+    final startB = _dayOnly(b.start);
+    final endB = _dayOnly(b.end);
+    return startA == startB && endA == endB;
+  }
+
+  DateTimeRange _normalizedRange(DateTime start, DateTime end) {
+    final normalizedStart = _dayOnly(start);
+    final normalizedEnd = _dayOnly(end);
+    if (!normalizedStart.isAfter(normalizedEnd)) {
+      return DateTimeRange(start: normalizedStart, end: normalizedEnd);
     }
+    return DateTimeRange(start: normalizedEnd, end: normalizedStart);
+  }
+
+  Future<void> _openDateFilterSheet() async {
+    final now = DateTime.now();
+    final firstDate = DateTime(now.year - 10, 1, 1);
+    final lastDate = DateTime(now.year + 10, 12, 31);
+    final todayRange = _normalizedRange(now, now);
+    final last7DaysRange = _normalizedRange(
+      now.subtract(const Duration(days: 6)),
+      now,
+    );
+    final monthRange = _normalizedRange(
+      DateTime(now.year, now.month, 1),
+      DateTime(now.year, now.month + 1, 0),
+    );
+    final yearRange = _normalizedRange(
+      DateTime(now.year, 1, 1),
+      DateTime(now.year, 12, 31),
+    );
+
+    DateTimeRange? draftRange = _selectedDateRange;
+
+    DateTime safeInitialDate(DateTime? input) {
+      final base = _dayOnly(input ?? now);
+      if (base.isBefore(firstDate)) return firstDate;
+      if (base.isAfter(lastDate)) return lastDate;
+      return base;
+    }
+
+    Future<DateTime?> pickSingleDate({
+      required DateTime? initialDate,
+      required String helpText,
+    }) async {
+      return showDatePicker(
+        context: context,
+        locale: const Locale('fr', 'FR'),
+        firstDate: firstDate,
+        lastDate: lastDate,
+        initialDate: safeInitialDate(initialDate),
+        helpText: helpText,
+        cancelText: 'Annuler',
+        confirmText: 'Valider',
+      );
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, modalSetState) {
+            Widget quickRangeChip(String label, DateTimeRange? range) {
+              final selected = _isSameDateRange(draftRange, range);
+              return ChoiceChip(
+                selected: selected,
+                label: Text(label),
+                selectedColor: _primary.withValues(alpha: 0.16),
+                backgroundColor: _surface,
+                side: BorderSide(color: selected ? _primary : _borderLight),
+                labelStyle: TextStyle(
+                  color: selected ? _primaryDark : _textPrimary,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                ),
+                onSelected: (_) => modalSetState(() => draftRange = range),
+              );
+            }
+
+            Future<void> pickStartDate() async {
+              final picked = await pickSingleDate(
+                initialDate: draftRange?.start,
+                helpText: 'Date debut',
+              );
+              if (picked == null) return;
+              modalSetState(() {
+                draftRange = _normalizedRange(
+                  picked,
+                  draftRange?.end ?? picked,
+                );
+              });
+            }
+
+            Future<void> pickEndDate() async {
+              final picked = await pickSingleDate(
+                initialDate: draftRange?.end ?? draftRange?.start,
+                helpText: 'Date fin',
+              );
+              if (picked == null) return;
+              modalSetState(() {
+                draftRange = _normalizedRange(
+                  draftRange?.start ?? picked,
+                  picked,
+                );
+              });
+            }
+
+            return SafeArea(
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _borderLight),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: _primary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.date_range_outlined,
+                            color: _primary,
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Filtre calendrier',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: _textPrimary,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Choisissez une plage rapide ou des dates precises.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: _textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Fermer',
+                          onPressed: () => Navigator.of(sheetContext).pop(),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        quickRangeChip('Toutes dates', null),
+                        quickRangeChip('Aujourd\'hui', todayRange),
+                        quickRangeChip('7 derniers jours', last7DaysRange),
+                        quickRangeChip('Ce mois', monthRange),
+                        quickRangeChip('Cette annee', yearRange),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: _background,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: _borderLight),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: pickStartDate,
+                              icon: const Icon(Icons.event_outlined, size: 16),
+                              label: Text(
+                                draftRange == null
+                                    ? 'Du'
+                                    : 'Du ${_formatDateForUi(draftRange!.start)}',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: pickEndDate,
+                              icon: const Icon(Icons.event_available, size: 16),
+                              label: Text(
+                                draftRange == null
+                                    ? 'Au'
+                                    : 'Au ${_formatDateForUi(draftRange!.end)}',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(sheetContext).pop(),
+                          child: const Text('Annuler'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            if (!mounted) return;
+                            setState(() {
+                              _selectedDateRange = draftRange;
+                            });
+                            Navigator.of(sheetContext).pop();
+                            _showMessage(
+                              draftRange == null
+                                  ? 'Filtre date efface.'
+                                  : 'Filtre applique: $_dateRangeLabel',
+                            );
+                          },
+                          icon: const Icon(Icons.check),
+                          label: const Text('Appliquer'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _primary,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String _normalizeSearchText(String value) {
+    return value
+        .toLowerCase()
+        .trim()
+        .replaceAll(RegExp(r'[\u00E0-\u00E5]'), 'a')
+        .replaceAll(RegExp(r'[\u00E8-\u00EB]'), 'e')
+        .replaceAll(RegExp(r'[\u00EC-\u00EF]'), 'i')
+        .replaceAll(RegExp(r'[\u00F2-\u00F6]'), 'o')
+        .replaceAll(RegExp(r'[\u00F9-\u00FC]'), 'u')
+        .replaceAll('\u00E7', 'c')
+        .replaceAll('\u0153', 'oe')
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  List<String> get _searchQueryTerms {
+    final normalized = _normalizeSearchText(_searchQuery);
+    if (normalized.isEmpty) return const <String>[];
+    return normalized
+        .split(' ')
+        .where((term) => term.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  String _buildSearchHaystack(CommandeModel cmd) {
+    final date = _parseCommandeDate(cmd);
+    final normalizedDate = date == null
+        ? ''
+        : '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final raw = <String>[
+      cmd.referenceCommandeClient,
+      cmd.dateCommande,
+      cmd.dateCommandeFormatted,
+      cmd.client?.fullName ?? '',
+      cmd.client?.telephone ?? '',
+      cmd.client?.email ?? '',
+      _displayStatus(cmd.statut),
+      cmd.total.toStringAsFixed(2),
+      normalizedDate,
+    ].join(' ');
+    return _normalizeSearchText(raw);
   }
 
   double _sumTotal(List<CommandeModel> items) {
@@ -279,112 +565,6 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     return '${subtotal.toStringAsFixed(2)} DT';
   }
 
-  void _toggleSelectAllVisible(bool selected, List<CommandeModel> visible) {
-    setState(() {
-      final allowed = visible.where((e) => !_isInvoiced(e.idCommandeClient));
-      if (selected) {
-        _selectedCommandeIds.addAll(allowed.map((e) => e.idCommandeClient));
-      } else {
-        for (final cmd in allowed) {
-          _selectedCommandeIds.remove(cmd.idCommandeClient);
-        }
-      }
-    });
-  }
-
-  Future<void> _generateSelected() async {
-    final targets = _selectedCommandes
-        .where((cmd) => !_isInvoiced(cmd.idCommandeClient))
-        .toList();
-
-    if (targets.isEmpty) {
-      _showMessage(
-        'Selectionnez au moins une commande non facturee.',
-        isError: true,
-      );
-      return;
-    }
-
-    await _generateMany(targets, title: 'Facturation de la selection');
-  }
-
-  Future<void> _generateFromPeriod() async {
-    final targets = _periodCandidates;
-    if (targets.isEmpty) {
-      _showMessage(
-        'Aucune commande confirmee pour ${_periodLabel(_period).toLowerCase()}.',
-        isError: true,
-      );
-      return;
-    }
-
-    await _generateMany(
-      targets,
-      title: 'Period generation (${_periodLabel(_period).toLowerCase()})',
-    );
-  }
-
-  Future<void> _generateMany(
-    List<CommandeModel> commandes, {
-    required String title,
-  }) async {
-    setState(() => _generating = true);
-
-    final created = <FactureModel>[];
-    final failed = <_GenerationFailure>[];
-
-    for (final cmd in commandes) {
-      try {
-        final existing = await _factureService.getFactureByCommandeId(
-          cmd.idCommandeClient,
-        );
-        if (existing != null) {
-          created.add(existing);
-          continue;
-        }
-      } catch (e) {
-        if (_isAuthError(e.toString())) {
-          failed.add(
-            _GenerationFailure(
-              referenceCommande: cmd.referenceCommandeClient,
-              message: e.toString(),
-            ),
-          );
-          continue;
-        }
-      }
-
-      try {
-        final facture = await _factureService.generateFromCommande(
-          cmd.idCommandeClient,
-        );
-        created.add(facture);
-      } catch (e) {
-        failed.add(
-          _GenerationFailure(
-            referenceCommande: cmd.referenceCommandeClient,
-            message: e.toString(),
-          ),
-        );
-      }
-    }
-
-    if (!mounted) return;
-
-    setState(() {
-      for (final facture in created) {
-        final cmdId = facture.commandeId;
-        if (cmdId != null) {
-          _facturesByCommandeId[cmdId] = facture;
-          _selectedCommandeIds.remove(cmdId);
-        }
-      }
-      _generating = false;
-    });
-
-    await _showGenerationResult(title: title, created: created, failed: failed);
-  }
-
   bool _isAuthError(String message) {
     final normalized = message.toLowerCase();
     return normalized.contains('http 401') ||
@@ -393,83 +573,907 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
         normalized.contains('access denied');
   }
 
-  Future<void> _showGenerationResult({
-    required String title,
-    required List<FactureModel> created,
-    required List<_GenerationFailure> failed,
-  }) async {
-    final createdTotal = created.fold<double>(
+  String _cleanErrorMessage(Object error) {
+    final raw = error.toString().trim();
+    if (raw.startsWith('Exception:')) {
+      return raw.substring('Exception:'.length).trim();
+    }
+    return raw;
+  }
+
+  bool _isGeneratingFor(int commandeId) {
+    return _generatingCommandeId == commandeId;
+  }
+
+  Future<FactureModel?> _ensureFactureForCommande(CommandeModel cmd) async {
+    final cached = _facturesByCommandeId[cmd.idCommandeClient];
+    if (cached != null) return cached;
+
+    setState(() => _generatingCommandeId = cmd.idCommandeClient);
+
+    try {
+      final existing = await _factureService.getFactureByCommandeId(
+        cmd.idCommandeClient,
+      );
+
+      if (existing != null) {
+        if (!mounted) return existing;
+        setState(() {
+          _facturesByCommandeId[cmd.idCommandeClient] = existing;
+          _generatingCommandeId = null;
+        });
+        return existing;
+      }
+
+      final facture = await _factureService.generateFromCommande(
+        cmd.idCommandeClient,
+      );
+
+      if (!mounted) return facture;
+      setState(() {
+        _facturesByCommandeId[cmd.idCommandeClient] = facture;
+        _generatingCommandeId = null;
+      });
+      _showMessage(
+        'Facture ${facture.referenceFactureClient} generee pour ${cmd.referenceCommandeClient}.',
+      );
+      return facture;
+    } catch (error) {
+      if (!mounted) return null;
+      setState(() => _generatingCommandeId = null);
+
+      final message = _cleanErrorMessage(error);
+      _showMessage(
+        _isAuthError(message)
+            ? 'Generation impossible pour ${cmd.referenceCommandeClient}. Verifiez les droits backend sur /api/factures/generer/{commandeId}.'
+            : 'Erreur de generation pour ${cmd.referenceCommandeClient}: $message',
+        isError: true,
+      );
+      return null;
+    }
+  }
+
+  Future<void> _openFactureFlow(CommandeModel cmd) async {
+    final facture = await _ensureFactureForCommande(cmd);
+    if (!mounted || facture == null) return;
+    _showFactureDetails(cmd, facture);
+  }
+
+  Future<void> _exportFacturePdf(
+    CommandeModel cmd,
+    FactureModel facture,
+  ) async {
+    try {
+      await Printing.layoutPdf(
+        onLayout: (_) => _buildFacturePdfBytes(cmd, facture),
+        name: '${facture.referenceFactureClient}.pdf',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage(
+        'Export PDF impossible: ${_cleanErrorMessage(error)}',
+        isError: true,
+      );
+    }
+  }
+
+  Future<Uint8List> _buildFacturePdfBytes(
+    CommandeModel cmd,
+    FactureModel facture,
+  ) async {
+    final baseFont = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/roboto-regular.ttf'),
+    );
+    final boldFont = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/roboto-bold.ttf'),
+    );
+    final pdfTheme = pw.ThemeData.withFont(base: baseFont, bold: boldFont);
+    final document = pw.Document();
+    final client = cmd.client;
+    final logoBytes = await rootBundle.load('assets/images/logo.png');
+    final logoImage = pw.MemoryImage(
+      logoBytes.buffer.asUint8List(
+        logoBytes.offsetInBytes,
+        logoBytes.lengthInBytes,
+      ),
+    );
+    final generatedAt = _formatPdfDate(facture.dateFactureDisplay);
+    final clientType = _formatClientType(client?.typeClient);
+    final articlesSubtotal = cmd.produits.fold<double>(
       0,
-      (sum, e) => sum + e.montantTotal,
+      (sum, produit) => sum + produit.sousTotal,
+    );
+    final subtotal = articlesSubtotal > 0 ? articlesSubtotal : cmd.sousTotal;
+    final vatAmount = subtotal * _pdfVatRate;
+    final totalTtc = subtotal + vatAmount;
+    final invoiceHeadlineAmount = facture.montantTotal > 0
+        ? facture.montantTotal
+        : cmd.total;
+
+    document.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        theme: pdfTheme,
+        margin: const pw.EdgeInsets.fromLTRB(28, 24, 28, 24),
+        build: (context) => [
+          _buildPdfHeader(
+            logoImage: logoImage,
+            reference: facture.referenceFactureClient,
+            status: facture.statut,
+          ),
+          pw.SizedBox(height: 20),
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Expanded(
+                child: _buildPdfInfoCard(
+                  title: 'CLIENT',
+                  marker: 'C',
+                  markerBackground: PdfColor.fromInt(0xFFF1E8FF),
+                  markerColor: PdfColor.fromInt(0xFF6B3FA0),
+                  children: [
+                    _buildPdfInfoRow('Nom', client?.fullName ?? '-'),
+                    _buildPdfInfoRow('Type', clientType),
+                    _buildPdfInfoRow('Email', client?.email ?? '-'),
+                    _buildPdfInfoRow('Tel', client?.telephone ?? '-'),
+                    _buildPdfInfoRow('Adresse', client?.adresse ?? '-'),
+                  ],
+                ),
+              ),
+              pw.SizedBox(width: 18),
+              pw.Expanded(
+                child: _buildPdfInfoCard(
+                  title: 'FACTURE',
+                  marker: 'F',
+                  markerBackground: PdfColor.fromInt(0xFFF3EBFF),
+                  markerColor: PdfColor.fromInt(0xFFA06BFF),
+                  children: [
+                    _buildPdfInfoRow('Date', generatedAt),
+                    _buildPdfInfoRow(
+                      'No',
+                      facture.referenceFactureClient.trim().isEmpty
+                          ? '-'
+                          : facture.referenceFactureClient,
+                    ),
+                    pw.SizedBox(height: 14),
+                    pw.Container(
+                      height: 1,
+                      color: PdfColor.fromInt(0xFFE8ECF4),
+                    ),
+                    pw.SizedBox(height: 16),
+                    pw.Row(
+                      crossAxisAlignment: pw.CrossAxisAlignment.end,
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text(
+                          'Total TTC',
+                          style: pw.TextStyle(
+                            fontSize: 12.5,
+                            color: PdfColor.fromInt(0xFF4B5A6A),
+                          ),
+                        ),
+                        pw.Text(
+                          _formatPdfAmount(invoiceHeadlineAmount),
+                          style: pw.TextStyle(
+                            fontSize: 20,
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColor.fromInt(_primary.toARGB32()),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 26),
+          _buildPdfSectionTitle('ARTICLES'),
+          pw.SizedBox(height: 12),
+          _buildPdfArticlesTable(cmd.produits),
+          pw.SizedBox(height: 18),
+          pw.Align(
+            alignment: pw.Alignment.centerRight,
+            child: _buildPdfTotalsCard(
+              subtotal: subtotal,
+              vatAmount: vatAmount,
+              totalTtc: totalTtc,
+            ),
+          ),
+          pw.SizedBox(height: 30),
+          _buildPdfFooter(),
+        ],
+      ),
     );
 
-    await showDialog<void>(
+    return document.save();
+  }
+
+  pw.Widget _buildPdfHeader({
+    required pw.MemoryImage logoImage,
+    required String reference,
+    required String status,
+  }) {
+    return pw.Column(
+      children: [
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+              flex: 3,
+              child: pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.SizedBox(
+                    width: 78,
+                    child: pw.Image(logoImage, fit: pw.BoxFit.contain),
+                  ),
+                  pw.SizedBox(width: 14),
+                  pw.Container(
+                    width: 1,
+                    height: 84,
+                    color: PdfColor.fromInt(0xFFE6EAF2),
+                  ),
+                  pw.SizedBox(width: 14),
+                  pw.Expanded(
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        _buildPdfContactLine(
+                          marker: 'P',
+                          value: _pdfCompanyAddress,
+                          markerBackground: PdfColor.fromInt(0xFFFFE8F2),
+                          markerColor: PdfColor.fromInt(0xFFE25793),
+                        ),
+                        pw.SizedBox(height: 10),
+                        _buildPdfContactLine(
+                          marker: 'T',
+                          value: _pdfCompanyPhone,
+                          markerBackground: PdfColor.fromInt(0xFFFFE7F1),
+                          markerColor: PdfColor.fromInt(0xFFD44A86),
+                        ),
+                        pw.SizedBox(height: 10),
+                        _buildPdfContactLine(
+                          marker: '@',
+                          value: _pdfCompanyEmail,
+                          markerBackground: PdfColor.fromInt(0xFFF4EDFF),
+                          markerColor: PdfColor.fromInt(0xFF8C73E6),
+                        ),
+                        pw.SizedBox(height: 10),
+                        _buildPdfContactLine(
+                          marker: 'ID',
+                          value: _pdfCompanyTaxId,
+                          markerBackground: PdfColor.fromInt(0xFFF2E9FF),
+                          markerColor: PdfColor.fromInt(0xFF9A63E6),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(width: 20),
+            pw.Expanded(
+              flex: 2,
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.end,
+                children: [
+                  pw.Text(
+                    'FACTURE',
+                    style: pw.TextStyle(
+                      fontSize: 29,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColor.fromInt(0xFF16223C),
+                    ),
+                  ),
+                  pw.SizedBox(height: 6),
+                  pw.Text(
+                    reference.trim().isEmpty ? '-' : reference,
+                    style: pw.TextStyle(
+                      fontSize: 12.5,
+                      color: PdfColor.fromInt(0xFF6E7C8F),
+                    ),
+                  ),
+                  pw.SizedBox(height: 18),
+                  _buildPdfStatusPill(status),
+                ],
+              ),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 18),
+        pw.Container(height: 1, color: PdfColor.fromInt(0xFFF0F2F6)),
+      ],
+    );
+  }
+
+  pw.Widget _buildPdfContactLine({
+    required String marker,
+    required String value,
+    required PdfColor markerBackground,
+    required PdfColor markerColor,
+  }) {
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Container(
+          width: 16,
+          height: 16,
+          alignment: pw.Alignment.center,
+          decoration: pw.BoxDecoration(
+            color: markerBackground,
+            borderRadius: pw.BorderRadius.circular(4),
+          ),
+          child: pw.Text(
+            marker,
+            style: pw.TextStyle(
+              fontSize: marker.length > 1 ? 6.5 : 8.5,
+              fontWeight: pw.FontWeight.bold,
+              color: markerColor,
+            ),
+          ),
+        ),
+        pw.SizedBox(width: 10),
+        pw.Expanded(
+          child: pw.Text(
+            value,
+            style: pw.TextStyle(
+              fontSize: 12,
+              color: PdfColor.fromInt(0xFF556273),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _buildPdfStatusPill(String rawStatus) {
+    final statusLabel = _displayStatus(rawStatus);
+    final statusUpper = rawStatus.trim().toUpperCase();
+    var borderColor = PdfColor.fromInt(0xFFF5D978);
+    var fillColor = PdfColor.fromInt(0xFFFFFBEC);
+    var textColor = PdfColor.fromInt(0xFFB27A1D);
+
+    if (statusUpper == 'PAYEE' || statusUpper == 'PAID') {
+      borderColor = PdfColor.fromInt(0xFF93D7AB);
+      fillColor = PdfColor.fromInt(0xFFEFFAF3);
+      textColor = PdfColor.fromInt(0xFF24734A);
+    } else if (statusUpper == 'ANNULEE' || statusUpper == 'REJETEE') {
+      borderColor = PdfColor.fromInt(0xFFF0A5A5);
+      fillColor = PdfColor.fromInt(0xFFFFF1F1);
+      textColor = PdfColor.fromInt(0xFFC25353);
+    }
+
+    return pw.Container(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+      decoration: pw.BoxDecoration(
+        color: fillColor,
+        border: pw.Border.all(color: borderColor),
+        borderRadius: pw.BorderRadius.circular(18),
+      ),
+      child: pw.Row(
+        mainAxisSize: pw.MainAxisSize.min,
+        children: [
+          pw.Container(
+            width: 7,
+            height: 7,
+            decoration: pw.BoxDecoration(
+              color: textColor,
+              shape: pw.BoxShape.circle,
+            ),
+          ),
+          pw.SizedBox(width: 8),
+          pw.Text(
+            statusLabel,
+            style: pw.TextStyle(
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+              color: textColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildPdfInfoCard({
+    required String title,
+    required String marker,
+    required PdfColor markerBackground,
+    required PdfColor markerColor,
+    required List<pw.Widget> children,
+  }) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(18),
+      decoration: pw.BoxDecoration(
+        color: PdfColor.fromInt(0xFFFBFCFF),
+        border: pw.Border.all(color: PdfColor.fromInt(0xFFE9EEF5)),
+        borderRadius: pw.BorderRadius.circular(18),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          _buildPdfCardTitle(
+            title: title,
+            marker: marker,
+            markerBackground: markerBackground,
+            markerColor: markerColor,
+          ),
+          pw.SizedBox(height: 16),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildPdfCardTitle({
+    required String title,
+    required String marker,
+    required PdfColor markerBackground,
+    required PdfColor markerColor,
+  }) {
+    return pw.Row(
+      children: [
+        pw.Container(
+          width: 18,
+          height: 18,
+          alignment: pw.Alignment.center,
+          decoration: pw.BoxDecoration(
+            color: markerBackground,
+            borderRadius: pw.BorderRadius.circular(5),
+          ),
+          child: pw.Text(
+            marker,
+            style: pw.TextStyle(
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+              color: markerColor,
+            ),
+          ),
+        ),
+        pw.SizedBox(width: 8),
+        pw.Text(
+          title,
+          style: pw.TextStyle(
+            fontSize: 13,
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColor.fromInt(0xFF6B7788),
+            letterSpacing: 0.5,
+          ),
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _buildPdfInfoRow(String label, String value) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 10),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.SizedBox(
+            width: 54,
+            child: pw.Text(
+              label,
+              style: pw.TextStyle(
+                fontSize: 11.5,
+                color: PdfColor.fromInt(0xFF8A96A7),
+              ),
+            ),
+          ),
+          pw.SizedBox(width: 10),
+          pw.Expanded(
+            child: pw.Text(
+              value.trim().isEmpty ? '-' : value,
+              style: pw.TextStyle(
+                fontSize: 12.5,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColor.fromInt(0xFF1C263A),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildPdfSectionTitle(String title) {
+    return pw.Row(
+      children: [
+        pw.Container(
+          width: 16,
+          height: 16,
+          alignment: pw.Alignment.center,
+          decoration: pw.BoxDecoration(
+            color: PdfColor.fromInt(0xFFF3EBFF),
+            borderRadius: pw.BorderRadius.circular(4),
+          ),
+          child: pw.Text(
+            title.substring(0, 1),
+            style: pw.TextStyle(
+              fontSize: 8,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColor.fromInt(0xFFB58CFF),
+            ),
+          ),
+        ),
+        pw.SizedBox(width: 8),
+        pw.Text(
+          title,
+          style: pw.TextStyle(
+            fontSize: 15,
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColor.fromInt(0xFF6A7788),
+            letterSpacing: 0.4,
+          ),
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _buildPdfArticlesTable(List<CommandeProduitDetail> produits) {
+    final rows = produits.isEmpty ? <CommandeProduitDetail>[] : produits;
+
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColor.fromInt(0xFFE9EEF5)),
+        borderRadius: pw.BorderRadius.circular(16),
+      ),
+      child: pw.Column(
+        children: [
+          _buildPdfArticleRow(
+            description: 'DESCRIPTION',
+            quantity: 'QTE',
+            unitPrice: 'PRIX UNITAIRE',
+            total: 'TOTAL',
+            isHeader: true,
+          ),
+          if (rows.isEmpty)
+            _buildPdfArticleRow(
+              description: 'Aucun article',
+              quantity: '-',
+              unitPrice: '-',
+              total: '-',
+            )
+          else
+            for (final produit in rows)
+              _buildPdfArticleRow(
+                description: produit.libelle,
+                quantity: '${produit.quantite}',
+                unitPrice: _formatPdfAmount(produit.prixUnitaire),
+                total: _formatPdfAmount(produit.sousTotal),
+              ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildPdfArticleRow({
+    required String description,
+    required String quantity,
+    required String unitPrice,
+    required String total,
+    bool isHeader = false,
+  }) {
+    final textColor = isHeader
+        ? PdfColor.fromInt(0xFF7A8696)
+        : PdfColor.fromInt(0xFF1E273A);
+    final borderSide = pw.BorderSide(color: PdfColor.fromInt(0xFFEFF3F8));
+
+    return pw.Container(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: pw.BoxDecoration(
+        color: isHeader ? PdfColor.fromInt(0xFFFBFCFF) : PdfColors.white,
+        border: isHeader ? null : pw.Border(top: borderSide),
+      ),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          _buildPdfArticleCell(
+            text: description,
+            flex: 4,
+            alignment: pw.Alignment.centerLeft,
+            isHeader: isHeader,
+            color: textColor,
+          ),
+          _buildPdfArticleCell(
+            text: quantity,
+            flex: 1,
+            alignment: pw.Alignment.center,
+            isHeader: isHeader,
+            color: textColor,
+          ),
+          _buildPdfArticleCell(
+            text: unitPrice,
+            flex: 2,
+            alignment: pw.Alignment.centerRight,
+            isHeader: isHeader,
+            color: textColor,
+          ),
+          _buildPdfArticleCell(
+            text: total,
+            flex: 2,
+            alignment: pw.Alignment.centerRight,
+            isHeader: isHeader,
+            color: textColor,
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildPdfArticleCell({
+    required String text,
+    required int flex,
+    required pw.Alignment alignment,
+    required bool isHeader,
+    required PdfColor color,
+  }) {
+    return pw.Expanded(
+      flex: flex,
+      child: pw.Container(
+        alignment: alignment,
+        padding: const pw.EdgeInsets.symmetric(horizontal: 4),
+        child: pw.Text(
+          text,
+          textAlign: alignment == pw.Alignment.centerRight
+              ? pw.TextAlign.right
+              : pw.TextAlign.left,
+          style: pw.TextStyle(
+            fontSize: isHeader ? 10.5 : 11.5,
+            fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
+            color: color,
+            letterSpacing: isHeader ? 0.25 : 0,
+          ),
+        ),
+      ),
+    );
+  }
+
+  pw.Widget _buildPdfTotalsCard({
+    required double subtotal,
+    required double vatAmount,
+    required double totalTtc,
+  }) {
+    return pw.Container(
+      width: 258,
+      padding: const pw.EdgeInsets.all(18),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.white,
+        border: pw.Border.all(color: PdfColor.fromInt(0xFFE9EEF5)),
+        borderRadius: pw.BorderRadius.circular(16),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          _buildPdfSummaryLine('Sous-total', _formatPdfAmount(subtotal)),
+          pw.SizedBox(height: 12),
+          _buildPdfSummaryLine(
+            'TVA ${(100 * _pdfVatRate).toStringAsFixed(0)}%',
+            _formatPdfAmount(vatAmount),
+          ),
+          pw.SizedBox(height: 12),
+          pw.Container(height: 1, color: PdfColor.fromInt(0xFFE9EEF5)),
+          pw.SizedBox(height: 16),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: pw.CrossAxisAlignment.end,
+            children: [
+              pw.Text(
+                'Total TTC',
+                style: pw.TextStyle(
+                  fontSize: 15,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColor.fromInt(0xFF20293B),
+                ),
+              ),
+              pw.Text(
+                _formatPdfAmount(totalTtc),
+                style: pw.TextStyle(
+                  fontSize: 18,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColor.fromInt(_primary.toARGB32()),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildPdfSummaryLine(String label, String value) {
+    return pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+      children: [
+        pw.Text(
+          label,
+          style: pw.TextStyle(
+            fontSize: 12.5,
+            color: PdfColor.fromInt(0xFF667383),
+          ),
+        ),
+        pw.Text(
+          value,
+          style: pw.TextStyle(
+            fontSize: 12.5,
+            color: PdfColor.fromInt(0xFF303A49),
+          ),
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _buildPdfFooter() {
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.symmetric(vertical: 16),
+      decoration: pw.BoxDecoration(
+        color: PdfColor.fromInt(0xFFF7F9FD),
+        borderRadius: pw.BorderRadius.circular(10),
+      ),
+      child: pw.Center(
+        child: pw.Text(
+          'Merci de votre confiance - Facture generee par InVera',
+          style: pw.TextStyle(
+            fontSize: 10.5,
+            color: PdfColor.fromInt(0xFF8A96A6),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatPdfAmount(double value) {
+    final absolute = value.abs().toStringAsFixed(3);
+    final parts = absolute.split('.');
+    final integerPart = parts.first.replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => ' ',
+    );
+    final formatted = '$integerPart,${parts.last} DT';
+    return value < 0 ? '-$formatted' : formatted;
+  }
+
+  String _formatPdfDate(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return '-';
+    final parsed = _parseFlexibleDate(trimmed);
+    if (parsed == null) return trimmed;
+    final day = parsed.day.toString().padLeft(2, '0');
+    final month = parsed.month.toString().padLeft(2, '0');
+    final year = parsed.year.toString().padLeft(4, '0');
+    return '$day/$month/$year';
+  }
+
+  DateTime? _parseFlexibleDate(String raw) {
+    final parsedRaw = DateTime.tryParse(raw);
+    if (parsedRaw != null) return parsedRaw;
+
+    final normalized = raw.replaceFirst(' ', 'T');
+    final parsedNormalized = DateTime.tryParse(normalized);
+    if (parsedNormalized != null) return parsedNormalized;
+
+    final match = RegExp(
+      r'^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$',
+    ).firstMatch(raw);
+    if (match == null) return null;
+
+    final day = int.tryParse(match.group(1) ?? '');
+    final month = int.tryParse(match.group(2) ?? '');
+    final year = int.tryParse(match.group(3) ?? '');
+    final hour = int.tryParse(match.group(4) ?? '0') ?? 0;
+    final minute = int.tryParse(match.group(5) ?? '0') ?? 0;
+    final second = int.tryParse(match.group(6) ?? '0') ?? 0;
+    if (day == null || month == null || year == null) return null;
+    return DateTime(year, month, day, hour, minute, second);
+  }
+
+  String _formatClientType(String? raw) {
+    final normalized = ClientType.normalize(raw);
+    if (normalized.isEmpty) return '-';
+    return normalized == 'FIDEL' ? 'FIDELE' : normalized;
+  }
+
+  void _showFactureDetails(CommandeModel cmd, FactureModel facture) {
+    showDialog<void>(
       context: context,
+      barrierDismissible: true,
       builder: (ctx) {
         return AlertDialog(
-          title: Text(title),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 24,
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+          contentPadding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+          title: const Text('Facture'),
           content: SizedBox(
-            width: 460,
+            width: AdaptiveLayout.dialogWidth(ctx, max: 520, sideMargin: 8),
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Created: ${created.length}'),
-                  Text('Failed: ${failed.length}'),
-                  const SizedBox(height: 6),
-                  Text('Saved total: ${_formatAmount(createdTotal)}'),
-                  if (created.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Saved invoices',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 6),
-                    ...created
-                        .take(8)
-                        .map(
-                          (f) => Text(
-                            '- ${f.referenceFactureClient} (${_formatAmount(f.montantTotal)})',
-                            style: const TextStyle(fontSize: 12.5),
-                          ),
+                  _buildDetailsSection(
+                    title: 'Informations facture',
+                    child: Column(
+                      children: [
+                        _buildSummaryTile(
+                          label: 'Reference',
+                          value: facture.referenceFactureClient,
                         ),
-                  ],
-                  if (failed.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Errors',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Colors.red,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    ...failed
-                        .take(5)
-                        .map(
-                          (f) => Text(
-                            '- ${f.referenceCommande}: ${f.message}',
-                            style: const TextStyle(fontSize: 12.5),
-                          ),
+                        const SizedBox(height: _baseUnit),
+                        _buildSummaryTile(
+                          label: 'Commande',
+                          value: cmd.referenceCommandeClient,
                         ),
-                    if (created.isEmpty &&
-                        failed.any((f) => _isAuthError(f.message))) ...[
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Backend rejected invoice generation (401/403). Check backend role/permissions for /api/factures/generer/{commandeId}.',
-                        style: TextStyle(fontSize: 12.5),
-                      ),
-                    ],
-                  ],
+                        const SizedBox(height: _baseUnit),
+                        _buildSummaryTile(
+                          label: 'Date facture',
+                          value: facture.dateFactureDisplay,
+                        ),
+                        const SizedBox(height: _baseUnit),
+                        _buildSummaryTile(
+                          label: 'Statut',
+                          value: facture.statut,
+                        ),
+                        const SizedBox(height: _baseUnit),
+                        _buildSummaryTile(
+                          label: 'Montant total',
+                          value: _formatAmount(facture.montantTotal),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: _baseUnit * 2),
+                  _buildDetailsSection(
+                    title: 'Client',
+                    child: Column(
+                      children: [
+                        _buildCommandeDetailRow(
+                          icon: Icons.person_outline,
+                          label: 'Nom complet',
+                          value: cmd.client?.fullName ?? '-',
+                        ),
+                        _buildCommandeDetailRow(
+                          icon: Icons.phone_outlined,
+                          label: 'Telephone',
+                          value: cmd.client?.telephone ?? '-',
+                        ),
+                        _buildCommandeDetailRow(
+                          icon: Icons.email_outlined,
+                          label: 'Email',
+                          value: cmd.client?.email ?? '-',
+                        ),
+                        _buildCommandeDetailRow(
+                          icon: Icons.location_on_outlined,
+                          label: 'Adresse',
+                          value: cmd.client?.adresse ?? '-',
+                          isLast: true,
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Close'),
+            TextButton.icon(
+              onPressed: () => Navigator.of(ctx).pop(),
+              icon: const Icon(Icons.close),
+              label: const Text('Fermer'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => _exportFacturePdf(cmd, facture),
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              label: const Text('PDF'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _accent,
+                foregroundColor: Colors.white,
+              ),
             ),
           ],
         );
@@ -490,8 +1494,10 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
             borderRadius: BorderRadius.circular(24),
           ),
           child: Container(
-            width: 1000,
-            constraints: const BoxConstraints(maxHeight: 760),
+            width: AdaptiveLayout.dialogWidth(ctx, max: 1000, sideMargin: 12),
+            constraints: BoxConstraints(
+              maxHeight: AdaptiveLayout.dialogHeight(ctx, ratio: 0.9),
+            ),
             padding: EdgeInsets.all(_baseUnit * 3),
             child: Column(
               children: [
@@ -737,35 +1743,11 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
                   ),
                 ),
                 const SizedBox(height: _baseUnit * 2),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: _baseUnit,
+                  runSpacing: _baseUnit,
                   children: [
-                    if (!_isInvoiced(cmd.idCommandeClient))
-                      ElevatedButton.icon(
-                        onPressed: _generating
-                            ? null
-                            : () {
-                                Navigator.of(ctx, rootNavigator: true).pop();
-                                WidgetsBinding.instance.addPostFrameCallback((
-                                  _,
-                                ) {
-                                  if (!mounted) return;
-                                  _generateMany(
-                                    <CommandeModel>[cmd],
-                                    title:
-                                        'Commande ${cmd.referenceCommandeClient}',
-                                  );
-                                });
-                              },
-                        icon: const Icon(Icons.description_outlined),
-                        label: const Text('Generer facture'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _success,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                    if (!_isInvoiced(cmd.idCommandeClient))
-                      const SizedBox(width: _baseUnit),
                     TextButton.icon(
                       onPressed: () =>
                           Navigator.of(ctx, rootNavigator: true).pop(),
@@ -1064,34 +2046,71 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
   }
 
   Widget _buildSummaryTile({required String label, required String value}) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.symmetric(
-        horizontal: _baseUnit * 1.5,
-        vertical: _baseUnit * 1.3,
-      ),
-      decoration: BoxDecoration(
-        color: _background,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _borderLight),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(color: _textSecondary, fontSize: 12),
-            ),
+    final decoration = BoxDecoration(
+      color: _background,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: _borderLight),
+    );
+
+    final labelWidget = Text(
+      label,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(color: _textSecondary, fontSize: 12),
+    );
+
+    final valueWidget = Text(
+      value,
+      maxLines: 3,
+      overflow: TextOverflow.ellipsis,
+      softWrap: true,
+      style: const TextStyle(color: _textPrimary, fontWeight: FontWeight.w700),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 320;
+
+        return Container(
+          width: double.infinity,
+          padding: EdgeInsets.symmetric(
+            horizontal: _baseUnit * 1.5,
+            vertical: _baseUnit * 1.3,
           ),
-          Text(
-            value,
-            style: const TextStyle(
-              color: _textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
+          decoration: decoration,
+          child: compact
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    labelWidget,
+                    const SizedBox(height: 6),
+                    valueWidget,
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: labelWidget),
+                    const SizedBox(width: _baseUnit),
+                    Flexible(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          value,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(
+                            color: _textPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+        );
+      },
     );
   }
 
@@ -1117,27 +2136,6 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 5),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: Color(0xFF607089),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          Expanded(child: Text(value)),
-        ],
-      ),
     );
   }
 
@@ -1197,139 +2195,31 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
 
   Widget _buildHeader({
     required List<CommandeModel> visible,
-    required List<CommandeModel> selected,
     required int pending,
   }) {
     final selectableVisible = visible
         .where((e) => !_isInvoiced(e.idCommandeClient))
         .toList();
-    final allSelected =
-        selectableVisible.isNotEmpty &&
-        selectableVisible.every(
-          (e) => _selectedCommandeIds.contains(e.idCommandeClient),
-        );
 
-    final selectAllToggle = Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: _baseUnit,
-        vertical: _baseUnit / 2,
-      ),
-      decoration: BoxDecoration(
-        color: _background,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _borderLight),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Checkbox(
-            value: allSelected,
-            visualDensity: VisualDensity.compact,
-            onChanged: selectableVisible.isEmpty
-                ? null
-                : (v) => _toggleSelectAllVisible(v ?? false, visible),
-          ),
-          Text(
-            'Tout selectionner (${selectableVisible.length})',
-            style: const TextStyle(
-              color: _textPrimary,
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
+    final hasDateFilter = _selectedDateRange != null;
+    final dateFilterButton = OutlinedButton.icon(
+      onPressed: _openDateFilterSheet,
+      icon: const Icon(Icons.date_range_outlined),
+      label: Text(_dateRangeLabel),
     );
 
-    final periodChips = Wrap(
-      spacing: _baseUnit,
-      runSpacing: _baseUnit,
-      children: _FacturePeriod.values.map((p) {
-        final selectedPeriod = _period == p;
-        return ChoiceChip(
-          label: Text(_periodLabel(p)),
-          selected: selectedPeriod,
-          selectedColor: _primary.withValues(alpha: 0.16),
-          backgroundColor: _surface,
-          side: BorderSide(color: selectedPeriod ? _primary : _borderLight),
-          labelStyle: TextStyle(
-            color: selectedPeriod ? _primaryDark : _textPrimary,
-            fontWeight: selectedPeriod ? FontWeight.w700 : FontWeight.w600,
-          ),
-          onSelected: (_) => setState(() => _period = p),
-        );
-      }).toList(),
-    );
-
-    final scopeChips = Wrap(
-      spacing: _baseUnit,
-      runSpacing: _baseUnit,
-      children: [
-        ChoiceChip(
-          label: const Text('Non facturees'),
-          selected: _showOnlyPending,
-          selectedColor: _primary.withValues(alpha: 0.16),
-          backgroundColor: _surface,
-          side: BorderSide(color: _showOnlyPending ? _primary : _borderLight),
-          labelStyle: TextStyle(
-            color: _showOnlyPending ? _primaryDark : _textPrimary,
-            fontWeight: _showOnlyPending ? FontWeight.w700 : FontWeight.w600,
-          ),
-          onSelected: (_) => setState(() => _showOnlyPending = true),
-        ),
-        ChoiceChip(
-          label: const Text('Toutes confirmees'),
-          selected: !_showOnlyPending,
-          selectedColor: _primary.withValues(alpha: 0.16),
-          backgroundColor: _surface,
-          side: BorderSide(color: !_showOnlyPending ? _primary : _borderLight),
-          labelStyle: TextStyle(
-            color: !_showOnlyPending ? _primaryDark : _textPrimary,
-            fontWeight: !_showOnlyPending ? FontWeight.w700 : FontWeight.w600,
-          ),
-          onSelected: (_) => setState(() => _showOnlyPending = false),
-        ),
-      ],
-    );
-
-    final refreshButton = OutlinedButton.icon(
-      onPressed: _refreshing ? null : () => _loadData(showLoader: false),
-      icon: _refreshing
-          ? const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : const Icon(Icons.refresh),
-      label: const Text('Actualiser'),
-    );
-
-    final generatePeriodButton = OutlinedButton.icon(
-      onPressed: _generating ? null : _generateFromPeriod,
-      icon: const Icon(Icons.calendar_month_outlined),
-      label: Text(
-        'Generer ${_periodLabel(_period).toLowerCase()} (${_periodCandidates.length})',
-      ),
-    );
-
-    final generateSelectionButton = ElevatedButton.icon(
-      onPressed: _generating || selected.isEmpty ? null : _generateSelected,
-      icon: _generating
-          ? const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Colors.white,
-              ),
-            )
-          : const Icon(Icons.description_outlined),
-      label: const Text('Generer la selection'),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: _accent,
-        foregroundColor: Colors.white,
-      ),
-    );
+    final clearDateFilterButton = hasDateFilter
+        ? OutlinedButton.icon(
+            onPressed: () {
+              setState(() {
+                _selectedDateRange = null;
+              });
+              _showMessage('Filtre date efface.');
+            },
+            icon: const Icon(Icons.clear, size: 18),
+            label: const Text('Effacer filtre'),
+          )
+        : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1367,7 +2257,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Commandes confirmees pretes a etre facturees dans une interface unifiee.',
+                    'Toutes les commandes confirmees. Filtrez par calendrier puis generez chaque facture commande par commande.',
                     style: TextStyle(color: Color(0xFFE3EBFF), fontSize: 13),
                   ),
                   const SizedBox(height: _baseUnit * 1.5),
@@ -1381,12 +2271,12 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
                         Colors.white.withValues(alpha: 0.16),
                       ),
                       _buildBadge(
-                        '${selected.length} selectionnees',
+                        '${selectableVisible.length} visibles a generer',
                         Colors.white,
                         Colors.white.withValues(alpha: 0.16),
                       ),
                       _buildBadge(
-                        'Total: ${_formatAmount(_sumTotal(selected))}',
+                        'Montant visible: ${_formatAmount(_sumTotal(selectableVisible))}',
                         Colors.white,
                         Colors.white.withValues(alpha: 0.16),
                       ),
@@ -1424,7 +2314,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
         ),
         const SizedBox(height: _baseUnit * 1.5),
         Container(
-          padding: EdgeInsets.all(_baseUnit * 2),
+          padding: EdgeInsets.all(_baseUnit * 1.5),
           decoration: BoxDecoration(
             color: _surface,
             borderRadius: BorderRadius.circular(20),
@@ -1439,16 +2329,37 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
           ),
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final compact = constraints.maxWidth < 920;
+              final compact = constraints.maxWidth < 980;
               final searchField = TextField(
                 controller: _searchController,
-                onChanged: (value) => setState(() => _searchQuery = value),
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                  });
+                },
                 decoration: InputDecoration(
                   isDense: true,
-                  hintText: 'Rechercher ref / client / date',
+                  hintText:
+                      'Recherche multi-critere: ref, client, date, statut...',
                   prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchQuery.trim().isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Vider',
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {
+                              _searchQuery = '';
+                            });
+                          },
+                          icon: const Icon(Icons.close, size: 18),
+                        ),
                   filled: true,
                   fillColor: _background,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(color: _borderLight),
@@ -1468,31 +2379,25 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Filtres & Actions',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: _textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: _baseUnit),
                     searchField,
                     const SizedBox(height: _baseUnit),
-                    scopeChips,
-                    const SizedBox(height: _baseUnit),
-                    periodChips,
-                    const SizedBox(height: _baseUnit),
-                    selectAllToggle,
-                    const SizedBox(height: _baseUnit * 1.5),
                     Wrap(
-                      spacing: _baseUnit,
-                      runSpacing: _baseUnit,
+                      spacing: _baseUnit * 0.75,
+                      runSpacing: _baseUnit * 0.75,
                       children: [
-                        refreshButton,
-                        generatePeriodButton,
-                        generateSelectionButton,
+                        dateFilterButton,
+                        if (clearDateFilterButton != null)
+                          clearDateFilterButton,
                       ],
+                    ),
+                    const SizedBox(height: _baseUnit),
+                    const Text(
+                      'Astuce: utilisez Details ou Facture sur chaque commande.',
+                      style: TextStyle(
+                        color: _textSecondary,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 );
@@ -1502,37 +2407,27 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Filtres & Actions',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: _textPrimary,
-                          ),
-                        ),
-                      ),
-                      refreshButton,
-                      const SizedBox(width: _baseUnit),
-                      generatePeriodButton,
-                      const SizedBox(width: _baseUnit),
-                      generateSelectionButton,
-                    ],
-                  ),
-                  const SizedBox(height: _baseUnit * 1.5),
-                  Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [Expanded(child: searchField)],
+                  ),
+                  const SizedBox(height: _baseUnit),
+                  Wrap(
+                    spacing: _baseUnit,
+                    runSpacing: _baseUnit,
                     children: [
-                      Expanded(child: searchField),
-                      const SizedBox(width: _baseUnit),
-                      selectAllToggle,
+                      dateFilterButton,
+                      if (clearDateFilterButton != null) clearDateFilterButton,
                     ],
                   ),
                   const SizedBox(height: _baseUnit),
-                  scopeChips,
-                  const SizedBox(height: _baseUnit),
-                  periodChips,
+                  const Text(
+                    'Astuce: utilisez Details ou Facture sur chaque commande.',
+                    style: TextStyle(
+                      color: _textSecondary,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               );
             },
@@ -1563,6 +2458,8 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
         border: Border.all(color: const Color(0xFFE6EAF2)),
       ),
       child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
         padding: const EdgeInsets.all(12),
         itemCount: visible.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -1574,14 +2471,15 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
   Widget _buildCommandeCard(CommandeModel cmd) {
     final invoiced = _isInvoiced(cmd.idCommandeClient);
     final facture = _facturesByCommandeId[cmd.idCommandeClient];
-    final selected = _selectedCommandeIds.contains(cmd.idCommandeClient);
+    final isGenerating = _isGeneratingFor(cmd.idCommandeClient);
+    final generationLocked = _generatingCommandeId != null;
 
     return Container(
       decoration: BoxDecoration(
-        color: selected ? const Color(0xFFF4F7FF) : _surface,
+        color: isGenerating ? const Color(0xFFF4F7FF) : _surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: selected ? const Color(0xFFBBC9FF) : _borderLight,
+          color: isGenerating ? const Color(0xFFBBC9FF) : _borderLight,
         ),
         boxShadow: [
           BoxShadow(
@@ -1591,259 +2489,150 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
           ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: () => _showCommandeDetails(cmd),
-          child: Padding(
-            padding: EdgeInsets.all(_baseUnit * 2),
-            child: Column(
+      child: Padding(
+        padding: EdgeInsets.all(_baseUnit * 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Checkbox(
-                      value: selected,
-                      onChanged: invoiced
-                          ? null
-                          : (v) {
-                              setState(() {
-                                if (v ?? false) {
-                                  _selectedCommandeIds.add(
-                                    cmd.idCommandeClient,
-                                  );
-                                } else {
-                                  _selectedCommandeIds.remove(
-                                    cmd.idCommandeClient,
-                                  );
-                                }
-                              });
-                            },
-                    ),
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: _primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.receipt_long_outlined,
-                        color: _primary,
-                      ),
-                    ),
-                    const SizedBox(width: _baseUnit * 1.25),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            cmd.referenceCommandeClient,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: _textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            cmd.dateCommandeFormatted,
-                            style: const TextStyle(
-                              color: _textSecondary,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: _baseUnit),
-                    _buildStatusChip(cmd.statut),
-                  ],
-                ),
-                const SizedBox(height: _baseUnit * 1.5),
-                Wrap(
-                  spacing: _baseUnit,
-                  runSpacing: _baseUnit,
-                  children: [
-                    _buildMetaTile(
-                      icon: Icons.person_outline,
-                      label: 'Client',
-                      value: cmd.client?.fullName ?? '-',
-                    ),
-                    _buildMetaTile(
-                      icon: Icons.payments_outlined,
-                      label: 'Total',
-                      value: _formatAmount(cmd.total),
-                    ),
-                    _buildMetaTile(
-                      icon: Icons.shopping_bag_outlined,
-                      label: 'Lignes',
-                      value: '${cmd.produits.length}',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: _baseUnit * 1.5),
                 Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: _baseUnit * 1.25,
-                    vertical: _baseUnit,
-                  ),
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
-                    color: _background,
+                    color: _primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _borderLight),
                   ),
-                  child: Row(
+                  child: const Icon(
+                    Icons.receipt_long_outlined,
+                    color: _primary,
+                  ),
+                ),
+                const SizedBox(width: _baseUnit * 1.25),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
-                        Icons.inventory_2_outlined,
-                        size: 16,
-                        color: _textSecondary,
+                      Text(
+                        cmd.referenceCommandeClient,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: _textPrimary,
+                        ),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _buildProductsPreview(cmd),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: _textSecondary,
-                            fontSize: 12,
-                          ),
+                      const SizedBox(height: 3),
+                      Text(
+                        cmd.dateCommandeFormatted,
+                        style: const TextStyle(
+                          color: _textSecondary,
+                          fontSize: 12,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: _baseUnit * 1.5),
-                Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: _baseUnit,
-                  runSpacing: _baseUnit,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: () => _showCommandeDetails(cmd),
-                      icon: const Icon(Icons.visibility_outlined),
-                      label: const Text('Details'),
-                    ),
-                    if (invoiced)
-                      OutlinedButton.icon(
-                        onPressed: () => _showCommandeDetails(cmd),
-                        icon: const Icon(Icons.description_outlined),
-                        label: Text(
-                          'Facture: ${facture?.referenceFactureClient ?? 'OK'}',
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _primaryDark,
-                        ),
-                      )
-                    else
-                      ElevatedButton.icon(
-                        onPressed: _generating
-                            ? null
-                            : () => _generateMany(
-                                <CommandeModel>[cmd],
-                                title:
-                                    'Commande ${cmd.referenceCommandeClient}',
-                              ),
-                        icon: _generating
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(Icons.description_outlined),
-                        label: const Text('Generer facture'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _success,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                  ],
+                const SizedBox(width: _baseUnit),
+                _buildStatusChip(cmd.statut),
+              ],
+            ),
+            const SizedBox(height: _baseUnit * 1.5),
+            Wrap(
+              spacing: _baseUnit,
+              runSpacing: _baseUnit,
+              children: [
+                _buildMetaTile(
+                  icon: Icons.person_outline,
+                  label: 'Client',
+                  value: cmd.client?.fullName ?? '-',
+                ),
+                _buildMetaTile(
+                  icon: Icons.payments_outlined,
+                  label: 'Total',
+                  value: _formatAmount(cmd.total),
+                ),
+                _buildMetaTile(
+                  icon: Icons.shopping_bag_outlined,
+                  label: 'Lignes',
+                  value: '${cmd.produits.length}',
                 ),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPreviewPanel(List<CommandeModel> selected) {
-    final total = _sumTotal(selected);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE6EAF2)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Apercu du brouillon facture',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF1F2A44),
+            const SizedBox(height: _baseUnit * 1.5),
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(
+                horizontal: _baseUnit * 1.25,
+                vertical: _baseUnit,
+              ),
+              decoration: BoxDecoration(
+                color: _background,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _borderLight),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.inventory_2_outlined,
+                    size: 16,
+                    color: _textSecondary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _buildProductsPreview(cmd),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 4),
-            const Text(
-              'Le backend enregistre actuellement une facture par commande.',
-              style: TextStyle(color: Color(0xFF607089), fontSize: 12.5),
-            ),
-            const SizedBox(height: 10),
-            _buildDetailRow('Commandes selectionnees', '${selected.length}'),
-            _buildDetailRow('Total brouillon', _formatAmount(total)),
-            _buildDetailRow(
-              'Candidats periode',
-              '${_periodCandidates.length} (${_periodLabel(_period).toLowerCase()})',
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'References selectionnees',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 6),
-            Expanded(
-              child: selected.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'Aucune commande selectionnee.',
-                        style: TextStyle(color: Color(0xFF607089)),
-                      ),
-                    )
-                  : ListView.separated(
-                      itemCount: selected.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 6),
-                      itemBuilder: (context, index) {
-                        final cmd = selected[index];
-                        return Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF7F9FE),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFFE6EAF2)),
-                          ),
-                          child: Text(
-                            '${cmd.referenceCommandeClient} - ${_formatAmount(cmd.total)}',
-                            style: const TextStyle(fontSize: 12.5),
-                          ),
-                        );
-                      },
-                    ),
+            const SizedBox(height: _baseUnit * 1.5),
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: _baseUnit,
+              runSpacing: _baseUnit,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => _showCommandeDetails(cmd),
+                  icon: const Icon(Icons.visibility_outlined),
+                  label: const Text('Details'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: isGenerating || (generationLocked && !invoiced)
+                      ? null
+                      : () {
+                          if (facture != null) {
+                            _showFactureDetails(cmd, facture);
+                            return;
+                          }
+                          _openFactureFlow(cmd);
+                        },
+                  icon: isGenerating
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(
+                          invoiced
+                              ? Icons.description_outlined
+                              : Icons.receipt_outlined,
+                        ),
+                  label: const Text('Facture'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: invoiced ? _primaryDark : _accent,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -1876,57 +2665,40 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     }
 
     final visible = _visibleCommandes;
-    final selected = _selectedCommandes;
     final pending = _pendingCommandes.length;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 1120;
+    return RefreshIndicator(
+      onRefresh: () => _loadData(showLoader: false),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 1120;
+          final minHeight = constraints.maxHeight - (compact ? 24 : 36);
 
-        return Padding(
-          padding: EdgeInsets.all(compact ? 12 : 18),
-          child: Column(
-            children: [
-              _buildHeader(
-                visible: visible,
-                selected: selected,
-                pending: pending,
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            padding: EdgeInsets.all(compact ? 12 : 18),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: minHeight > 0 ? minHeight : 0,
               ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: compact
-                    ? Column(
-                        children: [
-                          SizedBox(
-                            height: 230,
-                            child: _buildPreviewPanel(selected),
-                          ),
-                          const SizedBox(height: 12),
-                          Expanded(child: _buildOrdersPanel(visible)),
-                        ],
-                      )
-                    : Row(
-                        children: [
-                          Expanded(child: _buildOrdersPanel(visible)),
-                          const SizedBox(width: 12),
-                          SizedBox(
-                            width: 380,
-                            child: _buildPreviewPanel(selected),
-                          ),
-                        ],
-                      ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(visible: visible, pending: pending),
+                  if (_refreshing) ...[
+                    const SizedBox(height: 10),
+                    const LinearProgressIndicator(minHeight: 2),
+                  ],
+                  const SizedBox(height: 12),
+                  _buildOrdersPanel(visible),
+                ],
               ),
-            ],
-          ),
-        );
-      },
+            ),
+          );
+        },
+      ),
     );
   }
-}
-
-class _GenerationFailure {
-  final String referenceCommande;
-  final String message;
-
-  _GenerationFailure({required this.referenceCommande, required this.message});
 }

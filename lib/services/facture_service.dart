@@ -112,29 +112,48 @@ class FactureService {
       );
     }
 
-    if (decoded is! Map<String, dynamic>) {
-      throw Exception('Reponse facture invalide');
+    if (decoded is Map<String, dynamic>) {
+      final success = decoded['success'];
+      if (success == false) {
+        throw Exception(
+          _extractMessage(decoded, fallback: 'Generation de facture echouee'),
+        );
+      }
+
+      final data = decoded['data'];
+      if (data is Map<String, dynamic>) {
+        final withCommande = Map<String, dynamic>.from(data)
+          ..putIfAbsent('commandeId', () => commandeId)
+          ..putIfAbsent('idCommandeClient', () => commandeId);
+        try {
+          return FactureModel.fromJson(withCommande);
+        } catch (_) {
+          // Fall back to loading generated invoice by commande ID.
+        }
+      }
+
+      if (_looksLikeFacturePayload(decoded)) {
+        final fallback = Map<String, dynamic>.from(decoded)
+          ..putIfAbsent('commandeId', () => commandeId)
+          ..putIfAbsent('idCommandeClient', () => commandeId);
+        try {
+          return FactureModel.fromJson(fallback);
+        } catch (_) {
+          // Fall back to loading generated invoice by commande ID.
+        }
+      }
     }
 
-    final success = decoded['success'];
-    if (success == false) {
-      throw Exception(
-        _extractMessage(decoded, fallback: 'Generation de facture echouee'),
-      );
+    try {
+      final generated = await getFactureByCommandeId(commandeId);
+      if (generated != null) return generated;
+    } catch (_) {
+      // Preserve original success path and return a clear functional error below.
     }
 
-    final data = decoded['data'];
-    if (data is Map<String, dynamic>) {
-      final withCommande = Map<String, dynamic>.from(data)
-        ..putIfAbsent('commandeId', () => commandeId)
-        ..putIfAbsent('idCommandeClient', () => commandeId);
-      return FactureModel.fromJson(withCommande);
-    }
-
-    final fallback = Map<String, dynamic>.from(decoded)
-      ..putIfAbsent('commandeId', () => commandeId)
-      ..putIfAbsent('idCommandeClient', () => commandeId);
-    return FactureModel.fromJson(fallback);
+    throw Exception(
+      'Generation terminee mais la facture de la commande $commandeId est introuvable.',
+    );
   }
 
   dynamic _decodeResponse(http.Response response) {
@@ -183,6 +202,14 @@ class FactureService {
     }
 
     return fallback;
+  }
+
+  bool _looksLikeFacturePayload(Map<String, dynamic> payload) {
+    return payload.containsKey('idFactureClient') ||
+        payload.containsKey('referenceFactureClient') ||
+        payload.containsKey('montantTotal') ||
+        payload.containsKey('commandeId') ||
+        payload.containsKey('idCommandeClient');
   }
 
   Future<Map<String, String>> _buildHeaders() async {

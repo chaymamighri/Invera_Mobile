@@ -89,10 +89,7 @@ class AuthService extends ChangeNotifier {
           email: loginResponse.email,
           nom: loginResponse.nom,
           prenom: loginResponse.prenom,
-          role: UserRole.values.firstWhere(
-            (r) => r.name == loginResponse.role,
-            orElse: () => UserRole.COMMERCIAL,
-          ),
+          role: User.parseRole(loginResponse.role),
           active: true,
         );
 
@@ -319,41 +316,13 @@ class AuthService extends ChangeNotifier {
     try {
       final normalizedEmail = email.trim().toLowerCase();
 
-      // Attempt 1 (recommended): JSON body
-      final url1 = Uri.parse(
-        '${ApiConfig.baseUrl}${ApiConfig.forgotPasswordEndpoint}',
-      );
-      final res1 = await http
-          .post(
-            url1,
-            headers: await _getPublicHeaders(), // NO AUTH
-            body: json.encode({'email': normalizedEmail}),
-          )
-          .timeout(
-            const Duration(milliseconds: ApiConfig.connectionTimeout),
-            onTimeout: () => throw Exception('Delai de connexion depasse'),
-          );
-
-      if (res1.statusCode >= 200 && res1.statusCode < 300) {
-        _setLoading(false);
-        return AuthActionResult(
-          success: true,
-          message: _extractResponseMessage(
-            res1,
-            fallback: 'Code de reinitialisation envoye',
-          ),
-          statusCode: res1.statusCode,
-        );
-      }
-
-      // Attempt 2 (fallback): query param, no body
-      final url2 = Uri.parse(
+      final url = Uri.parse(
         '${ApiConfig.baseUrl}${ApiConfig.forgotPasswordEndpoint}',
       ).replace(queryParameters: {'email': normalizedEmail});
 
-      final res2 = await http
+      final response = await http
           .post(
-            url2,
+            url,
             headers: await _getPublicHeaders(), // NO AUTH
           )
           .timeout(
@@ -363,36 +332,36 @@ class AuthService extends ChangeNotifier {
 
       _setLoading(false);
 
-      if (res2.statusCode >= 200 && res2.statusCode < 300) {
+      if (response.statusCode >= 200 && response.statusCode < 300) {
         return AuthActionResult(
           success: true,
           message: _extractResponseMessage(
-            res2,
+            response,
             fallback: 'Code de reinitialisation envoye',
           ),
-          statusCode: res2.statusCode,
+          statusCode: response.statusCode,
         );
       }
 
       final message = _extractResponseMessage(
-        res2,
+        response,
         fallback: 'Erreur lors de l\'envoi de l\'email',
       );
 
-      if (res2.statusCode == 403) {
+      if (response.statusCode == 403) {
         // ignore: avoid_print
-        print('FORGOT 403 body: ${res2.body}');
+        print('FORGOT 403 body: ${response.body}');
         return AuthActionResult(
           success: false,
           message: '$message (403 - acces refuse par le serveur)',
-          statusCode: res2.statusCode,
+          statusCode: response.statusCode,
         );
       }
 
       return AuthActionResult(
         success: false,
         message: message,
-        statusCode: res2.statusCode,
+        statusCode: response.statusCode,
       );
     } catch (e) {
       _setLoading(false);
@@ -417,67 +386,19 @@ class AuthService extends ChangeNotifier {
     try {
       final normalizedEmail = email.trim().toLowerCase();
       final cleanedCode = code.replaceAll(RegExp(r'\s+'), '');
-
-      // Payload variants (some backends use different keys)
-      final payloads = <Map<String, dynamic>>[
-        {
+      final result = await _postPasswordNoAuth(
+        endpoint: ApiConfig.resetPasswordEndpoint,
+        payload: {
           'email': normalizedEmail,
           'code': cleanedCode,
           'newPassword': newPassword,
         },
-        {
-          // common variant
-          'email': normalizedEmail,
-          'verificationCode': cleanedCode,
-          'newPassword': newPassword,
-        },
-        {
-          // another common variant
-          'email': normalizedEmail,
-          'code': cleanedCode,
-          'password': newPassword,
-        },
-      ];
-
-      // Endpoints to try (you already have both)
-      final endpoints = <_EndpointAttempt>[
-        _EndpointAttempt(
-          endpoint: ApiConfig.resetPasswordEndpoint,
-          successFallback: 'Mot de passe modifie avec succes',
-          errorFallback: 'Erreur de reinitialisation',
-        ),
-        _EndpointAttempt(
-          endpoint: ApiConfig.createPasswordEndpoint,
-          successFallback: 'Compte active et mot de passe cree avec succes',
-          errorFallback: 'Erreur de creation de mot de passe',
-        ),
-      ];
-
-      AuthActionResult lastResult = const AuthActionResult(
-        success: false,
-        message: 'Erreur de reinitialisation',
+        successFallback: 'Mot de passe modifie avec succes',
+        errorFallback: 'Erreur de reinitialisation',
       );
 
-      for (final ep in endpoints) {
-        for (final payload in payloads) {
-          final result = await _postPasswordNoAuth(
-            endpoint: ep.endpoint,
-            payload: payload,
-            successFallback: ep.successFallback,
-            errorFallback: ep.errorFallback,
-          );
-
-          if (result.success) {
-            _setLoading(false);
-            return result;
-          }
-
-          lastResult = result;
-        }
-      }
-
       _setLoading(false);
-      return lastResult;
+      return result;
     } catch (e) {
       _setLoading(false);
       return AuthActionResult(
@@ -601,16 +522,4 @@ class AuthService extends ChangeNotifier {
     _error = null;
     notifyListeners();
   }
-}
-
-class _EndpointAttempt {
-  final String endpoint;
-  final String successFallback;
-  final String errorFallback;
-
-  _EndpointAttempt({
-    required this.endpoint,
-    required this.successFallback,
-    required this.errorFallback,
-  });
 }

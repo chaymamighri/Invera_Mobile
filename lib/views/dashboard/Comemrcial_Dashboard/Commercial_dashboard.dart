@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'package:invera_mobile/config/app_routes.dart';
+import 'package:invera_mobile/core/ui/adaptive_layout.dart';
 import 'package:invera_mobile/models/client_model.dart';
 import 'package:invera_mobile/models/commande_model.dart';
 import 'package:invera_mobile/models/user_model.dart';
@@ -13,8 +14,20 @@ import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/commercial_fa
 
 class CommercialDashboard extends StatefulWidget {
   final User user;
+  final String appTitle;
+  final String appSubtitle;
+  final String analyticsTitle;
+  final String analyticsSubtitle;
 
-  const CommercialDashboard({super.key, required this.user});
+  const CommercialDashboard({
+    super.key,
+    required this.user,
+    this.appTitle = 'Commercial',
+    this.appSubtitle = 'Gestion des ventes',
+    this.analyticsTitle = 'Performance commerciale',
+    this.analyticsSubtitle =
+        'Suivi en temps reel de vos clients, ventes et commandes.',
+  });
 
   @override
   State<CommercialDashboard> createState() => _CommercialDashboardState();
@@ -101,6 +114,8 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
         return 'Administrateur';
       case UserRole.RESPONSABLE_ACHAT:
         return 'Responsable achat';
+      case UserRole.RESPONSABLE_VENTE:
+        return 'Responsable vente';
       case UserRole.COMMERCIAL:
         return 'Commercial';
     }
@@ -174,7 +189,10 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
 
   Widget _buildPageContent() {
     if (_activePage == 'dashboard') {
-      return const _CommercialAnalyticsDashboard();
+      return _CommercialAnalyticsDashboard(
+        title: widget.analyticsTitle,
+        subtitle: widget.analyticsSubtitle,
+      );
     }
 
     if (_activePage == 'clients') {
@@ -241,13 +259,13 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     );
   }
 
-  Widget _buildBodyArea() {
+  Widget _buildBodyArea({required bool isMobile}) {
     if (_activePage == 'dashboard' || _activePage == 'factures') {
       return _buildPageContent();
     }
 
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 12 : 24),
       child: _buildPageContent(),
     );
   }
@@ -269,8 +287,8 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
             errorBuilder: (_, __, ___) => const Icon(Icons.business),
           ),
           const SizedBox(width: 8),
-          const Text(
-            'Commercial',
+          Text(
+            widget.appTitle,
             style: TextStyle(fontWeight: FontWeight.w700),
           ),
         ],
@@ -380,9 +398,9 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
+                      children: [
                         Text(
-                          'Commercial',
+                          widget.appTitle,
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
@@ -391,7 +409,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                         ),
                         SizedBox(height: 2),
                         Text(
-                          'Gestion des ventes',
+                          widget.appSubtitle,
                           style: TextStyle(
                             fontSize: 12,
                             color: Color(0xFF607089),
@@ -603,10 +621,10 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
         backgroundColor: const Color(0xFFF4F7FC),
         appBar: _buildMobileAppBar(),
         drawer: Drawer(
-          width: 300,
+          width: AdaptiveLayout.drawerWidth(context, max: 304, ratio: 0.88),
           child: _buildSidebar(collapsed: false, mobile: true),
         ),
-        body: _buildBodyArea(),
+        body: _buildBodyArea(isMobile: true),
       );
     }
 
@@ -635,7 +653,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
               child: Column(
                 children: [
                   _buildDesktopTopBar(),
-                  Expanded(child: _buildBodyArea()),
+                  Expanded(child: _buildBodyArea(isMobile: false)),
                 ],
               ),
             ),
@@ -647,7 +665,13 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
 }
 
 class _CommercialAnalyticsDashboard extends StatefulWidget {
-  const _CommercialAnalyticsDashboard();
+  final String title;
+  final String subtitle;
+
+  const _CommercialAnalyticsDashboard({
+    required this.title,
+    required this.subtitle,
+  });
 
   @override
   State<_CommercialAnalyticsDashboard> createState() =>
@@ -847,19 +871,29 @@ class _CommercialAnalyticsDashboardState
   }
 
   List<_LabeledIntValue> _clientsByType() {
-    final map = <String, int>{};
-
-    for (final client in _clients) {
-      final raw = (client.typeClient ?? '').trim().toUpperCase();
-      final key = raw.isEmpty ? 'NON DEFINI' : raw;
-      map[key] = (map[key] ?? 0) + 1;
+    if (_clients.isEmpty) {
+      return const <_LabeledIntValue>[];
     }
 
-    final entries = map.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final counts = <String, int>{
+      for (final type in ClientType.allowedValues) type: 0,
+    };
 
-    return entries
-        .map((e) => _LabeledIntValue(label: e.key, value: e.value))
+    for (final client in _clients) {
+      final type = ClientType.normalize(
+        client.typeClient,
+        fallbackToDefault: true,
+      );
+      counts[type] = (counts[type] ?? 0) + 1;
+    }
+
+    return ClientType.allowedValues
+        .map(
+          (type) => _LabeledIntValue(
+            label: ClientType.label(type),
+            value: counts[type] ?? 0,
+          ),
+        )
         .toList();
   }
 
@@ -1029,7 +1063,12 @@ class _CommercialAnalyticsDashboardState
     final typeData = _clientsByType();
     final topClients = _topClients();
     final recentOrders = _recentOrders();
-    final isWide = MediaQuery.sizeOf(context).width > 1240;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isWide = screenWidth > 1240;
+    final horizontalPadding = screenWidth < 390
+        ? 12.0
+        : (screenWidth < 760 ? 16.0 : 24.0);
+    final verticalPadding = screenWidth < 760 ? 16.0 : 20.0;
 
     final statusSegments = <_DonutSegment>[
       _DonutSegment(
@@ -1055,7 +1094,12 @@ class _CommercialAnalyticsDashboardState
         physics: const AlwaysScrollableScrollPhysics(
           parent: BouncingScrollPhysics(),
         ),
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+        padding: EdgeInsets.fromLTRB(
+          horizontalPadding,
+          verticalPadding,
+          horizontalPadding,
+          24,
+        ),
         children: [
           Container(
             padding: const EdgeInsets.all(20),
@@ -1077,29 +1121,29 @@ class _CommercialAnalyticsDashboardState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Performance Commerciale',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 22,
-                            ),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compactHero = constraints.maxWidth < 560;
+                    final titleBlock = Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.title,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: compactHero ? 20 : 22,
                           ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Suivi en temps reel de vos clients, ventes et commandes.',
-                            style: TextStyle(color: Color(0xFFD9E4FF)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    OutlinedButton.icon(
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.subtitle,
+                          style: TextStyle(color: Color(0xFFD9E4FF)),
+                        ),
+                      ],
+                    );
+
+                    final refreshButton = OutlinedButton.icon(
                       onPressed: _refreshing
                           ? null
                           : () => _loadDashboard(showLoader: false),
@@ -1120,8 +1164,26 @@ class _CommercialAnalyticsDashboardState
                           color: Colors.white.withValues(alpha: 0.45),
                         ),
                       ),
-                    ),
-                  ],
+                    );
+
+                    if (compactHero) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          titleBlock,
+                          const SizedBox(height: 12),
+                          refreshButton,
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        Expanded(child: titleBlock),
+                        refreshButton,
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 14),
                 Wrap(
@@ -1358,27 +1420,33 @@ class _MiniChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 15, color: Colors.white),
-          const SizedBox(width: 6),
-          Text(
-            '$label: $value',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 320),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: Colors.white),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                '$label: $value',
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1625,73 +1693,82 @@ class _StatusDonutCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        SizedBox(
-          width: 190,
-          height: 190,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              CustomPaint(
-                size: const Size(190, 190),
-                painter: _DonutPainter(segments: segments),
-              ),
-              Column(
-                mainAxisSize: MainAxisSize.min,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final chartSize = math.min(
+          190.0,
+          math.max(150.0, constraints.maxWidth - 24),
+        );
+
+        return Column(
+          children: [
+            SizedBox(
+              width: chartSize,
+              height: chartSize,
+              child: Stack(
+                alignment: Alignment.center,
                 children: [
-                  const Text(
-                    'Total',
-                    style: TextStyle(color: Color(0xFF607089), fontSize: 12),
+                  CustomPaint(
+                    size: Size(chartSize, chartSize),
+                    painter: _DonutPainter(segments: segments),
                   ),
-                  Text(
-                    '$total',
-                    style: const TextStyle(
-                      color: Color(0xFF1F2A44),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 26,
-                    ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Total',
+                        style: TextStyle(color: Color(0xFF607089), fontSize: 12),
+                      ),
+                      Text(
+                        '$total',
+                        style: const TextStyle(
+                          color: Color(0xFF1F2A44),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 26,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        for (final s in segments)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              children: [
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: s.color,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    s.label,
-                    style: const TextStyle(
-                      color: Color(0xFF334155),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                Text(
-                  s.value.toStringAsFixed(0),
-                  style: const TextStyle(
-                    color: Color(0xFF1F2A44),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
             ),
-          ),
-      ],
+            const SizedBox(height: 10),
+            for (final s in segments)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: s.color,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        s.label,
+                        style: const TextStyle(
+                          color: Color(0xFF334155),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      s.value.toStringAsFixed(0),
+                      style: const TextStyle(
+                        color: Color(0xFF1F2A44),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -1923,34 +2000,10 @@ class _RecentOrdersList extends StatelessWidget {
     return Column(
       children: [
         for (var i = 0; i < orders.length; i++) ...[
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      orders[i].referenceCommandeClient,
-                      style: const TextStyle(
-                        color: Color(0xFF1F2A44),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${orders[i].client?.fullName ?? 'Client inconnu'} • ${orders[i].dateCommandeFormatted}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF607089),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Container(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 560;
+              final statusPill = Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: statusColor(orders[i].statut).withValues(alpha: 0.12),
@@ -1964,16 +2017,86 @@ class _RecentOrdersList extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                money(orders[i].total),
-                style: const TextStyle(
-                  color: Color(0xFF1F2A44),
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
+              );
+
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      orders[i].referenceCommandeClient,
+                      style: const TextStyle(
+                        color: Color(0xFF1F2A44),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${orders[i].client?.fullName ?? 'Client inconnu'} - ${orders[i].dateCommandeFormatted}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF607089),
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        statusPill,
+                        const Spacer(),
+                        Text(
+                          money(orders[i].total),
+                          style: const TextStyle(
+                            color: Color(0xFF1F2A44),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          orders[i].referenceCommandeClient,
+                          style: const TextStyle(
+                            color: Color(0xFF1F2A44),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${orders[i].client?.fullName ?? 'Client inconnu'} - ${orders[i].dateCommandeFormatted}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF607089),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  statusPill,
+                  const SizedBox(width: 10),
+                  Text(
+                    money(orders[i].total),
+                    style: const TextStyle(
+                      color: Color(0xFF1F2A44),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
           if (i != orders.length - 1)
             const Divider(height: 18, color: Color(0xFFE6EAF2)),
@@ -2001,3 +2124,4 @@ class _SidebarItem {
     required this.icon,
   });
 }
+

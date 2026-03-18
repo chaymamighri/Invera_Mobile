@@ -34,6 +34,7 @@ class CommandeClientInfo {
   final String email;
   final String telephone;
   final String adresse;
+  final String typeClient;
 
   CommandeClientInfo({
     required this.idClient,
@@ -42,6 +43,7 @@ class CommandeClientInfo {
     required this.email,
     required this.telephone,
     required this.adresse,
+    required this.typeClient,
   });
 
   String get fullName {
@@ -57,6 +59,7 @@ class CommandeClientInfo {
       email: _readString(json, ['email']),
       telephone: _readString(json, ['telephone']),
       adresse: _readString(json, ['adresse']),
+      typeClient: _readString(json, ['typeClient', 'type']),
     );
   }
 }

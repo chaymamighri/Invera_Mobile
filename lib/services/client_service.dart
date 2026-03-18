@@ -36,22 +36,7 @@ class ClientService {
   }
 
   Future<List<String>> getClientTypes() async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.clientTypesEndpoint}');
-    final response = await http.get(uri, headers: await _buildHeaders()).timeout(
-          const Duration(milliseconds: ApiConfig.connectionTimeout),
-        );
-    final body = _decodeResponse(response);
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      return [];
-    }
-
-    if (body['success'] != true) return [];
-
-    final types = body['types'];
-    if (types is! List) return [];
-
-    return types.map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList();
+    return List<String>.from(ClientType.allowedValues);
   }
 
   Future<ClientModel> createClient(NouveauClientPayload payload) async {

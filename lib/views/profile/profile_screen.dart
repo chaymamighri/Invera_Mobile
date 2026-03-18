@@ -75,7 +75,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _user = _authService.currentUser!;
       }
 
-      if (_user.role == UserRole.COMMERCIAL) {
+      if (_user.role == UserRole.COMMERCIAL ||
+          _user.role == UserRole.RESPONSABLE_VENTE) {
         final clients = await _safe(
           _clientService.getClients(),
           <ClientModel>[],
@@ -120,6 +121,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return 'Administrateur';
       case UserRole.RESPONSABLE_ACHAT:
         return 'Responsable achat';
+      case UserRole.RESPONSABLE_VENTE:
+        return 'Responsable vente';
       case UserRole.COMMERCIAL:
         return 'Commercial';
     }
@@ -1078,6 +1081,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
           },
           {'icon': Icons.handshake_outlined, 'title': 'Collaboration metier'},
         ];
+      case UserRole.RESPONSABLE_VENTE:
+        return [
+          {
+            'icon': Icons.show_chart_outlined,
+            'title': 'Pilotage de la performance vente',
+          },
+          {
+            'icon': Icons.receipt_long_outlined,
+            'title': 'Suivi facturation commerciale',
+          },
+          {
+            'icon': Icons.groups_outlined,
+            'title': 'Coordination equipe commerciale',
+          },
+        ];
       case UserRole.COMMERCIAL:
         return const [
           {
@@ -1130,7 +1148,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'value': _lastSync == null ? '-' : _date(_lastSync!),
         'color': const Color(0xFF7C3AED),
       },
-      if (_user.role == UserRole.COMMERCIAL) ...[
+      if (_user.role == UserRole.COMMERCIAL ||
+          _user.role == UserRole.RESPONSABLE_VENTE) ...[
         {
           'icon': Icons.people_alt_outlined,
           'label': 'Clients',
@@ -1452,7 +1471,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _panel(
                           'Activite recente',
                           Icons.timeline_outlined,
-                          _user.role != UserRole.COMMERCIAL
+                          (_user.role != UserRole.COMMERCIAL &&
+                                  _user.role != UserRole.RESPONSABLE_VENTE)
                               ? const Text(
                                   'Aucune activite disponible pour ce role',
                                   style: TextStyle(color: _textSecondary),

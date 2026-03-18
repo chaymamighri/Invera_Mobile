@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:invera_mobile/config/app_globals.dart';
+import 'package:invera_mobile/core/ui/adaptive_layout.dart';
 import 'package:invera_mobile/models/client_model.dart';
 import 'package:invera_mobile/services/client_service.dart';
 
@@ -144,9 +146,17 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
       setState(() {
         _clients = (results[0] as List<ClientModel>);
         _clientTypes = (results[1] as List<String>)
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
+            .map((e) => ClientType.normalize(e, fallbackToDefault: true))
+            .where(ClientType.isAllowed)
+            .toSet()
             .toList();
+        _clientTypes.sort(
+          (a, b) =>
+              ClientType.sortWeight(a).compareTo(ClientType.sortWeight(b)),
+        );
+        if (_clientTypes.isEmpty) {
+          _clientTypes = List<String>.from(ClientType.allowedValues);
+        }
         _isLoading = false;
         _sortClients(); // apply default sort
       });
@@ -168,11 +178,14 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
         query: textQuery.isEmpty ? null : textQuery,
       );
 
-      final selectedType = (_selectedType ?? '').trim().toUpperCase();
+      final selectedType = ClientType.normalize(_selectedType);
       final filtered = selectedType.isEmpty
           ? clients
           : clients.where((client) {
-              final clientType = (client.typeClient ?? '').trim().toUpperCase();
+              final clientType = ClientType.normalize(
+                client.typeClient,
+                fallbackToDefault: true,
+              );
               return clientType == selectedType;
             }).toList();
 
@@ -218,8 +231,8 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
         break;
       case 1: // type
         _clients.sort((a, b) {
-          final at = a.typeClient ?? '';
-          final bt = b.typeClient ?? '';
+          final at = ClientType.sortWeight(a.typeClient);
+          final bt = ClientType.sortWeight(b.typeClient);
           return _sortAscending ? at.compareTo(bt) : bt.compareTo(at);
         });
         break;
@@ -255,6 +268,8 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
   Future<void> _onCreateClient() async {
     final payload = await _openClientForm();
     if (payload == null) return;
+    if (!mounted) return;
+    await Future<void>.delayed(Duration.zero);
 
     setState(() => _isBusy = true);
     try {
@@ -278,6 +293,8 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
   Future<void> _onEditClient(ClientModel client) async {
     final payload = await _openClientForm(initialClient: client);
     if (payload == null) return;
+    if (!mounted) return;
+    await Future<void>.delayed(Duration.zero);
 
     setState(() => _isBusy = true);
     try {
@@ -326,22 +343,52 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
 
   // Improved client form (dialog or bottom sheet based on screen size)
   Future<NouveauClientPayload?> _openClientForm({ClientModel? initialClient}) {
+    {
+      final useBottomSheet = MediaQuery.of(context).size.width < 600;
+
+      if (useBottomSheet) {
+        return showModalBottomSheet<NouveauClientPayload>(
+          context: context,
+          isScrollControlled: true,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          builder: (_) => _ClientFormSurface(
+            initialClient: initialClient,
+            clientTypes: _clientTypes,
+            isBottomSheet: true,
+          ),
+        );
+      }
+
+      return showDialog<NouveauClientPayload>(
+        context: context,
+        builder: (_) => _ClientFormSurface(
+          initialClient: initialClient,
+          clientTypes: _clientTypes,
+          isBottomSheet: false,
+        ),
+      );
+    }
+
+    /*
     final isEditing = initialClient != null;
     final formKey = GlobalKey<FormState>();
     final nomCtrl = TextEditingController(text: initialClient?.nom ?? '');
     final telCtrl = TextEditingController(text: initialClient?.telephone ?? '');
     final emailCtrl = TextEditingController(text: initialClient?.email ?? '');
     final addrCtrl = TextEditingController(text: initialClient?.adresse ?? '');
-    final typeCtrl = TextEditingController(
-      text:
-          initialClient?.typeClient ??
-          (_clientTypes.isNotEmpty ? _clientTypes.first : ''),
-    );
+    var selectedClientType = isEditing
+        ? ClientType.normalize(
+            initialClient?.typeClient,
+            fallbackToDefault: true,
+          )
+        : ClientType.particulier;
 
     // Decide on presentation: bottom sheet for small screens, dialog for larger
     final isSmall = MediaQuery.of(context).size.width < 600;
 
-    Widget buildForm() {
+    Widget buildForm(StateSetter setModalState) {
       return Form(
         key: formKey,
         child: Column(
@@ -383,41 +430,80 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
               validator: (v) => v!.isEmpty ? 'Requis' : null,
             ),
             SizedBox(height: _baseUnit * 1.5),
-            _buildTextField(
-              typeCtrl,
-              'Type client',
-              Icons.category_outlined,
-              validator: (v) {
-                if (v!.isEmpty) return 'Requis';
-                if (_clientTypes.isNotEmpty) {
-                  final allowed = _clientTypes
-                      .map((e) => e.trim().toUpperCase())
-                      .toSet();
-                  if (!allowed.contains(v.trim().toUpperCase())) {
-                    return 'Utilisez: ${allowed.join(', ')}';
-                  }
-                }
-                return null;
-              },
-            ),
-            if (_clientTypes.isNotEmpty) ...[
-              SizedBox(height: _baseUnit * 2),
+            if (isEditing) ...[
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Type client',
+                  style: TextStyle(
+                    color: _textSecondary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              SizedBox(height: _baseUnit),
               Wrap(
                 spacing: _baseUnit,
                 runSpacing: _baseUnit,
-                children: _clientTypes.map((type) {
-                  final isSelected =
-                      typeCtrl.text.trim().toUpperCase() ==
-                      type.trim().toUpperCase();
+                children:
+                    (_clientTypes.isEmpty
+                            ? ClientType.allowedValues
+                            : _clientTypes)
+                        .map((type) {
+                  final normalizedType = ClientType.normalize(
+                    type,
+                    fallbackToDefault: true,
+                  );
                   return ChoiceChip(
-                    label: Text(type),
-                    selected: isSelected,
+                    label: Text(ClientType.label(normalizedType)),
+                    selected: selectedClientType == normalizedType,
                     onSelected: (_) {
-                      typeCtrl.text = type.trim().toUpperCase();
-                      formKey.currentState?.validate();
+                      setModalState(() {
+                        selectedClientType = normalizedType;
+                      });
                     },
                   );
                 }).toList(),
+              ),
+              SizedBox(height: _baseUnit),
+              Text(
+                'Un client est cree comme Particulier par defaut. Ici vous pouvez le faire evoluer vers VIP, Fidel ou Entreprise.',
+                style: TextStyle(color: _textSecondary, fontSize: 12),
+              ),
+            ] else ...[
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(_baseUnit * 1.5),
+                decoration: BoxDecoration(
+                  color: _background,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _borderLight),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.category_outlined, color: _primary),
+                    SizedBox(width: _baseUnit),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Text(
+                            'Type client initial',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: _textPrimary,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Particulier',
+                            style: TextStyle(color: _textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ],
@@ -433,7 +519,8 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
           shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
-          builder: (ctx) => Padding(
+          builder: (ctx) => StatefulBuilder(
+            builder: (ctx, setModalState) => Padding(
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(ctx).viewInsets.bottom,
               left: _baseUnit * 2,
@@ -451,7 +538,7 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                   ),
                 ),
                 SizedBox(height: _baseUnit * 2),
-                buildForm(),
+                buildForm(setModalState),
                 SizedBox(height: _baseUnit * 2),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -470,7 +557,7 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                             telephone: telCtrl.text,
                             email: emailCtrl.text,
                             adresse: addrCtrl.text,
-                            typeClient: typeCtrl.text.trim().toUpperCase(),
+                            typeClient: selectedClientType,
                           ),
                         );
                       },
@@ -481,15 +568,17 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
               ],
             ),
           ),
+        ),
         );
       } else {
         return showDialog<NouveauClientPayload>(
           context: context,
-          builder: (ctx) => AlertDialog(
+          builder: (ctx) => StatefulBuilder(
+            builder: (ctx, setModalState) => AlertDialog(
             title: Text(isEditing ? 'Modifier client' : 'Nouveau client'),
             content: SizedBox(
-              width: 560,
-              child: SingleChildScrollView(child: buildForm()),
+              width: AdaptiveLayout.dialogWidth(ctx, max: 560, sideMargin: 16),
+              child: SingleChildScrollView(child: buildForm(setModalState)),
             ),
             actions: [
               TextButton(
@@ -506,7 +595,7 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                       telephone: telCtrl.text,
                       email: emailCtrl.text,
                       adresse: addrCtrl.text,
-                      typeClient: typeCtrl.text.trim().toUpperCase(),
+                      typeClient: selectedClientType,
                     ),
                   );
                 },
@@ -514,7 +603,8 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
               ),
             ],
           ),
-        );
+        ),
+      );
       }
     }
 
@@ -523,57 +613,44 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
       telCtrl.dispose();
       emailCtrl.dispose();
       addrCtrl.dispose();
-      typeCtrl.dispose();
     });
+    */
   }
 
-  Widget _buildTextField(
-    TextEditingController ctrl,
-    String label,
-    IconData icon, {
-    TextInputType keyboardType = TextInputType.text,
-    int maxLines = 1,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: ctrl,
-      keyboardType: keyboardType,
-      maxLines: maxLines,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-        filled: true,
-        fillColor: _background,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: _borderLight),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: _borderLight),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _primary, width: 2),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _error),
-        ),
-      ),
-      validator: validator,
-    );
+  String _clientTypeLabel(String? raw) {
+    return ClientType.label(raw, fallbackToDefault: true);
+  }
+
+  Color _clientTypeColor(String? raw) {
+    switch (ClientType.normalize(raw, fallbackToDefault: true)) {
+      case ClientType.vip:
+        return const Color(0xFF7C3AED);
+      case ClientType.fidel:
+        return _accent;
+      case ClientType.entreprise:
+        return const Color(0xFFEA580C);
+      case ClientType.particulier:
+      default:
+        return _primary;
+    }
   }
 
   void _showMessage(String msg, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: isError ? _error : _success,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+    final messenger = appScaffoldMessengerKey.currentState;
+    if (messenger == null) return;
+
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: isError ? _error : _success,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
   }
 
   // ---------- UI ----------
@@ -803,7 +880,7 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
         ),
         ..._clientTypes.map(
           (t) => ChoiceChip(
-            label: Text(t),
+            label: Text(ClientType.label(t)),
             selected: _selectedType == t,
             onSelected: (_) => _onSelectType(t),
           ),
@@ -962,8 +1039,8 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                           Expanded(
                             flex: 2,
                             child: _StatusChip(
-                              label: client.typeClient ?? '-',
-                              color: _primary,
+                              label: _clientTypeLabel(client.typeClient),
+                              color: _clientTypeColor(client.typeClient),
                             ),
                           ),
                           Expanded(
@@ -1097,8 +1174,8 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                       ),
                     ),
                     _StatusChip(
-                      label: client.typeClient ?? '-',
-                      color: _primary,
+                      label: _clientTypeLabel(client.typeClient),
+                      color: _clientTypeColor(client.typeClient),
                     ),
                   ],
                 ),
@@ -1109,15 +1186,16 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                 const SizedBox(height: _baseUnit),
                 _InfoBadge(label: 'Adresse', value: client.adresse ?? '-'),
                 const SizedBox(height: _baseUnit * 1.5),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: _baseUnit,
+                  runSpacing: _baseUnit,
                   children: [
                     OutlinedButton.icon(
                       onPressed: _isBusy ? null : () => _onEditClient(client),
                       icon: Icon(Icons.edit_outlined, color: _primary),
                       label: const Text('Modifier'),
                     ),
-                    const SizedBox(width: _baseUnit),
                     OutlinedButton.icon(
                       onPressed: _isBusy ? null : () => _onDeleteClient(client),
                       icon: Icon(Icons.delete_outline, color: _error),
@@ -1141,6 +1219,310 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
     _hoverController.dispose();
     for (var c in _rowHoverControllers.values) c.dispose();
     super.dispose();
+  }
+}
+
+class _ClientFormSurface extends StatefulWidget {
+  final ClientModel? initialClient;
+  final List<String> clientTypes;
+  final bool isBottomSheet;
+
+  const _ClientFormSurface({
+    required this.initialClient,
+    required this.clientTypes,
+    required this.isBottomSheet,
+  });
+
+  @override
+  State<_ClientFormSurface> createState() => _ClientFormSurfaceState();
+}
+
+class _ClientFormSurfaceState extends State<_ClientFormSurface> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nomCtrl;
+  late final TextEditingController _telCtrl;
+  late final TextEditingController _emailCtrl;
+  late final TextEditingController _addrCtrl;
+  late String _selectedClientType;
+
+  bool get _isEditing => widget.initialClient != null;
+
+  List<String> get _availableTypes {
+    final source = widget.clientTypes.isEmpty
+        ? ClientType.allowedValues
+        : widget.clientTypes;
+
+    return source
+        .map((type) => ClientType.normalize(type, fallbackToDefault: true))
+        .where(ClientType.isAllowed)
+        .toSet()
+        .toList()
+      ..sort(
+        (a, b) => ClientType.sortWeight(a).compareTo(ClientType.sortWeight(b)),
+      );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _nomCtrl = TextEditingController(text: widget.initialClient?.nom ?? '');
+    _telCtrl = TextEditingController(
+      text: widget.initialClient?.telephone ?? '',
+    );
+    _emailCtrl = TextEditingController(text: widget.initialClient?.email ?? '');
+    _addrCtrl = TextEditingController(
+      text: widget.initialClient?.adresse ?? '',
+    );
+    _selectedClientType = _isEditing
+        ? ClientType.normalize(
+            widget.initialClient?.typeClient,
+            fallbackToDefault: true,
+          )
+        : ClientType.particulier;
+  }
+
+  @override
+  void dispose() {
+    _nomCtrl.dispose();
+    _telCtrl.dispose();
+    _emailCtrl.dispose();
+    _addrCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+
+    Navigator.of(context).pop(
+      NouveauClientPayload(
+        nom: _nomCtrl.text,
+        telephone: _telCtrl.text,
+        email: _emailCtrl.text,
+        adresse: _addrCtrl.text,
+        typeClient: _selectedClientType,
+      ),
+    );
+  }
+
+  Widget _buildTextField(
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    TextInputType keyboardType = TextInputType.text,
+    int maxLines = 1,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      maxLines: maxLines,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        filled: true,
+        fillColor: _background,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: _borderLight),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: _borderLight),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _primary, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _error),
+        ),
+      ),
+      validator: validator,
+    );
+  }
+
+  Widget _buildForm() {
+    return Form(
+      key: _formKey,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildTextField(
+            _nomCtrl,
+            'Nom',
+            Icons.person_outline,
+            validator: (v) => v!.isEmpty ? 'Requis' : null,
+          ),
+          SizedBox(height: _baseUnit * 1.5),
+          _buildTextField(
+            _telCtrl,
+            'TÃ©lÃ©phone',
+            Icons.phone_outlined,
+            keyboardType: TextInputType.phone,
+            validator: (v) => v!.isEmpty ? 'Requis' : null,
+          ),
+          SizedBox(height: _baseUnit * 1.5),
+          _buildTextField(
+            _emailCtrl,
+            'Email',
+            Icons.email_outlined,
+            keyboardType: TextInputType.emailAddress,
+            validator: (v) {
+              if (v == null || v.isEmpty) return 'Requis';
+              if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)) {
+                return 'Invalide';
+              }
+              return null;
+            },
+          ),
+          SizedBox(height: _baseUnit * 1.5),
+          _buildTextField(
+            _addrCtrl,
+            'Adresse',
+            Icons.location_on_outlined,
+            maxLines: 2,
+            validator: (v) => v!.isEmpty ? 'Requis' : null,
+          ),
+          SizedBox(height: _baseUnit * 1.5),
+          if (_isEditing) ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Type client',
+                style: TextStyle(
+                  color: _textSecondary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            SizedBox(height: _baseUnit),
+            Wrap(
+              spacing: _baseUnit,
+              runSpacing: _baseUnit,
+              children: _availableTypes.map((type) {
+                return ChoiceChip(
+                  label: Text(ClientType.label(type)),
+                  selected: _selectedClientType == type,
+                  onSelected: (_) {
+                    setState(() {
+                      _selectedClientType = type;
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+            SizedBox(height: _baseUnit),
+            Text(
+              'Un client est cree comme Particulier par defaut. Ici vous pouvez le faire evoluer vers VIP, Fidel ou Entreprise.',
+              style: TextStyle(color: _textSecondary, fontSize: 12),
+            ),
+          ] else ...[
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(_baseUnit * 1.5),
+              decoration: BoxDecoration(
+                color: _background,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _borderLight),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.category_outlined, color: _primary),
+                  SizedBox(width: _baseUnit),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'Type client initial',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: _textPrimary,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Particulier',
+                          style: TextStyle(color: _textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final title = _isEditing ? 'Modifier client' : 'Nouveau client';
+
+    if (widget.isBottomSheet) {
+      return Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+          left: _baseUnit * 2,
+          right: _baseUnit * 2,
+          top: _baseUnit * 2,
+        ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: _baseUnit * 2),
+                _buildForm(),
+                SizedBox(height: _baseUnit * 2),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Annuler'),
+                    ),
+                    ElevatedButton(
+                      onPressed: _submit,
+                      child: Text(_isEditing ? 'Modifier' : 'CrÃ©er'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return AlertDialog(
+      title: Text(title),
+      content: SizedBox(
+        width: AdaptiveLayout.dialogWidth(context, max: 560, sideMargin: 16),
+        child: SingleChildScrollView(child: _buildForm()),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Annuler'),
+        ),
+        ElevatedButton(
+          onPressed: _submit,
+          child: Text(_isEditing ? 'Modifier' : 'CrÃ©er'),
+        ),
+      ],
+    );
   }
 }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:invera_mobile/config/app_routes.dart';
+import 'package:invera_mobile/core/ui/adaptive_layout.dart';
 import 'package:invera_mobile/models/user_model.dart';
 import 'package:invera_mobile/services/auth_service.dart';
 
@@ -307,11 +308,11 @@ class _ApprovisionnementDashboardState
           ],
         ),
         drawer: Drawer(
-          width: 300,
+          width: AdaptiveLayout.drawerWidth(context, max: 304, ratio: 0.88),
           child: _buildSidebar(collapsed: false, mobile: true),
         ),
         body: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(AdaptiveLayout.horizontalPadding(context)),
           child: _buildBodyCard(),
         ),
       );

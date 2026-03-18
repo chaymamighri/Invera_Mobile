@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:invera_mobile/config/app_globals.dart';
+import 'package:invera_mobile/core/ui/adaptive_layout.dart';
 import 'package:invera_mobile/models/client_model.dart';
 import 'package:invera_mobile/models/commande_model.dart';
 import 'package:invera_mobile/services/client_service.dart';
@@ -411,8 +412,10 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
             borderRadius: BorderRadius.circular(24),
           ),
           child: Container(
-            width: 1000,
-            constraints: const BoxConstraints(maxHeight: 760),
+            width: AdaptiveLayout.dialogWidth(ctx, max: 1000, sideMargin: 12),
+            constraints: BoxConstraints(
+              maxHeight: AdaptiveLayout.dialogHeight(ctx, ratio: 0.9),
+            ),
             padding: EdgeInsets.all(_baseUnit * 3),
             child: Column(
               children: [
@@ -697,8 +700,10 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                   ),
                 ),
                 const SizedBox(height: _baseUnit * 2),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: _baseUnit,
+                  runSpacing: _baseUnit,
                   children: [
                     if (_canConfirm(cmd))
                       ElevatedButton.icon(
@@ -716,7 +721,6 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                           foregroundColor: Colors.white,
                         ),
                       ),
-                    if (_canConfirm(cmd)) const SizedBox(width: _baseUnit),
                     TextButton.icon(
                       onPressed: () =>
                           Navigator.of(ctx, rootNavigator: true).pop(),
@@ -740,8 +744,27 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     final formKey = GlobalKey<FormState>();
 
     int? selectedClientId = initialCommande?.client?.idClient;
+    ClientModel? findClientById(int? clientId) {
+      if (clientId == null) return null;
+      try {
+        return _clients.firstWhere((c) => c.id == clientId);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    double clientRemisePercent(ClientModel? client) {
+      final value = client?.remise ?? 0;
+      if (!value.isFinite) return 0;
+      return value.clamp(0, 100).toDouble();
+    }
+
     final remiseCtrl = TextEditingController(
-      text: (initialCommande?.tauxRemise ?? 0).toStringAsFixed(2),
+      text:
+          (isEdit
+                  ? initialCommande.tauxRemise
+                  : clientRemisePercent(findClientById(selectedClientId)))
+              .toStringAsFixed(2),
     );
 
     final lines = <_DraftLine>[
@@ -790,11 +813,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
             }
 
             ClientModel? selectedClient() {
-              try {
-                return _clients.firstWhere((c) => c.id == selectedClientId);
-              } catch (_) {
-                return null;
-              }
+              return findClientById(selectedClientId);
             }
 
             Future<void> save() async {
@@ -838,8 +857,17 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                 borderRadius: BorderRadius.circular(24),
               ),
               child: Container(
-                width: 980,
-                constraints: const BoxConstraints(maxHeight: 760),
+                width: AdaptiveLayout.dialogWidth(
+                  dialogContext,
+                  max: 980,
+                  sideMargin: 12,
+                ),
+                constraints: BoxConstraints(
+                  maxHeight: AdaptiveLayout.dialogHeight(
+                    dialogContext,
+                    ratio: 0.9,
+                  ),
+                ),
                 padding: EdgeInsets.all(_baseUnit * 3),
                 child: Form(
                   key: formKey,
@@ -927,10 +955,13 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                               }).toList(),
                                               onChanged: isEdit
                                                   ? null
-                                                  : (v) => setModal(
-                                                      () =>
-                                                          selectedClientId = v,
-                                                    ),
+                                                  : (v) => setModal(() {
+                                                      selectedClientId = v;
+                                                      remiseCtrl.text =
+                                                          clientRemisePercent(
+                                                            findClientById(v),
+                                                          ).toStringAsFixed(2);
+                                                    }),
                                               validator: (v) =>
                                                   v == null ? 'Requis' : null,
                                             ),
@@ -939,21 +970,24 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                             ),
                                             TextFormField(
                                               controller: remiseCtrl,
+                                              readOnly: true,
                                               keyboardType:
                                                   const TextInputType.numberWithOptions(
                                                     decimal: true,
                                                   ),
                                               decoration: InputDecoration(
-                                                labelText: 'Remise (%)',
+                                                labelText: 'Remise client (%)',
                                                 prefixIcon: const Icon(
                                                   Icons.percent,
                                                 ),
+                                                helperText: isEdit
+                                                    ? 'Remise déjà enregistrée sur cette commande.'
+                                                    : 'Appliquée automatiquement selon le type du client.',
                                                 border: OutlineInputBorder(
                                                   borderRadius:
                                                       BorderRadius.circular(12),
                                                 ),
                                               ),
-                                              onChanged: (_) => setModal(() {}),
                                               validator: (v) {
                                                 final value = double.tryParse(
                                                   v ?? '',
@@ -1433,8 +1467,10 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                         ),
                       ),
                       const SizedBox(height: _baseUnit * 2),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
+                      Wrap(
+                        alignment: WrapAlignment.end,
+                        spacing: _baseUnit,
+                        runSpacing: _baseUnit,
                         children: [
                           TextButton(
                             onPressed: () => Navigator.of(
@@ -1443,7 +1479,6 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                             ).pop(),
                             child: const Text('Annuler'),
                           ),
-                          const SizedBox(width: _baseUnit),
                           ElevatedButton.icon(
                             onPressed: save,
                             icon: const Icon(Icons.save_outlined),

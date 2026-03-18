@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../../models/user_model.dart';
 import '../../config/app_routes.dart';
+import '../../core/ui/adaptive_layout.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -61,7 +62,15 @@ class _LoginScreenState extends State<LoginScreen> {
               arguments: {'user': _authService.currentUser},
             );
             break;
-            
+
+          case UserRole.RESPONSABLE_VENTE:
+            Navigator.pushReplacementNamed(
+              context,
+              AppRoutes.responsableVenteDashboard,
+              arguments: {'user': _authService.currentUser},
+            );
+            break;
+             
           case UserRole.RESPONSABLE_ACHAT:
             Navigator.pushReplacementNamed(
               context,
@@ -97,6 +106,16 @@ class _LoginScreenState extends State<LoginScreen> {
   // ✅ LA MÉTHODE build() DOIT ÊTRE PRÉSENTE
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isVeryCompact = screenWidth < 370;
+    final cardWidth = AdaptiveLayout.cardWidth(
+      context,
+      max: 420,
+      sideMargin: isVeryCompact ? 12 : 20,
+    );
+    final cardPadding = isVeryCompact ? 20.0 : 30.0;
+    final titleSize = isVeryCompact ? 26.0 : 30.0;
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -141,9 +160,12 @@ class _LoginScreenState extends State<LoginScreen> {
               // Contenu centré
               Center(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isVeryCompact ? 12 : 20,
+                    vertical: 20,
+                  ),
                   child: Container(
-                    width: 400,
+                    width: cardWidth,
                     decoration: BoxDecoration(
                       color: Colors.transparent,
                       borderRadius: BorderRadius.circular(30),
@@ -166,7 +188,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       child: Padding(
-                        padding: const EdgeInsets.all(30),
+                        padding: EdgeInsets.all(cardPadding),
                         child: Form(
                           key: _formKey,
                           child: Column(
@@ -174,11 +196,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               // Titre
-                              const Center(
+                              Center(
                                 child: Text(
                                   'Connexion',
                                   style: TextStyle(
-                                    fontSize: 30,
+                                    fontSize: titleSize,
                                     fontWeight: FontWeight.bold,
                                     color: Colors.white,
                                   ),
@@ -336,10 +358,12 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
 
                               // Options
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final compactOptions = constraints.maxWidth < 340;
+
+                                  final rememberMe = Row(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Checkbox(
                                         value: _rememberMe,
@@ -354,16 +378,19 @@ class _LoginScreenState extends State<LoginScreen> {
                                         side: BorderSide(color: Colors.white.withOpacity(0.3)),
                                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                       ),
-                                      const Text(
-                                        'Se souvenir de moi',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.white70,
+                                      const Flexible(
+                                        child: Text(
+                                          'Se souvenir de moi',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.white70,
+                                          ),
                                         ),
                                       ),
                                     ],
-                                  ),
-                                  TextButton(
+                                  );
+
+                                  final forgotButton = TextButton(
                                     onPressed: () {
                                       Navigator.pushNamed(
                                         context,
@@ -383,8 +410,29 @@ class _LoginScreenState extends State<LoginScreen> {
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  );
+
+                                  if (compactOptions) {
+                                    return Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        rememberMe,
+                                        Align(
+                                          alignment: Alignment.centerRight,
+                                          child: forgotButton,
+                                        ),
+                                      ],
+                                    );
+                                  }
+
+                                  return Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(child: rememberMe),
+                                      forgotButton,
+                                    ],
+                                  );
+                                },
                               ),
                               const SizedBox(height: 20),
 

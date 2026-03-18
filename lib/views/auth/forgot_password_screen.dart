@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import '../../config/app_routes.dart';
+import '../../core/ui/adaptive_layout.dart';
 import '../../services/auth_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -49,6 +50,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isVeryCompact = screenWidth < 370;
+    final cardWidth = AdaptiveLayout.cardWidth(
+      context,
+      max: 440,
+      sideMargin: isVeryCompact ? 12 : 20,
+    );
+    final cardPadding = isVeryCompact ? 20.0 : 28.0;
+    final titleSize = isVeryCompact ? 24.0 : 28.0;
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -84,9 +95,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ),
               Center(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isVeryCompact ? 12 : 20,
+                    vertical: 20,
+                  ),
                   child: Container(
-                    width: 420,
+                    width: cardWidth,
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(30),
@@ -102,17 +116,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       ],
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.all(28),
+                      padding: EdgeInsets.all(cardPadding),
                       child: Form(
                         key: _formKey,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Text(
+                            Text(
                               'Mot de passe oublié',
                               style: TextStyle(
-                                fontSize: 28,
+                                fontSize: titleSize,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),

@@ -1,8 +1,10 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:invera_mobile/views/auth/welcome_screen.dart';
 import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/Commercial_dashboard.dart';
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/approvisionnement_Dashboard.dart';
+import 'package:invera_mobile/views/dashboard/vente_dashboard/responsable_vente_dashboard.dart';
 import 'package:invera_mobile/views/auth/forgot_password_screen.dart';
 import 'package:invera_mobile/views/auth/reset-password.dart';
 import 'package:invera_mobile/views/profile/profile_screen.dart';
@@ -27,6 +29,15 @@ class MyApp extends StatelessWidget {
       navigatorKey: appNavigatorKey,
       scaffoldMessengerKey: appScaffoldMessengerKey,
       initialRoute: AppRoutes.login,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('en'),
+        Locale('fr', 'FR'),
+      ],
       routes: {
         // Routes sans paramètres
         AppRoutes.welcome: (context) => const WelcomeScreen(),
@@ -51,6 +62,16 @@ class MyApp extends StatelessWidget {
             if (user != null) {
               return MaterialPageRoute(
                 builder: (context) => CommercialDashboard(user: user),
+              );
+            }
+            break;
+
+          case AppRoutes.responsableVenteDashboard:
+            final args = settings.arguments as Map<String, dynamic>?;
+            final user = args?['user'] as User?;
+            if (user != null) {
+              return MaterialPageRoute(
+                builder: (context) => ResponsableVenteDashboard(user: user),
               );
             }
             break;

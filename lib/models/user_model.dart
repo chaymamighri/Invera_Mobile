@@ -1,7 +1,8 @@
 enum UserRole {
   ADMIN,
   COMMERCIAL,
-  RESPONSABLE_ACHAT
+  RESPONSABLE_ACHAT,
+  RESPONSABLE_VENTE,
 }
 
 class User {
@@ -27,18 +28,21 @@ class User {
       email: json['email'] ?? '',
       nom: json['nom'] ?? '',
       prenom: json['prenom'] ?? '',
-      role: _parseRole(json['role']),
+      role: parseRole(json['role']),
       active: json['active'] ?? true,
     );
   }
 
-  static UserRole _parseRole(String? role) {
+  static UserRole parseRole(String? role) {
     if (role == null) return UserRole.COMMERCIAL;
     switch (role.toUpperCase()) {
       case 'ADMIN':
         return UserRole.ADMIN;
       case 'RESPONSABLE_ACHAT':
         return UserRole.RESPONSABLE_ACHAT;
+      case 'RESPONSABLE_VENTE':
+      case 'RESPONSABLE_VENTES':
+        return UserRole.RESPONSABLE_VENTE;
       default:
         return UserRole.COMMERCIAL;
     }
