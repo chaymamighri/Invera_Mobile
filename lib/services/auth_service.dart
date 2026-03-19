@@ -408,6 +408,38 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  Future<AuthActionResult> createPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    _setLoading(true);
+
+    try {
+      final normalizedEmail = email.trim().toLowerCase();
+      final cleanedCode = code.replaceAll(RegExp(r'\s+'), '');
+      final result = await _postPasswordNoAuth(
+        endpoint: ApiConfig.createPasswordEndpoint,
+        payload: {
+          'email': normalizedEmail,
+          'code': cleanedCode,
+          'newPassword': newPassword,
+        },
+        successFallback: 'Compte active avec succes',
+        errorFallback: 'Erreur d\'activation du compte',
+      );
+
+      _setLoading(false);
+      return result;
+    } catch (e) {
+      _setLoading(false);
+      return AuthActionResult(
+        success: false,
+        message: e.toString().replaceFirst('Exception: ', ''),
+      );
+    }
+  }
+
   Future<AuthActionResult> _postPasswordNoAuth({
     required String endpoint,
     required Map<String, dynamic> payload,

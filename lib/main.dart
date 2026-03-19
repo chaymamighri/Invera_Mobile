@@ -6,6 +6,7 @@ import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/Commercial_da
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/approvisionnement_Dashboard.dart';
 import 'package:invera_mobile/views/dashboard/vente_dashboard/responsable_vente_dashboard.dart';
 import 'package:invera_mobile/views/auth/forgot_password_screen.dart';
+import 'package:invera_mobile/views/auth/create_password_screen.dart';
 import 'package:invera_mobile/views/auth/reset-password.dart';
 import 'package:invera_mobile/views/profile/profile_screen.dart';
 import 'config/app_routes.dart';
@@ -34,10 +35,7 @@ class MyApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('en'),
-        Locale('fr', 'FR'),
-      ],
+      supportedLocales: const [Locale('en'), Locale('fr', 'FR')],
       routes: {
         // Routes sans paramètres
         AppRoutes.welcome: (context) => const WelcomeScreen(),
@@ -98,6 +96,15 @@ class MyApp extends StatelessWidget {
             final email = args?['email'] as String?;
             return MaterialPageRoute(
               builder: (context) => ResetPasswordScreen(email: email ?? ''),
+            );
+
+          case AppRoutes.createPassword:
+            final args = settings.arguments as Map<String, dynamic>?;
+            final email = args?['email'] as String?;
+            final code = (args?['code'] ?? args?['token']) as String?;
+            return MaterialPageRoute(
+              builder: (context) =>
+                  CreatePasswordScreen(initialEmail: email, initialCode: code),
             );
         }
 
