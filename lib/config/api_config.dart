@@ -1,13 +1,23 @@
 class ApiConfig {
-  // Changez cette URL selon votre environnement
-  //static const String baseUrl = 'http://localhost:8081'; // Pour web
-  static const String baseUrl = 'http://172.20.10.7:8081';
+  // Override with:
+  // flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8081
+  // flutter run --dart-define=API_BASE_URL=http://192.168.x.x:8081
+  static const String defaultBaseUrl = 'http://172.20.10.7:8081';
+  static const String androidEmulatorBaseUrl = 'http://10.0.2.2:8081';
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: defaultBaseUrl,
+  );
 
   static const String apiPrefix = '/api/auth';
   static const String clientsPrefix = '/api/clients';
   static const String commandesPrefix = '/api/commandes';
   static const String facturesPrefix = '/api/factures';
   static const String productsPrefix = '/api/produits';
+  static const String categoriesPrefix = '/api/categories';
+  static const String fournisseursPrefix = '/api/fournisseurs';
+  static const String commandesFournisseursPrefix =
+      '/api/commandes-fournisseurs';
 
   // Endpoints
   static const String loginEndpoint = '$apiPrefix/login';
@@ -39,6 +49,24 @@ class ApiConfig {
 
   // Produits endpoints
   static const String productsAllEndpoint = '$productsPrefix/all';
+  static const String productsSearchEndpoint = '$productsPrefix/search';
+  static const String productsAddEndpoint = '$productsPrefix/add';
+  static const String productsLowStockEndpoint = '$productsPrefix/low-stock';
+
+  // Categories endpoints
+  static const String categoriesAllEndpoint = '$categoriesPrefix/all';
+
+  // Fournisseurs endpoints
+  static const String fournisseursAllEndpoint = '$fournisseursPrefix/all';
+  static const String fournisseursActiveEndpoint = '$fournisseursPrefix/active';
+
+  // Commandes fournisseurs endpoints
+  static const String commandesFournisseursAllEndpoint =
+      '$commandesFournisseursPrefix/All';
+  static const String commandesFournisseursArchivedEndpoint =
+      '$commandesFournisseursPrefix/archived';
+  static const String commandesFournisseursAddEndpoint =
+      '$commandesFournisseursPrefix/add';
 
   // Headers
   static const String contentType = 'application/json';

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:invera_mobile/views/auth/welcome_screen.dart';
 import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/Commercial_dashboard.dart';
-import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/approvisionnement_Dashboard.dart';
+import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/approvisionnement_dashboard.dart';
 import 'package:invera_mobile/views/dashboard/vente_dashboard/responsable_vente_dashboard.dart';
 import 'package:invera_mobile/views/auth/forgot_password_screen.dart';
 import 'package:invera_mobile/views/auth/create_password_screen.dart';
