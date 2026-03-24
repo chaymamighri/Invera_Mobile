@@ -7,6 +7,8 @@ import '../config/api_config.dart';
 import '../models/procurement_models.dart';
 
 class ProcurementService {
+  static const int _maxCreateProductAttempts = 6;
+
   Future<List<ProcurementCategory>> getCategories() async {
     final uri = Uri.parse(
       '${ApiConfig.baseUrl}${ApiConfig.categoriesAllEndpoint}',
@@ -132,26 +134,52 @@ class ProcurementService {
   }
 
   Future<ProcurementProduct> createProduct(ProductUpsertPayload payload) async {
-    final response = await _sendMultipartRequest(
-      method: 'POST',
-      uri: Uri.parse('${ApiConfig.baseUrl}${ApiConfig.productsAddEndpoint}'),
-      fields: payload.toMultipartFields(),
-    );
+    http.Response? lastResponse;
+    dynamic lastBody;
 
-    final body = _decodeBody(response);
+    for (var attempt = 1; attempt <= _maxCreateProductAttempts; attempt++) {
+      final response = await _sendMultipartRequest(
+        method: 'POST',
+        uri: Uri.parse('${ApiConfig.baseUrl}${ApiConfig.productsAddEndpoint}'),
+        fields: payload.toMultipartFields(),
+      );
+
+      final body = _decodeBody(response);
+      lastResponse = response;
+      lastBody = body;
+
+      final successFlag = body is Map<String, dynamic> ? body['success'] : null;
+      final statusOk = response.statusCode >= 200 && response.statusCode < 300;
+      if (statusOk && successFlag == true) {
+        final produit = body['produit'];
+        if (produit is! Map<String, dynamic>) {
+          throw Exception('Reponse produit invalide');
+        }
+        return ProcurementProduct.fromJson(produit);
+      }
+
+      final canRetry =
+          attempt < _maxCreateProductAttempts &&
+          _isRetriableCreateProductFailure(response, body);
+      if (!canRetry) {
+        _ensureSuccess(
+          response,
+          body,
+          'Erreur lors de la creation du produit',
+          requireSuccessFlag: true,
+        );
+      }
+
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+
     _ensureSuccess(
-      response,
-      body,
+      lastResponse!,
+      lastBody,
       'Erreur lors de la creation du produit',
       requireSuccessFlag: true,
     );
-
-    final produit = body is Map<String, dynamic> ? body['produit'] : null;
-    if (produit is! Map<String, dynamic>) {
-      throw Exception('Reponse produit invalide');
-    }
-
-    return ProcurementProduct.fromJson(produit);
+    throw Exception('Erreur lors de la creation du produit');
   }
 
   Future<ProcurementProduct> updateProduct(
@@ -511,21 +539,112 @@ class ProcurementService {
 
     if (statusOk && successOk) return;
 
-    throw Exception(_extractMessage(body, fallback));
+    throw Exception(
+      _extractMessage(body, fallback, statusCode: response.statusCode),
+    );
   }
 
-  String _extractMessage(dynamic body, String fallback) {
+  String _extractMessage(
+    dynamic body,
+    String fallback, {
+    int? statusCode,
+  }) {
     if (body is Map<String, dynamic>) {
-      final message = body['message'];
+      final message = body['message'] ?? body['error'] ?? body['details'];
       if (message is String && message.trim().isNotEmpty) {
-        return message.trim();
+        return _normalizeServerMessage(
+          message.trim(),
+          fallback,
+          statusCode: statusCode,
+        );
       }
     }
 
     if (body is String && body.trim().isNotEmpty) {
-      return body.trim();
+      return _normalizeServerMessage(
+        body.trim(),
+        fallback,
+        statusCode: statusCode,
+      );
     }
 
-    return fallback;
+    return _fallbackMessage(fallback, statusCode);
+  }
+
+  String _normalizeServerMessage(
+    String raw,
+    String fallback, {
+    int? statusCode,
+  }) {
+    if (_isDuplicateProductPrimaryKeyError(raw)) {
+      return 'Creation impossible: le serveur tente de reutiliser un identifiant produit deja existant. Reessayez apres correction de la base.';
+    }
+
+    final lines = raw
+        .split(RegExp(r'[\r\n]+'))
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+
+    for (final line in lines) {
+      final lower = line.toLowerCase();
+      if (lower.startsWith('erreur:') || lower.startsWith('error:')) {
+        return line;
+      }
+    }
+
+    for (final line in lines) {
+      final lower = line.toLowerCase();
+      if (lower.startsWith('at ') ||
+          lower.startsWith('org.') ||
+          lower.startsWith('java.') ||
+          lower.startsWith('jakarta.') ||
+          lower.startsWith('caused by:')) {
+        continue;
+      }
+      return line;
+    }
+
+    return _fallbackMessage(fallback, statusCode);
+  }
+
+  String _fallbackMessage(String fallback, int? statusCode) {
+    switch (statusCode) {
+      case 401:
+        return 'Session invalide ou expiree';
+      case 403:
+        return 'Acces refuse pour cette operation';
+      case 404:
+        return 'Endpoint introuvable';
+      case 500:
+        return fallback;
+      default:
+        return fallback;
+    }
+  }
+
+  bool _isRetriableCreateProductFailure(http.Response response, dynamic body) {
+    if (response.statusCode < 500) return false;
+
+    if (body is Map<String, dynamic>) {
+      final raw = body['message'] ?? body['error'] ?? body['details'];
+      if (raw is String) {
+        return _isDuplicateProductPrimaryKeyError(raw);
+      }
+    }
+
+    if (body is String) {
+      return _isDuplicateProductPrimaryKeyError(body);
+    }
+
+    return false;
+  }
+
+  bool _isDuplicateProductPrimaryKeyError(String message) {
+    final lower = message.toLowerCase();
+    return lower.contains('produit_pkey') ||
+        (lower.contains('duplicate key') && lower.contains('id_produit')) ||
+        (lower.contains('id_produit') && lower.contains('existe deja')) ||
+        (lower.contains('id_produit') && lower.contains('already exists'));
   }
 }
