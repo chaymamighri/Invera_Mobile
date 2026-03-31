@@ -91,7 +91,7 @@ class _ProcurementOverviewSectionState
           final status = order.statut.toUpperCase();
           return status == 'RECUE' || status == 'FACTUREE';
         })
-        .fold<double>(0, (sum, order) => sum + order.totalTTC);
+        .fold<double>(0, (sum, order) => sum + order.total);
     final recentOrders = [..._orders]
       ..sort((a, b) {
         final left = a.dateCommande ?? DateTime.fromMillisecondsSinceEpoch(0);

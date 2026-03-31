@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/api_config.dart';
@@ -142,6 +143,16 @@ class ProcurementService {
         method: 'POST',
         uri: Uri.parse('${ApiConfig.baseUrl}${ApiConfig.productsAddEndpoint}'),
         fields: payload.toMultipartFields(),
+        file: payload.hasImageUpload
+            ? http.MultipartFile.fromBytes(
+                'image',
+                payload.imageBytes!,
+                filename: payload.imageFileName,
+                contentType: MediaType.parse(
+                  payload.imageMimeType ?? 'image/jpeg',
+                ),
+              )
+            : null,
       );
 
       final body = _decodeBody(response);
@@ -192,6 +203,16 @@ class ProcurementService {
         '${ApiConfig.baseUrl}${ApiConfig.productsPrefix}/update/$id',
       ),
       fields: payload.toMultipartFields(),
+      file: payload.hasImageUpload
+          ? http.MultipartFile.fromBytes(
+              'image',
+              payload.imageBytes!,
+              filename: payload.imageFileName,
+              contentType: MediaType.parse(
+                payload.imageMimeType ?? 'image/jpeg',
+              ),
+            )
+          : null,
     );
 
     final body = _decodeBody(response);
@@ -474,9 +495,13 @@ class ProcurementService {
     required String method,
     required Uri uri,
     required Map<String, String> fields,
+    http.MultipartFile? file,
   }) async {
     final request = http.MultipartRequest(method, uri);
     request.fields.addAll(fields);
+    if (file != null) {
+      request.files.add(file);
+    }
     request.headers.addAll(await _buildHeaders(includeContentType: false));
     final streamed = await request.send().timeout(
       const Duration(milliseconds: ApiConfig.connectionTimeout),

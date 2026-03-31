@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:invera_mobile/models/procurement_models.dart';
 import 'package:invera_mobile/services/procurement_service.dart';
+import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procurement_invoice_pdf.dart';
+import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procurement_order_form_dialog.dart';
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procurement_shared.dart';
 
 class ProcurementOrdersSection extends StatefulWidget {
@@ -30,6 +32,20 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
   List<ProcurementOrder> _orders = const [];
   List<ProcurementSupplier> _suppliers = const [];
   List<ProcurementProduct> _products = const [];
+
+  bool _isOrderVisibleInCurrentMode(ProcurementOrder order) {
+    if (_showArchived) return true;
+
+    final status = order.statut.toUpperCase();
+    if (widget.receptionMode) {
+      return status == 'ENVOYEE' || status == 'RECUE' || status == 'FACTUREE';
+    }
+
+    return status != 'RECUE' && status != 'FACTUREE';
+  }
+
+  List<ProcurementOrder> get _ordersForCurrentMode =>
+      _orders.where(_isOrderVisibleInCurrentMode).toList();
 
   @override
   void initState() {
@@ -82,19 +98,11 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
   List<ProcurementOrder> get _filteredOrders {
     final query = _searchController.text.trim().toLowerCase();
 
-    final filtered = _orders.where((order) {
-      if (widget.receptionMode) {
-        final status = order.statut.toUpperCase();
-        if (status != 'ENVOYEE' && status != 'RECUE' && status != 'FACTUREE') {
-          return false;
-        }
-      }
-
+    final filtered = _ordersForCurrentMode.where((order) {
       final matchesQuery =
           query.isEmpty ||
-          order.displayNumber.toLowerCase().contains(query) ||
-          (order.fournisseur?.displayName.toLowerCase().contains(query) ??
-              false) ||
+          order.referenceCommande.toLowerCase().contains(query) ||
+          order.partenaireNom.toLowerCase().contains(query) ||
           (order.fournisseur?.email.toLowerCase().contains(query) ?? false);
       final matchesStatus =
           _statusFilter.isEmpty || order.statut.toUpperCase() == _statusFilter;
@@ -122,10 +130,10 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
       return;
     }
 
-    final result = await showDialog<OrderDialogResult>(
+    final result = await showDialog<ProcurementOrderDialogResult>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => PurchaseOrderFormDialog(
+      builder: (_) => ProcurementOrderFormDialog(
         suppliers: _suppliers,
         products: _products,
         initialOrder: initial,
@@ -180,7 +188,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     final confirmed = await showConfirmationDialog(
       context,
       title: 'Supprimer la commande',
-      message: 'Supprimer ${order.displayNumber} des commandes actives ?',
+      message: 'Supprimer ${order.referenceCommande} des commandes actives ?',
       confirmLabel: 'Supprimer',
       confirmColor: Colors.red,
     );
@@ -211,7 +219,8 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     final confirmed = await showConfirmationDialog(
       context,
       title: 'Restaurer la commande',
-      message: 'Restaurer ${order.displayNumber} dans les commandes actives ?',
+      message:
+          'Restaurer ${order.referenceCommande} dans les commandes actives ?',
       confirmLabel: 'Restaurer',
       confirmColor: const Color(0xFF16A34A),
     );
@@ -232,6 +241,93 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
         error: true,
       );
     }
+  }
+
+  Future<void> _invoiceOrder(ProcurementOrder order) async {
+    final confirmed = await showConfirmationDialog(
+      context,
+      title: 'Facturer la commande',
+      message: 'Marquer ${order.referenceCommande} comme facturee ?',
+      confirmLabel: 'Facturer',
+      confirmColor: const Color(0xFF7C3AED),
+    );
+
+    if (confirmed != true) return;
+
+    final billedAt = DateTime.now();
+
+    try {
+      final updated = await _service.invoiceOrder(order.idCommandeFournisseur);
+      if (!mounted) return;
+      setState(() {
+        _orders = [
+          for (final item in _orders)
+            if (item.idCommandeFournisseur == updated.idCommandeFournisseur)
+              updated
+            else
+              item,
+        ];
+      });
+
+      try {
+        await _exportInvoicePdf(
+          updated,
+          billedAt: billedAt,
+          showSuccess: false,
+        );
+        if (!mounted) return;
+        showMessage(
+          context,
+          'Commande fournisseur facturee avec succes. PDF pret.',
+        );
+      } catch (error) {
+        if (!mounted) return;
+        showMessage(
+          context,
+          'Commande fournisseur facturee, mais le PDF n\'a pas pu etre genere: ${error.toString().replaceFirst('Exception: ', '')}',
+          error: true,
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+      showMessage(
+        context,
+        error.toString().replaceFirst('Exception: ', ''),
+        error: true,
+      );
+    }
+  }
+
+  Future<void> _exportInvoicePdf(
+    ProcurementOrder order, {
+    DateTime? billedAt,
+    bool showSuccess = true,
+  }) async {
+    final facture = buildProcurementFactureModelFromOrder(
+      order,
+      billedAt: billedAt,
+    );
+    await exportProcurementInvoicePdf(order, facture);
+    if (!mounted || !showSuccess) return;
+
+    showMessage(
+      context,
+      'PDF ${facture.referenceFactureClient} genere avec succes.',
+    );
+  }
+
+  bool _canGenerateInvoicePdf(ProcurementOrder order) {
+    final status = order.statut.toUpperCase();
+    return status == 'RECUE' || status == 'FACTUREE';
+  }
+
+  Future<void> _handleInvoiceAction(ProcurementOrder order) async {
+    if (order.canInvoice) {
+      await _invoiceOrder(order);
+      return;
+    }
+
+    await _exportInvoicePdf(order);
   }
 
   Future<void> _runOrderAction(
@@ -297,18 +393,25 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     }
 
     final filteredOrders = _filteredOrders;
-    final draftCount = _orders
+    final dashboardOrders = _ordersForCurrentMode;
+    final draftCount = dashboardOrders
         .where((order) => order.statut.toUpperCase() == 'BROUILLON')
         .length;
-    final pendingReceptionCount = _orders
+    final validatedCount = dashboardOrders
+        .where((order) => order.statut.toUpperCase() == 'VALIDEE')
+        .length;
+    final pendingReceptionCount = dashboardOrders
         .where((order) => order.statut.toUpperCase() == 'ENVOYEE')
         .length;
-    final receivedCount = _orders
+    final receivedCount = dashboardOrders
         .where((order) => order.statut.toUpperCase() == 'RECUE')
         .length;
-    final totalTtc = _orders.fold<double>(
+    final invoicedCount = dashboardOrders
+        .where((order) => order.statut.toUpperCase() == 'FACTUREE')
+        .length;
+    final totalTtc = dashboardOrders.fold<double>(
       0,
-      (sum, order) => sum + order.totalTTC,
+      (sum, order) => sum + order.total,
     );
 
     return Column(
@@ -321,7 +424,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
             children: [
               InfoStatCard(
                 label: _showArchived ? 'Archives' : 'Commandes',
-                value: '${_orders.length}',
+                value: '${dashboardOrders.length}',
                 helper: '$draftCount brouillon(s)',
                 icon: Icons.description_outlined,
                 color: const Color(0xFF2D47C8),
@@ -336,7 +439,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
               InfoStatCard(
                 label: 'Montant TTC',
                 value: formatMoney(totalTtc),
-                helper: '$receivedCount recue(s)',
+                helper: '$validatedCount validee(s)',
                 icon: Icons.payments_outlined,
                 color: const Color(0xFF16A34A),
               ),
@@ -363,8 +466,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
               ),
               InfoStatCard(
                 label: 'Facturees',
-                value:
-                    '${_orders.where((order) => order.statut.toUpperCase() == 'FACTUREE').length}',
+                value: '$invoicedCount',
                 helper: 'Cycle achat clos',
                 icon: Icons.receipt_long_outlined,
                 color: const Color(0xFF7C3AED),
@@ -422,14 +524,16 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
                           value: 'ENVOYEE',
                           child: Text('Envoyee'),
                         ),
-                        const DropdownMenuItem<String>(
-                          value: 'RECUE',
-                          child: Text('Recue'),
-                        ),
-                        const DropdownMenuItem<String>(
-                          value: 'FACTUREE',
-                          child: Text('Facturee'),
-                        ),
+                        if (widget.receptionMode)
+                          const DropdownMenuItem<String>(
+                            value: 'RECUE',
+                            child: Text('Recue'),
+                          ),
+                        if (widget.receptionMode)
+                          const DropdownMenuItem<String>(
+                            value: 'FACTUREE',
+                            child: Text('Facturee'),
+                          ),
                         if (!widget.receptionMode)
                           const DropdownMenuItem<String>(
                             value: 'ANNULEE',
@@ -502,7 +606,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
                 ? 'Les commandes envoyees, recues ou facturees apparaitront ici.'
                 : (_showArchived
                       ? 'Les commandes supprimees seront listees ici.'
-                      : 'Creez votre premiere commande fournisseur pour commencer.'),
+                      : 'Les commandes recues ou facturees restent visibles dans le suivi des receptions.'),
           )
         else
           Column(
@@ -533,7 +637,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
                           ),
                           title: 'Valider la commande',
                           message:
-                              'Valider ${order.displayNumber} pour la passer en commande approuvee ?',
+                              'Valider ${order.referenceCommande} pour la passer en commande approuvee ?',
                           confirmLabel: 'Valider',
                           successMessage:
                               'Commande fournisseur validee avec succes.',
@@ -547,7 +651,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
                               _service.sendOrder(order.idCommandeFournisseur),
                           title: 'Envoyer la commande',
                           message:
-                              'Envoyer ${order.displayNumber} au fournisseur ?',
+                              'Envoyer ${order.referenceCommande} au fournisseur ?',
                           confirmLabel: 'Envoyer',
                           successMessage:
                               'Commande fournisseur envoyee avec succes.',
@@ -561,26 +665,14 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
                           ),
                           title: 'Receptionner la commande',
                           message:
-                              'Confirmez-vous la reception complete de ${order.displayNumber} ?',
+                              'Confirmez-vous la reception complete de ${order.referenceCommande} ?',
                           confirmLabel: 'Receptionner',
                           successMessage: 'Reception enregistree avec succes.',
                           confirmColor: const Color(0xFF16A34A),
                         )
                       : null,
-                  onInvoice: order.canInvoice && !_showArchived
-                      ? () => _runOrderAction(
-                          order,
-                          action: () => _service.invoiceOrder(
-                            order.idCommandeFournisseur,
-                          ),
-                          title: 'Facturer la commande',
-                          message:
-                              'Marquer ${order.displayNumber} comme facturee ?',
-                          confirmLabel: 'Facturer',
-                          successMessage:
-                              'Commande fournisseur facturee avec succes.',
-                          confirmColor: const Color(0xFF7C3AED),
-                        )
+                  onInvoice: _canGenerateInvoicePdf(order) && !_showArchived
+                      ? () => _handleInvoiceAction(order)
                       : null,
                   onCancel:
                       order.canCancel && !_showArchived && !widget.receptionMode
@@ -590,7 +682,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
                               _service.cancelOrder(order.idCommandeFournisseur),
                           title: 'Annuler la commande',
                           message:
-                              'Annuler ${order.displayNumber} ? Cette action reste visible dans l\'historique.',
+                              'Annuler ${order.referenceCommande} ? Cette action reste visible dans l\'historique.',
                           confirmLabel: 'Annuler',
                           successMessage:
                               'Commande fournisseur annulee avec succes.',
@@ -622,7 +714,7 @@ class DraftOrderLine {
     required this.status,
   });
 
-  double get totalTtc => quantite * prixUnitaire * 1.2;
+  double get totalTtc => quantite * prixUnitaire * 1.19;
 
   DraftOrderLine copyWith({int? quantite, double? prixUnitaire}) {
     return DraftOrderLine(
@@ -656,10 +748,11 @@ class PurchaseOrderFormDialog extends StatefulWidget {
 
   @override
   State<PurchaseOrderFormDialog> createState() =>
-      _PurchaseOrderFormDialogState();
+      _PurchaseOrderFormDialogLegacyState();
 }
 
-class _PurchaseOrderFormDialogState extends State<PurchaseOrderFormDialog> {
+class _PurchaseOrderFormDialogLegacyState
+    extends State<PurchaseOrderFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _addressController;
   late DateTime _deliveryDate;
@@ -696,11 +789,11 @@ class _PurchaseOrderFormDialogState extends State<PurchaseOrderFormDialog> {
     _supplierId = order?.fournisseur?.idFournisseur;
 
     if (order != null) {
-      for (final line in order.lignesCommande) {
+      for (final line in order.produits) {
         _lines.add(
           DraftOrderLine(
             produitId: line.produitId,
-            produitLabel: line.displayName,
+            produitLabel: line.libelle,
             quantite: line.quantite,
             prixUnitaire: line.prixUnitaire,
             status: 'READ_ONLY',
@@ -1130,7 +1223,7 @@ class OrderDetailsDialog extends StatelessWidget {
     return AlertDialog(
       insetPadding: const EdgeInsets.all(20),
       contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-      title: Text(order.displayNumber),
+      title: Text(order.referenceCommande),
       content: SizedBox(
         width: 720,
         child: SingleChildScrollView(
@@ -1143,22 +1236,22 @@ class OrderDetailsDialog extends StatelessWidget {
                 children: [
                   DetailBadge(
                     label: 'Fournisseur',
-                    value: order.fournisseur?.displayName ?? '-',
+                    value: order.partenaireNom,
                     color: const Color(0xFF2D47C8),
                   ),
                   DetailBadge(
                     label: 'Date commande',
-                    value: formatDate(order.dateCommande, withTime: true),
+                    value: order.dateCommandeFormatted,
                     color: const Color(0xFF0F766E),
                   ),
                   DetailBadge(
                     label: 'Livraison prevue',
-                    value: formatDate(order.dateLivraisonPrevue),
+                    value: order.dateLivraisonPrevueFormatted,
                     color: const Color(0xFFEA580C),
                   ),
                   DetailBadge(
                     label: 'Statut',
-                    value: order.statusLabel,
+                    value: order.statutDisplay,
                     color: orderStatusColor(order.statut),
                   ),
                 ],
@@ -1185,7 +1278,7 @@ class OrderDetailsDialog extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              if (order.lignesCommande.isEmpty)
+              if (order.produits.isEmpty)
                 const EmptyPanel(
                   title: 'Aucune ligne',
                   message: 'Cette commande ne contient aucun produit.',
@@ -1193,7 +1286,7 @@ class OrderDetailsDialog extends StatelessWidget {
               else
                 Column(
                   children: [
-                    for (final line in order.lignesCommande) ...[
+                    for (final line in order.produits) ...[
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1202,7 +1295,7 @@ class OrderDetailsDialog extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  line.displayName,
+                                  line.libelle,
                                   style: const TextStyle(
                                     color: Color(0xFF1F2A44),
                                     fontWeight: FontWeight.w700,
@@ -1232,7 +1325,7 @@ class OrderDetailsDialog extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                formatMoney(line.sousTotalTTC),
+                                formatMoney(line.total),
                                 style: const TextStyle(
                                   color: Color(0xFF1F2A44),
                                   fontWeight: FontWeight.w800,
@@ -1242,7 +1335,7 @@ class OrderDetailsDialog extends StatelessWidget {
                           ),
                         ],
                       ),
-                      if (line != order.lignesCommande.last)
+                      if (line != order.produits.last)
                         const Divider(color: Color(0xFFE6EAF2)),
                     ],
                   ],
@@ -1264,7 +1357,7 @@ class OrderDetailsDialog extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Total TTC: ${formatMoney(order.totalTTC)}',
+                      'Total TTC: ${formatMoney(order.total)}',
                       style: const TextStyle(
                         color: Color(0xFF1F2A44),
                         fontWeight: FontWeight.w800,

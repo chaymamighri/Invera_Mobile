@@ -405,7 +405,7 @@ class OrderSummaryTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  order.displayNumber,
+                  order.referenceCommande,
                   style: const TextStyle(
                     color: Color(0xFF1F2A44),
                     fontWeight: FontWeight.w700,
@@ -413,7 +413,7 @@ class OrderSummaryTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${order.fournisseur?.displayName ?? 'Fournisseur'} • ${formatDate(order.dateCommande, withTime: true)}',
+                  '${order.partenaireNom} | ${order.dateCommandeFormatted}',
                   style: const TextStyle(
                     color: Color(0xFF607089),
                     fontSize: 12.5,
@@ -427,12 +427,12 @@ class OrderSummaryTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               StatusPill(
-                label: order.statusLabel,
+                label: order.statutDisplay,
                 color: orderStatusColor(order.statut),
               ),
               const SizedBox(height: 6),
               Text(
-                formatMoney(order.totalTTC),
+                formatMoney(order.total),
                 style: const TextStyle(
                   color: Color(0xFF1F2A44),
                   fontWeight: FontWeight.w800,
@@ -529,9 +529,7 @@ class ProductCard extends StatelessWidget {
     final activeColor = product.active
         ? const Color(0xFF16A34A)
         : const Color(0xFF64748B);
-    final imageUrl = product.imageUrl.trim().isNotEmpty
-        ? '${ApiConfig.baseUrl}${product.imageUrl}'
-        : null;
+    final imageUrl = ApiConfig.resolveMediaUrl(product.imageUrl);
 
     return SectionSurface(
       title: product.displayName,
@@ -753,11 +751,16 @@ class OrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final headerColor = orderStatusColor(order.statut);
+    final invoiceButtonLabel = order.statut.toUpperCase() == 'FACTUREE'
+        ? 'PDF facture'
+        : 'Facturer';
+    final invoiceButtonIcon = order.statut.toUpperCase() == 'FACTUREE'
+        ? Icons.picture_as_pdf_outlined
+        : Icons.receipt_long_outlined;
 
     return SectionSurface(
-      title: order.displayNumber,
-      subtitle:
-          '${order.fournisseur?.displayName ?? 'Fournisseur'} • ${order.itemCount} article(s)',
+      title: order.referenceCommande,
+      subtitle: '${order.partenaireNom} | ${order.itemCount} article(s)',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -767,17 +770,17 @@ class OrderCard extends StatelessWidget {
             children: [
               DetailBadge(
                 label: 'Date commande',
-                value: formatDate(order.dateCommande, withTime: true),
+                value: order.dateCommandeFormatted,
                 color: const Color(0xFF2D47C8),
               ),
               DetailBadge(
                 label: 'Livraison prevue',
-                value: formatDate(order.dateLivraisonPrevue),
+                value: order.dateLivraisonPrevueFormatted,
                 color: const Color(0xFF0F766E),
               ),
               DetailBadge(
                 label: 'Total TTC',
-                value: formatMoney(order.totalTTC),
+                value: formatMoney(order.total),
                 color: const Color(0xFF7C3AED),
               ),
               DetailBadge(
@@ -792,11 +795,10 @@ class OrderCard extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
-              StatusPill(label: order.statusLabel, color: headerColor),
+              StatusPill(label: order.statutDisplay, color: headerColor),
               if (order.dateLivraisonReelle != null)
                 StatusPill(
-                  label:
-                      'Recue le ${formatDate(order.dateLivraisonReelle, withTime: true)}',
+                  label: 'Recue le ${order.dateLivraisonReelleFormatted}',
                   color: const Color(0xFF16A34A),
                 ),
               if (showArchived)
@@ -851,8 +853,8 @@ class OrderCard extends StatelessWidget {
               if (onInvoice != null)
                 FilledButton.tonalIcon(
                   onPressed: onInvoice,
-                  icon: const Icon(Icons.receipt_long_outlined),
-                  label: const Text('Facturer'),
+                  icon: Icon(invoiceButtonIcon),
+                  label: Text(invoiceButtonLabel),
                 ),
               if (onCancel != null)
                 OutlinedButton.icon(

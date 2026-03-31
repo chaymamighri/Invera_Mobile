@@ -1,13 +1,48 @@
+import 'package:flutter/foundation.dart';
+
 class ApiConfig {
   // Override with:
-  // flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8081
-  // flutter run --dart-define=API_BASE_URL=http://192.168.x.x:8081
-  static const String defaultBaseUrl = 'http://172.20.10.7:8081';
+  // flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:8081
+  // flutter run -d android --dart-define=API_BASE_URL=http://192.168.x.x:8081
+  static const String localhostBaseUrl = 'http://localhost:8081';
   static const String androidEmulatorBaseUrl = 'http://10.0.2.2:8081';
-  static const String baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: defaultBaseUrl,
-  );
+  static final String baseUrl = _resolveBaseUrl();
+
+  static String _resolveBaseUrl() {
+    const override = String.fromEnvironment('API_BASE_URL', defaultValue: '');
+    if (override.trim().isNotEmpty) return override.trim();
+
+    if (kIsWeb) {
+      final host = Uri.base.host.trim().isEmpty ? 'localhost' : Uri.base.host;
+      final scheme = Uri.base.scheme == 'https' ? 'https' : 'http';
+      return '$scheme://$host:8081';
+    }
+
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return androidEmulatorBaseUrl;
+      default:
+        return localhostBaseUrl;
+    }
+  }
+
+  static String? resolveMediaUrl(String? rawValue) {
+    final raw = rawValue?.trim() ?? '';
+    if (raw.isEmpty) return null;
+
+    final parsed = Uri.tryParse(raw);
+    if (parsed != null && parsed.hasScheme) {
+      return raw;
+    }
+
+    if (raw.startsWith('//')) {
+      final scheme = Uri.tryParse(baseUrl)?.scheme == 'https' ? 'https' : 'http';
+      return '$scheme:$raw';
+    }
+
+    final normalizedPath = raw.startsWith('/') ? raw : '/$raw';
+    return '$baseUrl$normalizedPath';
+  }
 
   static const String apiPrefix = '/api/auth';
   static const String clientsPrefix = '/api/clients';

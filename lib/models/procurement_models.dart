@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 class ProcurementCategory {
   final int idCategorie;
   final String nomCategorie;
@@ -48,6 +50,8 @@ class ProcurementSupplier {
   String get displayName => nomFournisseur.trim().isEmpty
       ? 'Fournisseur #$idFournisseur'
       : nomFournisseur;
+
+  String get fullName => displayName;
 
   String get subtitle {
     final parts = <String>[
@@ -215,6 +219,7 @@ class ProcurementOrderLine {
   final double sousTotalTTC;
   final int quantiteRecue;
   final String notes;
+  final String categorieNom;
 
   const ProcurementOrderLine({
     required this.idLigneCommandeFournisseur,
@@ -228,10 +233,15 @@ class ProcurementOrderLine {
     required this.sousTotalTTC,
     required this.quantiteRecue,
     required this.notes,
+    required this.categorieNom,
   });
 
   String get displayName =>
       produitLibelle.trim().isEmpty ? 'Produit #$produitId' : produitLibelle;
+
+  String get libelle => displayName;
+  double get sousTotal => sousTotalHT;
+  double get total => sousTotalTTC;
 
   factory ProcurementOrderLine.fromJson(Map<String, dynamic> json) {
     return ProcurementOrderLine(
@@ -252,6 +262,10 @@ class ProcurementOrderLine {
       sousTotalTTC: _readDouble(json, ['sousTotalTTC']),
       quantiteRecue: _readInt(json, ['quantiteRecue'], fallback: 0),
       notes: _readString(json, ['notes']),
+      categorieNom: _readString(json, [
+        'categorieNom',
+        'categorie',
+      ], fallback: '-'),
     );
   }
 }
@@ -292,6 +306,21 @@ class ProcurementOrder {
   String get displayNumber => numeroCommande.trim().isEmpty
       ? 'Commande #$idCommandeFournisseur'
       : numeroCommande;
+
+  String get referenceCommande => displayNumber;
+  String get statutDisplay => statusLabel;
+  String get dateCommandeFormatted =>
+      _formatDateValue(dateCommande, withTime: true);
+  String get dateLivraisonPrevueFormatted =>
+      _formatDateValue(dateLivraisonPrevue);
+  String get dateLivraisonReelleFormatted =>
+      _formatDateValue(dateLivraisonReelle, withTime: true);
+  String get partenaireNom => fournisseur?.displayName ?? 'Fournisseur';
+  double get sousTotal => totalHT;
+  double get total => totalTTC;
+  double get tauxRemise => 0;
+  List<ProcurementOrderLine> get produits => lignesCommande;
+  int get produitsCount => produits.length;
 
   int get itemCount =>
       lignesCommande.fold<int>(0, (sum, line) => sum + line.quantite);
@@ -348,7 +377,7 @@ class ProcurementOrder {
       totalHT: _readDouble(json, ['totalHT']),
       totalTVA: _readDouble(json, ['totalTVA']),
       totalTTC: _readDouble(json, ['totalTTC']),
-      tauxTVA: _readDouble(json, ['tauxTVA'], fallback: 20),
+      tauxTVA: _readDouble(json, ['tauxTVA'], fallback: 19),
       actif: _readBool(json, ['actif', 'active'], fallback: true),
       lignesCommande: rawLines is List
           ? rawLines
@@ -370,6 +399,9 @@ class ProductUpsertPayload {
   final String uniteMesure;
   final double? remiseTemporaire;
   final bool active;
+  final Uint8List? imageBytes;
+  final String? imageFileName;
+  final String? imageMimeType;
 
   const ProductUpsertPayload({
     required this.libelle,
@@ -381,7 +413,16 @@ class ProductUpsertPayload {
     required this.uniteMesure,
     required this.remiseTemporaire,
     required this.active,
+    this.imageBytes,
+    this.imageFileName,
+    this.imageMimeType,
   });
+
+  bool get hasImageUpload =>
+      imageBytes != null &&
+      imageBytes!.isNotEmpty &&
+      imageFileName != null &&
+      imageFileName!.trim().isNotEmpty;
 
   Map<String, String> toMultipartFields() {
     final fields = <String, String>{
@@ -563,3 +604,19 @@ DateTime? _readDate(Map<String, dynamic> json, List<String> keys) {
   }
   return null;
 }
+
+String _formatDateValue(DateTime? value, {bool withTime = false}) {
+  if (value == null) return '-';
+
+  final day = _twoDigits(value.day);
+  final month = _twoDigits(value.month);
+  final year = value.year.toString();
+
+  if (!withTime) return '$day/$month/$year';
+
+  final hour = _twoDigits(value.hour);
+  final minute = _twoDigits(value.minute);
+  return '$day/$month/$year $hour:$minute';
+}
+
+String _twoDigits(int value) => value.toString().padLeft(2, '0');

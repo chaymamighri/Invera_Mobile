@@ -1,4 +1,8 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:invera_mobile/config/api_config.dart';
 import 'package:invera_mobile/models/procurement_models.dart';
 import 'package:invera_mobile/services/procurement_service.dart';
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procurement_shared.dart';
@@ -473,8 +477,16 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
   int? _categoryId;
   String _unit = 'PIECE';
   bool _active = true;
+  Uint8List? _selectedImageBytes;
+  String? _selectedImageName;
+  String? _selectedImageMimeType;
+  bool _pickingImage = false;
 
   bool get _isEditing => widget.initialProduct != null;
+
+  String? get _existingImageUrl {
+    return ApiConfig.resolveMediaUrl(widget.initialProduct?.imageUrl);
+  }
 
   @override
   void initState() {
@@ -506,6 +518,200 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
     _active = product?.active ?? true;
   }
 
+  Future<void> _pickImage() async {
+    setState(() {
+      _pickingImage = true;
+    });
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        withData: true,
+      );
+
+      if (!mounted || result == null || result.files.isEmpty) return;
+
+      final file = result.files.single;
+      final bytes = file.bytes;
+      if (bytes == null || bytes.isEmpty) {
+        showMessage(
+          context,
+          'Impossible de lire l image selectionnee.',
+          error: true,
+        );
+        return;
+      }
+
+      final fileName = file.name.trim().isEmpty ? 'product-image.jpg' : file.name;
+      setState(() {
+        _selectedImageBytes = bytes;
+        _selectedImageName = fileName;
+        _selectedImageMimeType = _guessImageMimeType(
+          fileName,
+          extension: file.extension,
+        );
+      });
+    } catch (_) {
+      if (!mounted) return;
+      showMessage(
+        context,
+        'Erreur lors de la selection de l image.',
+        error: true,
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _pickingImage = false;
+      });
+    }
+  }
+
+  void _clearSelectedImage() {
+    setState(() {
+      _selectedImageBytes = null;
+      _selectedImageName = null;
+      _selectedImageMimeType = null;
+    });
+  }
+
+  String _guessImageMimeType(String fileName, {String? extension}) {
+    final parts = fileName.split('.');
+    final fallbackExtension = parts.length > 1 ? parts.last : '';
+    final normalized = (extension ?? fallbackExtension).toLowerCase();
+    switch (normalized) {
+      case 'png':
+        return 'image/png';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'bmp':
+        return 'image/bmp';
+      default:
+        return 'image/jpeg';
+    }
+  }
+
+  Widget _buildImagePlaceholder() {
+    return Container(
+      width: 96,
+      height: 96,
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF4FF),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.image_outlined,
+        color: Color(0xFF2D47C8),
+        size: 38,
+      ),
+    );
+  }
+
+  Widget _buildImageSection() {
+    final hasExistingImage = _existingImageUrl != null;
+    final helperText = _selectedImageBytes != null
+        ? _selectedImageName!
+        : hasExistingImage
+        ? 'Image actuelle chargee. Choisissez-en une autre pour la remplacer.'
+        : 'Ajoutez une image pour afficher le produit clairement dans le catalogue.';
+
+    Widget preview = _buildImagePlaceholder();
+    if (_selectedImageBytes != null) {
+      preview = ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Image.memory(
+          _selectedImageBytes!,
+          width: 96,
+          height: 96,
+          fit: BoxFit.cover,
+        ),
+      );
+    } else if (_existingImageUrl != null) {
+      preview = ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Image.network(
+          _existingImageUrl!,
+          width: 96,
+          height: 96,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildImagePlaceholder(),
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFD7DEEA)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          preview,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Image produit',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  helperText,
+                  style: const TextStyle(
+                    color: Color(0xFF607089),
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _pickingImage ? null : _pickImage,
+                      icon: Icon(
+                        _pickingImage
+                            ? Icons.hourglass_top_rounded
+                            : Icons.upload_file_outlined,
+                      ),
+                      label: Text(
+                        _selectedImageBytes != null || hasExistingImage
+                            ? 'Changer image'
+                            : 'Choisir image',
+                      ),
+                    ),
+                    if (_selectedImageBytes != null)
+                      TextButton.icon(
+                        onPressed: _clearSelectedImage,
+                        icon: const Icon(Icons.close),
+                        label: const Text('Annuler'),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -535,6 +741,9 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
           ? null
           : double.parse(_discountController.text.replaceAll(',', '.')),
       active: _active,
+      imageBytes: _selectedImageBytes,
+      imageFileName: _selectedImageName,
+      imageMimeType: _selectedImageMimeType,
     );
 
     Navigator.pop(context, payload);
@@ -583,6 +792,8 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                     });
                   },
                 ),
+                const SizedBox(height: 12),
+                _buildImageSection(),
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -748,11 +959,6 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                       _active = value;
                     });
                   },
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Note: l\'upload d\'image n\'est pas encore disponible dans cette version Flutter. Le reste du cycle produit est gere.',
-                  style: TextStyle(color: Color(0xFF607089), fontSize: 12),
                 ),
               ],
             ),

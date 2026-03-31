@@ -105,7 +105,7 @@ class AuthService extends ChangeNotifier {
       _setLoading(false);
       return false;
     } catch (e) {
-      _error = e.toString().replaceFirst('Exception: ', '');
+      _error = _formatExceptionMessage(e);
       _setLoading(false);
       return false;
     }
@@ -528,6 +528,24 @@ class AuthService extends ChangeNotifier {
       'Accept': 'application/json',
       ApiConfig.authHeader: '${ApiConfig.bearerPrefix}$_token',
     };
+  }
+
+  String _formatExceptionMessage(Object error) {
+    final message = error.toString().replaceFirst('Exception: ', '');
+    final normalized = message.toLowerCase();
+
+    if (normalized.contains('failed to fetch') ||
+        normalized.contains('xmlhttprequest error')) {
+      return 'Impossible de joindre le serveur (${ApiConfig.baseUrl}). '
+          'Verifiez que le backend est demarre et que l\'URL API est correcte.';
+    }
+
+    if (normalized.contains('connection refused')) {
+      return 'Connexion refusee par le serveur (${ApiConfig.baseUrl}). '
+          'Verifiez que le backend ecoute bien sur ce port.';
+    }
+
+    return message;
   }
 
   Future<void> _saveUserData(bool remember) async {
