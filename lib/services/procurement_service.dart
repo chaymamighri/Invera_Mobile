@@ -10,29 +10,76 @@ import '../models/procurement_models.dart';
 class ProcurementService {
   static const int _maxCreateProductAttempts = 6;
 
-  Future<List<ProcurementCategory>> getCategories() async {
-    final uri = Uri.parse(
-      '${ApiConfig.baseUrl}${ApiConfig.categoriesAllEndpoint}',
-    );
+  Future<List<ProcurementCategory>> getCategories({String? keyword}) async {
+    final hasKeyword = keyword != null && keyword.trim().isNotEmpty;
+    final uri = hasKeyword
+        ? Uri.parse(
+            '${ApiConfig.baseUrl}${ApiConfig.categoriesSearchEndpoint}',
+          ).replace(queryParameters: {'keyword': keyword.trim()})
+        : Uri.parse('${ApiConfig.baseUrl}${ApiConfig.categoriesAllEndpoint}');
     final response = await http
         .get(uri, headers: await _buildHeaders())
+        .timeout(const Duration(milliseconds: ApiConfig.connectionTimeout));
+
+    final body = _decodeBody(response);
+    _ensureSuccess(response, body, 'Erreur lors du chargement des categories');
+
+    return _parseCategoryList(body);
+  }
+
+  Future<ProcurementCategory> createCategory(
+    ProcurementCategoryUpsertPayload payload,
+  ) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.categoriesPrefix}');
+    final response = await http
+        .post(
+          uri,
+          headers: await _buildHeaders(),
+          body: json.encode(payload.toJson()),
+        )
+        .timeout(const Duration(milliseconds: ApiConfig.connectionTimeout));
+
+    return _parseCategoryResponse(
+      response,
+      'Erreur lors de la creation de la categorie',
+    );
+  }
+
+  Future<ProcurementCategory> updateCategory(
+    int id,
+    ProcurementCategoryUpsertPayload payload,
+  ) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.categoriesPrefix}/$id',
+    );
+    final response = await http
+        .put(
+          uri,
+          headers: await _buildHeaders(),
+          body: json.encode(payload.toJson()),
+        )
+        .timeout(const Duration(milliseconds: ApiConfig.connectionTimeout));
+
+    return _parseCategoryResponse(
+      response,
+      'Erreur lors de la mise a jour de la categorie',
+    );
+  }
+
+  Future<void> deleteCategory(int id) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.categoriesPrefix}/$id',
+    );
+    final response = await http
+        .delete(uri, headers: await _buildHeaders())
         .timeout(const Duration(milliseconds: ApiConfig.connectionTimeout));
 
     final body = _decodeBody(response);
     _ensureSuccess(
       response,
       body,
-      'Erreur lors du chargement des categories',
-      requireSuccessFlag: true,
+      'Erreur lors de la suppression de la categorie',
     );
-
-    final categories = body is Map<String, dynamic> ? body['categories'] : null;
-    if (categories is! List) return [];
-
-    return categories
-        .whereType<Map<String, dynamic>>()
-        .map(ProcurementCategory.fromJson)
-        .toList();
   }
 
   Future<List<ProcurementSupplier>> getSuppliers({
@@ -541,6 +588,32 @@ class ProcurementService {
     return ProcurementOrder.fromJson(body);
   }
 
+  ProcurementCategory _parseCategoryResponse(
+    http.Response response,
+    String fallback,
+  ) {
+    final body = _decodeBody(response);
+    _ensureSuccess(response, body, fallback);
+
+    if (body is! Map<String, dynamic>) {
+      throw Exception('Reponse categorie invalide');
+    }
+
+    return ProcurementCategory.fromJson(body);
+  }
+
+  List<ProcurementCategory> _parseCategoryList(dynamic body) {
+    final categories = body is List
+        ? body
+        : (body is Map<String, dynamic> ? body['categories'] : null);
+    if (categories is! List) return [];
+
+    return categories
+        .whereType<Map<String, dynamic>>()
+        .map(ProcurementCategory.fromJson)
+        .toList();
+  }
+
   dynamic _decodeBody(http.Response response) {
     if (response.bodyBytes.isEmpty) return null;
 
@@ -569,11 +642,7 @@ class ProcurementService {
     );
   }
 
-  String _extractMessage(
-    dynamic body,
-    String fallback, {
-    int? statusCode,
-  }) {
+  String _extractMessage(dynamic body, String fallback, {int? statusCode}) {
     if (body is Map<String, dynamic>) {
       final message = body['message'] ?? body['error'] ?? body['details'];
       if (message is String && message.trim().isNotEmpty) {

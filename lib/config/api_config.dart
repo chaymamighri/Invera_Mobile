@@ -36,7 +36,9 @@ class ApiConfig {
     }
 
     if (raw.startsWith('//')) {
-      final scheme = Uri.tryParse(baseUrl)?.scheme == 'https' ? 'https' : 'http';
+      final scheme = Uri.tryParse(baseUrl)?.scheme == 'https'
+          ? 'https'
+          : 'http';
       return '$scheme:$raw';
     }
 
@@ -89,7 +91,8 @@ class ApiConfig {
   static const String productsLowStockEndpoint = '$productsPrefix/low-stock';
 
   // Categories endpoints
-  static const String categoriesAllEndpoint = '$categoriesPrefix/all';
+  static const String categoriesAllEndpoint = categoriesPrefix;
+  static const String categoriesSearchEndpoint = '$categoriesPrefix/search';
 
   // Fournisseurs endpoints
   static const String fournisseursAllEndpoint = '$fournisseursPrefix/all';

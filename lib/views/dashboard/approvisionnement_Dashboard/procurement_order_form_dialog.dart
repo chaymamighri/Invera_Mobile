@@ -4,7 +4,7 @@ import 'package:invera_mobile/models/procurement_models.dart';
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procurement_shared.dart';
 
 const double _purchaseBaseUnit = 8.0;
-const double _purchaseVatRate = 0.19;
+const double _purchaseDefaultVatRate = 0.19;
 const Color _purchasePrimary = Color(0xFF2D47C8);
 const Color _purchasePrimaryDark = Color(0xFF2037A7);
 const Color _purchaseAccent = Color(0xFF0CAE4A);
@@ -99,8 +99,7 @@ class _ProcurementOrderFormDialogState
 
   List<ProcurementSupplier> get _supplierOptions {
     final map = <int, ProcurementSupplier>{
-      for (final supplier in widget.suppliers)
-        supplier.idFournisseur: supplier,
+      for (final supplier in widget.suppliers) supplier.idFournisseur: supplier,
     };
     final initialSupplier = widget.initialOrder?.fournisseur;
     if (initialSupplier != null) {
@@ -204,29 +203,29 @@ class _ProcurementOrderFormDialogState
       if (line.produitId != null) selected.add(line.produitId!);
     }
 
-    return widget.products
-        .where((product) {
-          final matchesCategory =
-              currentLine.categorieId == null ||
-              product.categorie?.idCategorie == currentLine.categorieId;
-          final canShow =
-              _showInactiveProducts ||
-              product.active ||
-              product.idProduit == currentLine.produitId;
-          return matchesCategory &&
-              canShow &&
-              (product.idProduit == currentLine.produitId ||
-                  !selected.contains(product.idProduit));
-        })
-        .toList()
-      ..sort((a, b) => a.displayName.compareTo(b.displayName));
+    return widget.products.where((product) {
+      final matchesCategory =
+          currentLine.categorieId == null ||
+          product.categorie?.idCategorie == currentLine.categorieId;
+      final canShow =
+          _showInactiveProducts ||
+          product.active ||
+          product.idProduit == currentLine.produitId;
+      return matchesCategory &&
+          canShow &&
+          (product.idProduit == currentLine.produitId ||
+              !selected.contains(product.idProduit));
+    }).toList()..sort((a, b) => a.displayName.compareTo(b.displayName));
   }
 
   int? _firstAvailableProductId(
     List<_PurchaseDraftLine> lines, {
     int? categorieId,
   }) {
-    final selected = lines.map((line) => line.produitId).whereType<int>().toSet();
+    final selected = lines
+        .map((line) => line.produitId)
+        .whereType<int>()
+        .toSet();
     for (final product in _selectableProducts) {
       if (categorieId != null &&
           product.categorie?.idCategorie != categorieId) {
@@ -251,24 +250,60 @@ class _ProcurementOrderFormDialogState
       final matchesCategory =
           categorieId == null || product.categorie?.idCategorie == categorieId;
       return matchesCategory && !selected.contains(product.idProduit);
-    }).toList()
-      ..sort((a, b) => a.displayName.compareTo(b.displayName));
+    }).toList()..sort((a, b) => a.displayName.compareTo(b.displayName));
 
     if (products.isEmpty) return null;
     return products.first;
   }
 
-  double _lineSubTotal(_PurchaseDraftLine line) => line.quantity * line.unitPrice;
+  double _lineSubTotal(_PurchaseDraftLine line) =>
+      line.quantity * line.unitPrice;
+
+  double _lineVatRate(_PurchaseDraftLine line) {
+    final product = _findProductById(line.produitId);
+    final rawRate = product?.categorie?.tauxTVA ?? 19;
+    return rawRate > 1 ? rawRate / 100 : rawRate;
+  }
+
+  double _lineVatAmount(_PurchaseDraftLine line) =>
+      _lineSubTotal(line) * _lineVatRate(line);
 
   double _lineTotalTtc(_PurchaseDraftLine line) =>
-      _lineSubTotal(line) * (1 + _purchaseVatRate);
+      _lineSubTotal(line) + _lineVatAmount(line);
 
   double get _subTotalHt =>
       _lines.fold<double>(0, (sum, line) => sum + _lineSubTotal(line));
 
-  double get _totalVat => _subTotalHt * _purchaseVatRate;
+  double get _totalVat =>
+      _lines.fold<double>(0, (sum, line) => sum + _lineVatAmount(line));
 
   double get _totalTtc => _subTotalHt + _totalVat;
+
+  String _formatVatRate(double rate) {
+    final percentage = rate * 100;
+    if (percentage == percentage.roundToDouble()) {
+      return '${percentage.toStringAsFixed(0)}%';
+    }
+    return '${percentage.toStringAsFixed(2)}%';
+  }
+
+  String get _vatSummaryLabel {
+    final rates =
+        _lines
+            .where((line) => line.produitId != null && line.quantity > 0)
+            .map(_lineVatRate)
+            .toSet()
+            .toList()
+          ..sort();
+
+    if (rates.isEmpty) {
+      return _formatVatRate(_purchaseDefaultVatRate);
+    }
+    if (rates.length == 1) {
+      return _formatVatRate(rates.first);
+    }
+    return 'multi-taux';
+  }
 
   bool get _canAddProduct =>
       !_isEditing && _firstAvailableProductId(_lines) != null;
@@ -348,7 +383,8 @@ class _ProcurementOrderFormDialogState
     setState(() {
       line.categorieId = categorieId;
       line.produitId = nextProduct?.idProduit;
-      line.prixController.text = nextProduct?.prixAchat.toStringAsFixed(3) ?? '';
+      line.prixController.text =
+          nextProduct?.prixAchat.toStringAsFixed(3) ?? '';
     });
   }
 
@@ -512,9 +548,7 @@ class _ProcurementOrderFormDialogState
           child: Text(
             label,
             style: TextStyle(
-              color: isPrimary
-                  ? _purchaseTextPrimary
-                  : _purchaseTextSecondary,
+              color: isPrimary ? _purchaseTextPrimary : _purchaseTextSecondary,
               fontWeight: isPrimary ? FontWeight.w700 : FontWeight.w600,
               fontSize: isPrimary ? 15 : 13,
             ),
@@ -553,10 +587,7 @@ class _ProcurementOrderFormDialogState
         children: [
           Text(
             label,
-            style: const TextStyle(
-              color: _purchaseTextSecondary,
-              fontSize: 12,
-            ),
+            style: const TextStyle(color: _purchaseTextSecondary, fontSize: 12),
           ),
           const SizedBox(height: 4),
           Text(
@@ -613,7 +644,9 @@ class _ProcurementOrderFormDialogState
 
     final missingCurrent =
         line.produitId != null &&
-        !availableProducts.any((product) => product.idProduit == line.produitId);
+        !availableProducts.any(
+          (product) => product.idProduit == line.produitId,
+        );
     if (missingCurrent) {
       items.insert(
         0,
@@ -742,8 +775,7 @@ class _ProcurementOrderFormDialogState
                 ),
                 _buildInfoTag(
                   label: 'TVA',
-                  value:
-                      '${(_purchaseVatRate * 100).toStringAsFixed(0)}%',
+                  value: _formatVatRate(_lineVatRate(line)),
                   color: const Color(0xFFEA580C),
                 ),
               ],
@@ -918,8 +950,9 @@ class _ProcurementOrderFormDialogState
                                   isExpanded: true,
                                   decoration: InputDecoration(
                                     labelText: 'Fournisseur',
-                                    prefixIcon:
-                                        const Icon(Icons.apartment_outlined),
+                                    prefixIcon: const Icon(
+                                      Icons.apartment_outlined,
+                                    ),
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
@@ -947,8 +980,9 @@ class _ProcurementOrderFormDialogState
                                   maxLines: 4,
                                   decoration: InputDecoration(
                                     labelText: 'Adresse de livraison',
-                                    prefixIcon:
-                                        const Icon(Icons.location_on_outlined),
+                                    prefixIcon: const Icon(
+                                      Icons.location_on_outlined,
+                                    ),
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
@@ -1062,13 +1096,17 @@ class _ProcurementOrderFormDialogState
                                 else
                                   ...List.generate(
                                     _lines.length,
-                                    (index) =>
-                                        _buildDraftLineCard(index, _lines[index]),
+                                    (index) => _buildDraftLineCard(
+                                      index,
+                                      _lines[index],
+                                    ),
                                   ),
                                 Align(
                                   alignment: Alignment.centerLeft,
                                   child: TextButton.icon(
-                                    onPressed: _canAddProduct ? _addDraftLine : null,
+                                    onPressed: _canAddProduct
+                                        ? _addDraftLine
+                                        : null,
                                     icon: const Icon(Icons.add),
                                     label: const Text('Ajouter un produit'),
                                   ),
@@ -1122,7 +1160,7 @@ class _ProcurementOrderFormDialogState
                             ),
                             const SizedBox(height: _purchaseBaseUnit),
                             _buildAmountRow(
-                              'TVA ${(100 * _purchaseVatRate).toStringAsFixed(0)}%',
+                              'TVA $_vatSummaryLabel',
                               formatMoney(_totalVat),
                             ),
                             const SizedBox(height: _purchaseBaseUnit),
@@ -1144,13 +1182,13 @@ class _ProcurementOrderFormDialogState
                             if (_lines.isEmpty)
                               const Text(
                                 'Aucun produit',
-                                style: TextStyle(
-                                  color: _purchaseTextSecondary,
-                                ),
+                                style: TextStyle(color: _purchaseTextSecondary),
                               )
                             else
                               ..._lines.map((line) {
-                                final product = _findProductById(line.produitId);
+                                final product = _findProductById(
+                                  line.produitId,
+                                );
                                 return Container(
                                   margin: EdgeInsets.only(
                                     bottom: _purchaseBaseUnit,
@@ -1226,7 +1264,9 @@ class _ProcurementOrderFormDialogState
                   ElevatedButton.icon(
                     onPressed: _submit,
                     icon: Icon(
-                      _isEditing ? Icons.save_outlined : Icons.add_task_outlined,
+                      _isEditing
+                          ? Icons.save_outlined
+                          : Icons.add_task_outlined,
                     ),
                     label: Text(_isEditing ? 'Enregistrer' : 'Creer'),
                     style: ElevatedButton.styleFrom(

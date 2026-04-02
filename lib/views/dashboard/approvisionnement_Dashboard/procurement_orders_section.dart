@@ -393,87 +393,9 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     }
 
     final filteredOrders = _filteredOrders;
-    final dashboardOrders = _ordersForCurrentMode;
-    final draftCount = dashboardOrders
-        .where((order) => order.statut.toUpperCase() == 'BROUILLON')
-        .length;
-    final validatedCount = dashboardOrders
-        .where((order) => order.statut.toUpperCase() == 'VALIDEE')
-        .length;
-    final pendingReceptionCount = dashboardOrders
-        .where((order) => order.statut.toUpperCase() == 'ENVOYEE')
-        .length;
-    final receivedCount = dashboardOrders
-        .where((order) => order.statut.toUpperCase() == 'RECUE')
-        .length;
-    final invoicedCount = dashboardOrders
-        .where((order) => order.statut.toUpperCase() == 'FACTUREE')
-        .length;
-    final totalTtc = dashboardOrders.fold<double>(
-      0,
-      (sum, order) => sum + order.total,
-    );
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (!widget.receptionMode)
-          Wrap(
-            spacing: 16,
-            runSpacing: 16,
-            children: [
-              InfoStatCard(
-                label: _showArchived ? 'Archives' : 'Commandes',
-                value: '${dashboardOrders.length}',
-                helper: '$draftCount brouillon(s)',
-                icon: Icons.description_outlined,
-                color: const Color(0xFF2D47C8),
-              ),
-              InfoStatCard(
-                label: 'A receptionner',
-                value: '$pendingReceptionCount',
-                helper: 'Commandes envoyees',
-                icon: Icons.local_shipping_outlined,
-                color: const Color(0xFFEA580C),
-              ),
-              InfoStatCard(
-                label: 'Montant TTC',
-                value: formatMoney(totalTtc),
-                helper: '$validatedCount validee(s)',
-                icon: Icons.payments_outlined,
-                color: const Color(0xFF16A34A),
-              ),
-            ],
-          )
-        else
-          Wrap(
-            spacing: 16,
-            runSpacing: 16,
-            children: [
-              InfoStatCard(
-                label: 'A receptionner',
-                value: '$pendingReceptionCount',
-                helper: 'Commandes envoyees',
-                icon: Icons.local_shipping_outlined,
-                color: const Color(0xFFEA580C),
-              ),
-              InfoStatCard(
-                label: 'Recues',
-                value: '$receivedCount',
-                helper: 'Pretes a etre facturees',
-                icon: Icons.check_circle_outline,
-                color: const Color(0xFF16A34A),
-              ),
-              InfoStatCard(
-                label: 'Facturees',
-                value: '$invoicedCount',
-                helper: 'Cycle achat clos',
-                icon: Icons.receipt_long_outlined,
-                color: const Color(0xFF7C3AED),
-              ),
-            ],
-          ),
-        const SizedBox(height: 20),
         SectionSurface(
           title: widget.receptionMode
               ? 'Suivi des receptions'

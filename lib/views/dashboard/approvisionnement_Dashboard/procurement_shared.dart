@@ -2,6 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:invera_mobile/config/api_config.dart';
 import 'package:invera_mobile/models/procurement_models.dart';
 
+const Color _procurementPrimary = Color(0xFF2553D4);
+const Color _procurementInk = Color(0xFF13233D);
+const Color _procurementMuted = Color(0xFF607089);
+const Color _procurementLine = Color(0xFFE4EBF7);
+const Color _procurementMist = Color(0xFFF4F8FF);
+const Color _procurementSurface = Colors.white;
+
+const List<BoxShadow> _procurementCardShadow = [
+  BoxShadow(color: Color(0x120D1B2A), blurRadius: 28, offset: Offset(0, 14)),
+  BoxShadow(color: Color(0x0A0D1B2A), blurRadius: 10, offset: Offset(0, 4)),
+];
+
+String _sectionMarker(String title) {
+  final trimmed = title.trim();
+  if (trimmed.isEmpty) return 'A';
+  return trimmed.characters.first.toUpperCase();
+}
+
 class LoadingPanel extends StatelessWidget {
   final String message;
 
@@ -10,13 +28,54 @@ class LoadingPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: 12),
-          Text(message, style: const TextStyle(color: Color(0xFF607089))),
-        ],
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 340),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+        decoration: BoxDecoration(
+          color: _procurementSurface.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: _procurementLine),
+          boxShadow: _procurementCardShadow,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    _procurementPrimary.withValues(alpha: 0.18),
+                    const Color(0xFF14B8A6).withValues(alpha: 0.12),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              alignment: Alignment.center,
+              child: const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2.8),
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Chargement en cours',
+              style: TextStyle(
+                color: _procurementInk,
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: _procurementMuted),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -42,11 +101,40 @@ class AsyncErrorCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            message,
-            style: const TextStyle(
-              color: Color(0xFFB91C1C),
-              fontWeight: FontWeight.w600,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFDF1F2),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFF5C2C7)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEE2E2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.warning_amber_rounded,
+                    color: Color(0xFFB91C1C),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: const TextStyle(
+                      color: Color(0xFFB91C1C),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
@@ -75,39 +163,114 @@ class SectionSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final marker = _sectionMarker(title);
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE6EAF2)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0D000000),
-            blurRadius: 16,
-            offset: Offset(0, 6),
-          ),
-        ],
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFFFFF), Color(0xFFF9FBFF)],
+        ),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: _procurementLine),
+        boxShadow: _procurementCardShadow,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: Color(0xFF1F2A44),
-              fontWeight: FontWeight.w800,
-              fontSize: 18,
+          Positioned(
+            top: -38,
+            right: -26,
+            child: Container(
+              width: 136,
+              height: 136,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [
+                    _procurementPrimary.withValues(alpha: 0.12),
+                    const Color(0xFF14B8A6).withValues(alpha: 0.05),
+                  ],
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: const TextStyle(color: Color(0xFF607089), fontSize: 13),
+          Positioned(
+            bottom: -54,
+            left: -32,
+            child: Container(
+              width: 154,
+              height: 154,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.05),
+              ),
+            ),
           ),
-          const SizedBox(height: 16),
-          child,
+          Padding(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            _procurementPrimary.withValues(alpha: 0.16),
+                            const Color(0xFF14B8A6).withValues(alpha: 0.12),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Text(
+                        marker,
+                        style: const TextStyle(
+                          color: _procurementPrimary,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              color: _procurementInk,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 18,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            subtitle,
+                            style: const TextStyle(
+                              color: _procurementMuted,
+                              fontSize: 13,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                child,
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -135,61 +298,111 @@ class InfoStatCard extends StatelessWidget {
     return ConstrainedBox(
       constraints: const BoxConstraints(minWidth: 220, maxWidth: 320),
       child: Container(
-        padding: const EdgeInsets.all(18),
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFE6EAF2)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0D000000),
-              blurRadius: 14,
-              offset: Offset(0, 6),
-            ),
-          ],
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.white, color.withValues(alpha: 0.08)],
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: color.withValues(alpha: 0.16)),
+          boxShadow: _procurementCardShadow,
         ),
-        child: Row(
+        child: Stack(
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(14),
+            Positioned(
+              top: -16,
+              right: -18,
+              child: Container(
+                width: 86,
+                height: 86,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: color.withValues(alpha: 0.08),
+                ),
               ),
-              child: Icon(icon, color: color),
             ),
-            const SizedBox(width: 14),
-            Expanded(
+            Padding(
+              padding: const EdgeInsets.all(18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 54,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(icon, color: color),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.74),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: color.withValues(alpha: 0.16),
+                          ),
+                        ),
+                        child: Text(
+                          'LIVE',
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.7,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
                   Text(
                     label,
                     style: const TextStyle(
-                      color: Color(0xFF607089),
+                      color: _procurementMuted,
                       fontSize: 12,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Text(
                     value,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Color(0xFF1F2A44),
+                      color: _procurementInk,
                       fontWeight: FontWeight.w800,
-                      fontSize: 22,
+                      fontSize: 26,
                     ),
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    helper,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF94A3B8),
-                      fontSize: 11.5,
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.66),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Text(
+                      helper,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF7A8798),
+                        fontSize: 11.5,
+                        height: 1.35,
+                      ),
                     ),
                   ),
                 ],
@@ -217,10 +430,15 @@ class MiniMetric extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(14),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, color.withValues(alpha: 0.10)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.12)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -260,10 +478,15 @@ class StatusBreakdownCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       constraints: const BoxConstraints(minWidth: 150),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, color.withValues(alpha: 0.10)],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: 0.14)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -299,23 +522,42 @@ class EmptyPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 360),
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: _procurementMist,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: _procurementLine),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.inbox_outlined,
-              size: 40,
-              color: Color(0xFF94A3B8),
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    _procurementPrimary.withValues(alpha: 0.14),
+                    const Color(0xFF14B8A6).withValues(alpha: 0.10),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Icon(
+                Icons.auto_awesome_mosaic_outlined,
+                size: 30,
+                color: _procurementPrimary,
+              ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
             Text(
               title,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                color: Color(0xFF1F2A44),
-                fontWeight: FontWeight.w700,
+                color: _procurementInk,
+                fontWeight: FontWeight.w800,
                 fontSize: 16,
               ),
             ),
@@ -323,7 +565,11 @@ class EmptyPanel extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF607089), fontSize: 13),
+              style: const TextStyle(
+                color: _procurementMuted,
+                fontSize: 13,
+                height: 1.4,
+              ),
             ),
           ],
         ),
@@ -450,33 +696,50 @@ class DetailBadge extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
+  final bool dense;
 
   const DetailBadge({
     super.key,
     required this.label,
     required this.value,
     required this.color,
+    this.dense = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: EdgeInsets.symmetric(
+        horizontal: dense ? 11 : 13,
+        vertical: dense ? 9 : 11,
+      ),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(14),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, color.withValues(alpha: 0.08)],
+        ),
+        borderRadius: BorderRadius.circular(dense ? 14 : 16),
+        border: Border.all(color: color.withValues(alpha: 0.14)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
-            style: const TextStyle(color: Color(0xFF607089), fontSize: 11.5),
+            style: TextStyle(
+              color: const Color(0xFF607089),
+              fontSize: dense ? 10.8 : 11.5,
+            ),
           ),
-          const SizedBox(height: 2),
+          SizedBox(height: dense ? 1 : 2),
           Text(
             value,
-            style: TextStyle(color: color, fontWeight: FontWeight.w700),
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontSize: dense ? 13 : null,
+            ),
           ),
         ],
       ),
@@ -495,7 +758,8 @@ class StatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: color.withValues(alpha: 0.10),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -527,148 +791,478 @@ class ProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final activeColor = product.active
-        ? const Color(0xFF16A34A)
-        : const Color(0xFF64748B);
+        ? const Color(0xFF3F7A51)
+        : const Color(0xFF6B7280);
+    final stockColor = productStatusColor(product.status);
     final imageUrl = ApiConfig.resolveMediaUrl(product.imageUrl);
+    final toggleLabel = product.active ? 'Desactiver' : 'Reactiver';
+    final priceRows = <({String label, String value, Color? color})>[
+      (
+        label: 'Prix achat',
+        value: formatMoney(product.prixAchat),
+        color: const Color(0xFF1E3A5F),
+      ),
+      (
+        label: 'Prix vente',
+        value: formatMoney(product.prixVente),
+        color: const Color(0xFF1E3A5F),
+      ),
+      if (product.categorie != null)
+        (label: 'TVA', value: product.categorie!.vatLabel, color: null),
+      if (product.remiseTemporaire != null)
+        (
+          label: 'Remise active',
+          value: '${product.remiseTemporaire!.toStringAsFixed(1)}%',
+          color: const Color(0xFF8A5A20),
+        ),
+    ];
+    final stockRows = <({String label, String value, Color? color})>[
+      (
+        label: 'Stock disponible',
+        value: '${product.quantiteStock} ${product.unitLabel}',
+        color: null,
+      ),
+      (
+        label: 'Seuil minimum',
+        value: '${product.seuilMinimum} ${product.unitLabel}',
+        color: null,
+      ),
+      (
+        label: 'Etat du stock',
+        value: product.stockStatusLabel,
+        color: stockColor.withValues(alpha: 0.95),
+      ),
+      (
+        label: 'Catalogue',
+        value: product.active ? 'Actif' : 'Inactif',
+        color: activeColor,
+      ),
+    ];
 
-    return SectionSurface(
-      title: product.displayName,
-      subtitle: product.categorieLabel,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 860;
-              final info = Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  DetailBadge(
-                    label: 'Prix achat',
-                    value: formatMoney(product.prixAchat),
-                    color: const Color(0xFF2D47C8),
-                  ),
-                  DetailBadge(
-                    label: 'Prix vente',
-                    value: formatMoney(product.prixVente),
-                    color: const Color(0xFF0F766E),
-                  ),
-                  DetailBadge(
-                    label: 'Stock',
-                    value: '${product.quantiteStock} ${product.unitLabel}',
-                    color: productStatusColor(product.status),
-                  ),
-                  DetailBadge(
-                    label: 'Etat',
-                    value: product.active ? 'Actif' : 'Inactif',
-                    color: activeColor,
-                  ),
-                  DetailBadge(
-                    label: 'Seuil',
-                    value: '${product.seuilMinimum}',
-                    color: const Color(0xFF7C3AED),
-                  ),
-                ],
-              );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 760;
+        final avatarSize = compact ? 92.0 : 110.0;
 
-              final actions = Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: onAdjustStock,
-                    icon: const Icon(Icons.inventory),
-                    label: const Text('Ajuster stock'),
+        return Container(
+          width: double.infinity,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0F0F172A),
+                blurRadius: 24,
+                offset: Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(compact ? 16 : 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFFF4F8FF), Color(0xFFFFFFFF)],
                   ),
-                  OutlinedButton.icon(
-                    onPressed: onEdit,
-                    icon: const Icon(Icons.edit_outlined),
-                    label: const Text('Modifier'),
-                  ),
-                  FilledButton.tonalIcon(
-                    onPressed: onToggleActive,
-                    icon: Icon(
-                      product.active
-                          ? Icons.pause_circle_outline
-                          : Icons.play_circle_outline,
-                    ),
-                    label: Text(product.active ? 'Desactiver' : 'Reactiver'),
-                  ),
-                ],
-              );
-
-              if (compact) {
-                return Column(
+                ),
+                child: compact
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ProductAvatar(
+                                imageUrl: imageUrl,
+                                product: product,
+                                size: avatarSize,
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      product.displayName,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: _procurementInk,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 18,
+                                        height: 1.2,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      product.categorieLabel,
+                                      style: const TextStyle(
+                                        color: Color(0xFF526071),
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      'Produit #${product.idProduit}',
+                                      style: const TextStyle(
+                                        color: Color(0xFF6B7280),
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _ProductSoftTag(
+                                label: product.stockStatusLabel,
+                                color: stockColor,
+                              ),
+                              _ProductSoftTag(
+                                label: product.active ? 'Actif' : 'Inactif',
+                                color: activeColor,
+                              ),
+                              _ProductSoftTag(
+                                label: product.unitLabel,
+                                color: const Color(0xFF506074),
+                              ),
+                              if (product.remiseTemporaire != null)
+                                _ProductSoftTag(
+                                  label:
+                                      'Remise ${product.remiseTemporaire!.toStringAsFixed(1)}%',
+                                  color: const Color(0xFF8A5A20),
+                                ),
+                            ],
+                          ),
+                        ],
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ProductAvatar(
+                            imageUrl: imageUrl,
+                            product: product,
+                            size: avatarSize,
+                          ),
+                          const SizedBox(width: 18),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  product.displayName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: _procurementInk,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 22,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  '${product.categorieLabel} | Produit #${product.idProduit}',
+                                  style: const TextStyle(
+                                    color: Color(0xFF5B6776),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    _ProductSoftTag(
+                                      label: product.stockStatusLabel,
+                                      color: stockColor,
+                                    ),
+                                    _ProductSoftTag(
+                                      label: product.active
+                                          ? 'Catalogue actif'
+                                          : 'Catalogue inactif',
+                                      color: activeColor,
+                                    ),
+                                    _ProductSoftTag(
+                                      label:
+                                          '${product.quantiteStock} ${product.unitLabel}',
+                                      color: const Color(0xFF506074),
+                                    ),
+                                    if (product.remiseTemporaire != null)
+                                      _ProductSoftTag(
+                                        label:
+                                            'Remise ${product.remiseTemporaire!.toStringAsFixed(1)}%',
+                                        color: const Color(0xFF8A5A20),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  compact ? 16 : 20,
+                  compact ? 16 : 18,
+                  compact ? 16 : 20,
+                  compact ? 14 : 16,
+                ),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ProductAvatar(imageUrl: imageUrl, product: product),
-                        const SizedBox(width: 12),
-                        Expanded(child: info),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [
-                        StatusPill(
-                          label: product.stockStatusLabel,
-                          color: productStatusColor(product.status),
-                        ),
-                        if (product.remiseTemporaire != null)
-                          StatusPill(
-                            label:
-                                'Remise ${product.remiseTemporaire!.toStringAsFixed(1)}%',
-                            color: const Color(0xFF7C3AED),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    actions,
-                  ],
-                );
-              }
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ProductAvatar(imageUrl: imageUrl, product: product),
-                      const SizedBox(width: 14),
-                      Expanded(child: info),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
+                    if (compact) ...[
+                      _ProductSpecPanel(
+                        title: 'Tarification',
+                        tint: const Color(0xFFF7FAFE),
+                        rows: priceRows,
+                      ),
+                      const SizedBox(height: 12),
+                      _ProductSpecPanel(
+                        title: 'Inventaire',
+                        tint: const Color(0xFFF9FAFB),
+                        rows: stockRows,
+                      ),
+                    ] else ...[
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          StatusPill(
-                            label: product.stockStatusLabel,
-                            color: productStatusColor(product.status),
-                          ),
-                          const SizedBox(height: 10),
-                          if (product.remiseTemporaire != null)
-                            StatusPill(
-                              label:
-                                  'Remise ${product.remiseTemporaire!.toStringAsFixed(1)}%',
-                              color: const Color(0xFF7C3AED),
+                          Expanded(
+                            child: _ProductSpecPanel(
+                              title: 'Tarification',
+                              tint: const Color(0xFFF7FAFE),
+                              rows: priceRows,
                             ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: _ProductSpecPanel(
+                              title: 'Inventaire',
+                              tint: const Color(0xFFF9FAFB),
+                              rows: stockRows,
+                            ),
+                          ),
                         ],
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 14),
-                  actions,
-                ],
-              );
-            },
+                    const SizedBox(height: 14),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.only(top: 10),
+                      decoration: const BoxDecoration(
+                        border: Border(
+                          top: BorderSide(color: Color(0xFFE5E7EB)),
+                        ),
+                      ),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _ProductActionButton(
+                            label: 'Ajuster stock',
+                            icon: Icons.inventory_2_outlined,
+                            onPressed: onAdjustStock,
+                          ),
+                          _ProductActionButton(
+                            label: 'Modifier',
+                            icon: Icons.edit_outlined,
+                            onPressed: onEdit,
+                          ),
+                          _ProductActionButton(
+                            label: toggleLabel,
+                            icon: product.active
+                                ? Icons.pause_circle_outline
+                                : Icons.play_circle_outline,
+                            onPressed: onToggleActive,
+                            foregroundColor: activeColor,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
+        );
+      },
+    );
+  }
+}
+
+class _ProductSoftTag extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _ProductSoftTag({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.12)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductSpecPanel extends StatelessWidget {
+  final String title;
+  final Color tint;
+  final List<({String label, String value, Color? color})> rows;
+
+  const _ProductSpecPanel({
+    required this.title,
+    required this.tint,
+    required this.rows,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: tint,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: Color(0xFF1F2937),
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 10),
+          for (var i = 0; i < rows.length; i++) ...[
+            _ProductSpecRow(
+              label: rows[i].label,
+              value: rows[i].value,
+              valueColor: rows[i].color,
+            ),
+            if (i != rows.length - 1)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Divider(color: Color(0xFFE5E7EB), height: 1),
+              ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _ProductSpecRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  const _ProductSpecRow({
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF6B7280),
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              color: valueColor ?? const Color(0xFF1F2937),
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              height: 1.3,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProductActionButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+  final Color? foregroundColor;
+
+  const _ProductActionButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    this.foregroundColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        side: BorderSide(
+          color: (foregroundColor ?? const Color(0xFF334155)).withValues(
+            alpha: 0.14,
+          ),
+        ),
+        backgroundColor: (foregroundColor ?? const Color(0xFF334155))
+            .withValues(alpha: 0.04),
+        foregroundColor: foregroundColor ?? const Color(0xFF334155),
+        visualDensity: VisualDensity.compact,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        minimumSize: const Size(0, 36),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+        iconSize: 16,
+      ),
+      icon: Icon(icon),
+      label: Text(label),
     );
   }
 }
@@ -676,43 +1270,73 @@ class ProductCard extends StatelessWidget {
 class ProductAvatar extends StatelessWidget {
   final String? imageUrl;
   final ProcurementProduct product;
+  final double size;
 
   const ProductAvatar({
     super.key,
     required this.imageUrl,
     required this.product,
+    this.size = 68,
   });
 
   @override
   Widget build(BuildContext context) {
+    final radius = size <= 70 ? 18.0 : 20.0;
     final fallback = Container(
-      width: 68,
-      height: 68,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
-        color: const Color(0xFFEFF4FF),
-        borderRadius: BorderRadius.circular(18),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFE8F1FF), Color(0xFFF8FBFF)],
+        ),
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A0F172A),
+            blurRadius: 16,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       alignment: Alignment.center,
       child: Text(
         product.displayName.substring(0, 1).toUpperCase(),
-        style: const TextStyle(
-          color: Color(0xFF2D47C8),
+        style: TextStyle(
+          color: const Color(0xFF39567A),
           fontWeight: FontWeight.w800,
-          fontSize: 28,
+          fontSize: size <= 70 ? 28 : 32,
         ),
       ),
     );
 
     if (imageUrl == null) return fallback;
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: Image.network(
-        imageUrl!,
-        width: 68,
-        height: 68,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => fallback,
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A0F172A),
+            blurRadius: 16,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: Image.network(
+          imageUrl!,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => fallback,
+        ),
       ),
     );
   }

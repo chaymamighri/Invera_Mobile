@@ -246,43 +246,9 @@ class _ProcurementProductsSectionState
     }
 
     final filteredProducts = _filteredProducts;
-    final activeCount = _products.where((product) => product.active).length;
-    final inactiveCount = _products.where((product) => !product.active).length;
-    final lowStockCount = _products
-        .where((product) => product.active && product.isLowStock)
-        .length;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Wrap(
-          spacing: 16,
-          runSpacing: 16,
-          children: [
-            InfoStatCard(
-              label: 'Produits total',
-              value: '${_products.length}',
-              helper: '$activeCount actif(s)',
-              icon: Icons.inventory_2_outlined,
-              color: const Color(0xFF2D47C8),
-            ),
-            InfoStatCard(
-              label: 'Stock faible',
-              value: '$lowStockCount',
-              helper: 'Surveillance requise',
-              icon: Icons.priority_high_rounded,
-              color: const Color(0xFFEA580C),
-            ),
-            InfoStatCard(
-              label: 'Inactifs',
-              value: '$inactiveCount',
-              helper: 'Reactives a la reception si besoin',
-              icon: Icons.pause_circle_outline,
-              color: const Color(0xFF64748B),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
         SectionSurface(
           title: 'Filtres catalogue',
           subtitle: 'Recherchez rapidement par nom, categorie, statut ou stock',
@@ -543,7 +509,9 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
         return;
       }
 
-      final fileName = file.name.trim().isEmpty ? 'product-image.jpg' : file.name;
+      final fileName = file.name.trim().isEmpty
+          ? 'product-image.jpg'
+          : file.name;
       setState(() {
         _selectedImageBytes = bytes;
         _selectedImageName = fileName;
@@ -560,10 +528,11 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
         error: true,
       );
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _pickingImage = false;
-      });
+      if (mounted) {
+        setState(() {
+          _pickingImage = false;
+        });
+      }
     }
   }
 

@@ -16,6 +16,14 @@ class ProcurementCategory {
   String get displayName =>
       nomCategorie.trim().isEmpty ? 'Categorie #$idCategorie' : nomCategorie;
 
+  String get vatLabel {
+    final value = tauxTVA;
+    if (value == value.roundToDouble()) {
+      return '${value.toStringAsFixed(0)}%';
+    }
+    return '${value.toStringAsFixed(2)}%';
+  }
+
   factory ProcurementCategory.fromJson(Map<String, dynamic> json) {
     return ProcurementCategory(
       idCategorie: _readInt(json, ['idCategorie', 'id']),
@@ -441,6 +449,30 @@ class ProductUpsertPayload {
     }
 
     return fields;
+  }
+}
+
+class ProcurementCategoryUpsertPayload {
+  final String nomCategorie;
+  final String description;
+  final double? tauxTVA;
+
+  const ProcurementCategoryUpsertPayload({
+    required this.nomCategorie,
+    required this.description,
+    required this.tauxTVA,
+  });
+
+  Map<String, dynamic> toJson() {
+    final normalizedDescription = description.trim();
+
+    return {
+      'nomCategorie': nomCategorie.trim(),
+      'description': normalizedDescription.isEmpty
+          ? null
+          : normalizedDescription,
+      if (tauxTVA != null) 'tauxTVA': tauxTVA,
+    };
   }
 }
 

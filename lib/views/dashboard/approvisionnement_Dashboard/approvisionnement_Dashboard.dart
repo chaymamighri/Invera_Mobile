@@ -3,9 +3,16 @@ import 'package:invera_mobile/config/app_routes.dart';
 import 'package:invera_mobile/core/ui/adaptive_layout.dart';
 import 'package:invera_mobile/models/user_model.dart';
 import 'package:invera_mobile/services/auth_service.dart';
+import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procurement_categories_section.dart';
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procurement_orders_section.dart';
-import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procurement_overview_section.dart';
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procurement_products_section.dart';
+
+const Color _achatPrimary = Color(0xFF2553D4);
+const Color _achatTeal = Color(0xFF14B8A6);
+const Color _achatInk = Color(0xFF10203A);
+const Color _achatMuted = Color(0xFF607089);
+const Color _achatSidebarStart = Color(0xFF0B1730);
+const Color _achatSidebarEnd = Color(0xFF15367A);
 
 class ApprovisionnementDashboard extends StatefulWidget {
   final User user;
@@ -20,19 +27,9 @@ class ApprovisionnementDashboard extends StatefulWidget {
 class _ApprovisionnementDashboardState
     extends State<ApprovisionnementDashboard> {
   bool _sidebarCollapsed = false;
-  String _activePage = 'stats';
+  String _activePage = 'produits';
 
   final List<_SidebarSection> _sections = const [
-    _SidebarSection(
-      title: 'Tableau de bord',
-      items: [
-        _SidebarItem(
-          id: 'stats',
-          label: 'Statistiques',
-          icon: Icons.insights_outlined,
-        ),
-      ],
-    ),
     _SidebarSection(
       title: 'Produits',
       items: [
@@ -40,6 +37,11 @@ class _ApprovisionnementDashboardState
           id: 'produits',
           label: 'Catalogue produits',
           icon: Icons.inventory_2_outlined,
+        ),
+        _SidebarItem(
+          id: 'categories',
+          label: 'Categories produits',
+          icon: Icons.category_outlined,
         ),
       ],
     ),
@@ -76,12 +78,14 @@ class _ApprovisionnementDashboardState
     switch (_activePage) {
       case 'produits':
         return 'Gestion des produits';
+      case 'categories':
+        return 'Gestion des categories';
       case 'commandes':
         return 'Bons de commande fournisseurs';
       case 'receptions':
         return 'Receptions de marchandises';
       default:
-        return 'Statistiques achats';
+        return 'Gestion des produits';
     }
   }
 
@@ -89,12 +93,14 @@ class _ApprovisionnementDashboardState
     switch (_activePage) {
       case 'produits':
         return 'Catalogue, niveaux de stock et activation des articles';
+      case 'categories':
+        return 'Interface dediee aux categories et a leur TVA';
       case 'commandes':
         return 'Creation, validation, envoi, archivage et suivi des commandes';
       case 'receptions':
         return 'Suivi des commandes envoyees et cloture des receptions';
       default:
-        return 'Vue globale du module responsable achat';
+        return 'Catalogue, niveaux de stock et activation des articles';
     }
   }
 
@@ -192,10 +198,211 @@ class _ApprovisionnementDashboardState
     ];
   }
 
+  ThemeData _moduleTheme(BuildContext context) {
+    final base = Theme.of(context);
+    final scheme = ColorScheme.fromSeed(
+      seedColor: _achatPrimary,
+      primary: _achatPrimary,
+      secondary: _achatTeal,
+      surface: Colors.white,
+    );
+
+    OutlineInputBorder border(Color color, {double width = 1.2}) {
+      return OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide(color: color, width: width),
+      );
+    }
+
+    return base.copyWith(
+      colorScheme: scheme,
+      scaffoldBackgroundColor: Colors.transparent,
+      appBarTheme: const AppBarTheme(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        foregroundColor: _achatInk,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: Colors.white.withValues(alpha: 0.96),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: _achatInk,
+        contentTextStyle: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white.withValues(alpha: 0.88),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+        labelStyle: const TextStyle(color: _achatMuted),
+        hintStyle: const TextStyle(color: Color(0xFF91A0B5)),
+        border: border(const Color(0xFFDCE5F3)),
+        enabledBorder: border(const Color(0xFFDCE5F3)),
+        focusedBorder: border(_achatPrimary, width: 1.6),
+        errorBorder: border(const Color(0xFFDC2626)),
+        focusedErrorBorder: border(const Color(0xFFDC2626), width: 1.6),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: _achatPrimary,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _achatInk,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          side: const BorderSide(color: Color(0xFFD8E2F2)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: _achatPrimary,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDesktopActionButton({
+    required String tooltip,
+    required IconData icon,
+    required VoidCallback onPressed,
+    Color iconColor = Colors.white,
+    Color background = const Color(0x24FFFFFF),
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(18),
+          child: Ink(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0x30FFFFFF)),
+            ),
+            child: Icon(icon, color: iconColor),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShellBackdrop({required Widget child}) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFF4F7FB), Color(0xFFEAF1FF), Color(0xFFF8FBFF)],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -120,
+            right: -60,
+            child: Container(
+              width: 320,
+              height: 320,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    _achatPrimary.withValues(alpha: 0.16),
+                    _achatPrimary.withValues(alpha: 0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: -80,
+            bottom: -140,
+            child: Container(
+              width: 360,
+              height: 360,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    _achatTeal.withValues(alpha: 0.14),
+                    _achatTeal.withValues(alpha: 0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 120,
+            left: 120,
+            child: Container(
+              width: 180,
+              height: 180,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.05),
+              ),
+            ),
+          ),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnimatedPageContent() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 320),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        final offsetAnimation = Tween<Offset>(
+          begin: const Offset(0.02, 0.03),
+          end: Offset.zero,
+        ).animate(animation);
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(position: offsetAnimation, child: child),
+        );
+      },
+      child: KeyedSubtree(
+        key: ValueKey<String>(_activePage),
+        child: _buildPageContent(),
+      ),
+    );
+  }
+
   Widget _buildPageContent() {
     switch (_activePage) {
       case 'produits':
         return const ProcurementProductsSection();
+      case 'categories':
+        return const ProcurementCategoriesSection();
       case 'commandes':
         return ProcurementOrdersSection(
           key: const ValueKey('orders'),
@@ -208,30 +415,53 @@ class _ApprovisionnementDashboardState
           receptionMode: true,
         );
       default:
-        return const ProcurementOverviewSection();
+        return const ProcurementProductsSection();
     }
   }
 
   PreferredSizeWidget _buildMobileAppBar() {
     return AppBar(
-      backgroundColor: Colors.white,
-      foregroundColor: const Color(0xFF1F2A44),
+      backgroundColor: Colors.white.withValues(alpha: 0.72),
+      foregroundColor: _achatInk,
+      surfaceTintColor: Colors.transparent,
       elevation: 0,
       titleSpacing: 0,
       title: Row(
         children: [
           const SizedBox(width: 4),
-          Image.asset(
-            'assets/images/logo.png',
-            width: 26,
-            height: 26,
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Icon(Icons.business),
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  _achatPrimary.withValues(alpha: 0.14),
+                  _achatTeal.withValues(alpha: 0.10),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: const EdgeInsets.all(6),
+            child: Image.asset(
+              'assets/images/logo.png',
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Icon(Icons.business),
+            ),
           ),
-          const SizedBox(width: 8),
-          const Text(
-            'Approvisionnement',
-            style: TextStyle(fontWeight: FontWeight.w700),
+          const SizedBox(width: 10),
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Approvisionnement',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+              ),
+              Text(
+                'Dashboard achat',
+                style: TextStyle(fontSize: 11.5, color: _achatMuted),
+              ),
+            ],
           ),
         ],
       ),
@@ -240,40 +470,206 @@ class _ApprovisionnementDashboardState
   }
 
   Widget _buildDesktopTopBar() {
-    return Container(
-      height: 84,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.92),
-        border: const Border(bottom: BorderSide(color: Color(0xFFE6EAF2))),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 26),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        padding: const EdgeInsets.fromLTRB(28, 24, 24, 24),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0C1934), Color(0xFF163985), Color(0xFF177A99)],
+          ),
+          borderRadius: BorderRadius.all(Radius.circular(30)),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x220F172A),
+              blurRadius: 30,
+              offset: Offset(0, 18),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -30,
+              top: -34,
+              child: Container(
+                width: 180,
+                height: 180,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.08),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 120,
+              bottom: -60,
+              child: Container(
+                width: 220,
+                height: 220,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF7C3AED).withValues(alpha: 0.10),
+                ),
+              ),
+            ),
+            Row(
               children: [
-                Text(
-                  _pageTitle(),
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1F2A44),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: const Color(0x33FFFFFF)),
+                        ),
+                        child: const Text(
+                          'Flux achats | design studio',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        _pageTitle(),
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _pageSubtitle(),
+                        style: const TextStyle(
+                          color: Color(0xD7F8FAFC),
+                          fontSize: 13.5,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  _pageSubtitle(),
-                  style: const TextStyle(
-                    color: Color(0xFF607089),
-                    fontSize: 13,
+                const SizedBox(width: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: const Color(0x33FFFFFF)),
                   ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${widget.user.prenom} ${widget.user.nom}'.trim(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _roleLabel(widget.user.role),
+                        style: const TextStyle(
+                          color: Color(0xD7E2E8F0),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                _buildDesktopActionButton(
+                  tooltip: 'Profil',
+                  icon: Icons.person_outline,
+                  onPressed: _openProfile,
+                ),
+                const SizedBox(width: 10),
+                _buildDesktopActionButton(
+                  tooltip: 'Deconnexion',
+                  icon: Icons.logout,
+                  onPressed: _confirmLogout,
+                  iconColor: const Color(0xFFFFD6D6),
+                  background: const Color(0x26FF6B6B),
                 ),
               ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactPageIntro() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 18),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF0C1934), Color(0xFF163985), Color(0xFF177A99)],
+        ),
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x220F172A),
+            blurRadius: 24,
+            offset: Offset(0, 14),
           ),
-          ..._buildTopActions(),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: const Text(
+              'Experience achat premium',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            _pageTitle(),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _pageSubtitle(),
+            style: const TextStyle(
+              color: Color(0xD7F8FAFC),
+              fontSize: 13,
+              height: 1.35,
+            ),
+          ),
         ],
       ),
     );
@@ -281,35 +677,64 @@ class _ApprovisionnementDashboardState
 
   Widget _buildSidebar({required bool collapsed, required bool mobile}) {
     return Container(
-      color: Colors.white,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [_achatSidebarStart, _achatSidebarEnd],
+        ),
+      ),
       child: Column(
         children: [
           Container(
             padding: const EdgeInsets.fromLTRB(16, 20, 12, 18),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: Color(0xFFE6EAF2))),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+              ),
             ),
             child: Row(
               children: [
                 if (!collapsed) ...[
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.white.withValues(alpha: 0.18),
+                                _achatTeal.withValues(alpha: 0.16),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          padding: const EdgeInsets.all(8),
+                          child: Image.asset(
+                            'assets/images/logo.png',
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) =>
+                                const Icon(Icons.business, color: Colors.white),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        const Text(
                           'Approvisionnement',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF2D47C8),
+                            color: Colors.white,
                           ),
                         ),
-                        SizedBox(height: 2),
-                        Text(
+                        const SizedBox(height: 2),
+                        const Text(
                           'Produits, commandes et receptions',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Color(0xFF607089),
+                            color: Color(0xFFD3DDEB),
                           ),
                         ),
                       ],
@@ -327,6 +752,7 @@ class _ApprovisionnementDashboardState
                         : (collapsed
                               ? Icons.chevron_right
                               : Icons.chevron_left),
+                    color: Colors.white,
                   ),
                 ),
               ],
@@ -346,7 +772,7 @@ class _ApprovisionnementDashboardState
                           fontSize: 11,
                           letterSpacing: 0.7,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF8A98AD),
+                          color: Color(0xFFAFC0D9),
                         ),
                       ),
                     ),
@@ -363,9 +789,9 @@ class _ApprovisionnementDashboardState
             margin: const EdgeInsets.fromLTRB(12, 0, 12, 14),
             padding: EdgeInsets.all(collapsed ? 10 : 12),
             decoration: BoxDecoration(
-              color: const Color(0xFFF4F7FC),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFE6EAF2)),
+              color: Colors.white.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
             ),
             child: collapsed
                 ? Column(
@@ -374,7 +800,7 @@ class _ApprovisionnementDashboardState
                         onTap: _openProfile,
                         child: CircleAvatar(
                           radius: 18,
-                          backgroundColor: const Color(0xFF2D47C8),
+                          backgroundColor: Colors.white.withValues(alpha: 0.18),
                           child: Text(
                             _initials(),
                             style: const TextStyle(
@@ -388,7 +814,10 @@ class _ApprovisionnementDashboardState
                       IconButton(
                         tooltip: 'Deconnexion',
                         onPressed: _confirmLogout,
-                        icon: const Icon(Icons.logout, color: Colors.red),
+                        icon: const Icon(
+                          Icons.logout,
+                          color: Color(0xFFFFC0C0),
+                        ),
                       ),
                     ],
                   )
@@ -398,7 +827,7 @@ class _ApprovisionnementDashboardState
                         onTap: _openProfile,
                         child: CircleAvatar(
                           radius: 18,
-                          backgroundColor: const Color(0xFF2D47C8),
+                          backgroundColor: Colors.white.withValues(alpha: 0.18),
                           child: Text(
                             _initials(),
                             style: const TextStyle(
@@ -419,7 +848,7 @@ class _ApprovisionnementDashboardState
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFF1F2A44),
+                                color: Colors.white,
                               ),
                             ),
                             Text(
@@ -427,7 +856,7 @@ class _ApprovisionnementDashboardState
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontSize: 12,
-                                color: Color(0xFF607089),
+                                color: Color(0xFFD3DDEB),
                               ),
                             ),
                           ],
@@ -436,7 +865,10 @@ class _ApprovisionnementDashboardState
                       IconButton(
                         tooltip: 'Deconnexion',
                         onPressed: _confirmLogout,
-                        icon: const Icon(Icons.logout, color: Colors.red),
+                        icon: const Icon(
+                          Icons.logout,
+                          color: Color(0xFFFFC0C0),
+                        ),
                       ),
                     ],
                   ),
@@ -453,18 +885,29 @@ class _ApprovisionnementDashboardState
     final isActive = _activePage == item.id;
 
     final itemWidget = Material(
-      color: isActive ? const Color(0xFFEFF4FF) : Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(18),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(18),
         onTap: () => _setActivePage(item.id),
         child: Container(
-          height: 46,
-          padding: EdgeInsets.symmetric(horizontal: collapsed ? 0 : 12),
+          height: 50,
+          padding: EdgeInsets.symmetric(horizontal: collapsed ? 0 : 14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            gradient: isActive
+                ? LinearGradient(
+                    colors: [
+                      Colors.white.withValues(alpha: 0.20),
+                      _achatTeal.withValues(alpha: 0.16),
+                    ],
+                  )
+                : null,
+            color: isActive ? null : Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: isActive ? const Color(0xFFBFD1FF) : Colors.transparent,
+              color: isActive
+                  ? Colors.white.withValues(alpha: 0.24)
+                  : Colors.white.withValues(alpha: 0.08),
             ),
           ),
           child: Row(
@@ -475,9 +918,7 @@ class _ApprovisionnementDashboardState
               Icon(
                 item.icon,
                 size: 20,
-                color: isActive
-                    ? const Color(0xFF2D47C8)
-                    : const Color(0xFF607089),
+                color: isActive ? Colors.white : const Color(0xFFD7E1EF),
               ),
               if (!collapsed) ...[
                 const SizedBox(width: 10),
@@ -487,9 +928,7 @@ class _ApprovisionnementDashboardState
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                      color: isActive
-                          ? const Color(0xFF2D47C8)
-                          : const Color(0xFF334155),
+                      color: isActive ? Colors.white : const Color(0xFFE2EAF5),
                     ),
                   ),
                 ),
@@ -513,58 +952,76 @@ class _ApprovisionnementDashboardState
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.sizeOf(context).width < 960;
 
-    if (isMobile) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFF4F7FC),
-        appBar: _buildMobileAppBar(),
-        drawer: Drawer(
-          width: AdaptiveLayout.drawerWidth(context, max: 304, ratio: 0.88),
-          child: _buildSidebar(collapsed: false, mobile: true),
-        ),
-        body: SingleChildScrollView(
-          padding: EdgeInsets.all(AdaptiveLayout.horizontalPadding(context)),
-          child: _buildPageContent(),
-        ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FC),
-      body: SafeArea(
-        child: Row(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOut,
-              width: _sidebarCollapsed ? 92 : 284,
-              decoration: const BoxDecoration(
-                border: Border(right: BorderSide(color: Color(0xFFE6EAF2))),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0x10000000),
-                    blurRadius: 12,
-                    offset: Offset(1, 0),
-                  ),
-                ],
-              ),
-              child: _buildSidebar(collapsed: _sidebarCollapsed, mobile: false),
+    final themedChild = isMobile
+        ? Scaffold(
+            backgroundColor: Colors.transparent,
+            appBar: _buildMobileAppBar(),
+            drawer: Drawer(
+              backgroundColor: Colors.transparent,
+              width: AdaptiveLayout.drawerWidth(context, max: 304, ratio: 0.88),
+              child: _buildSidebar(collapsed: false, mobile: true),
             ),
-            Expanded(
-              child: Column(
+            body: SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(
+                  AdaptiveLayout.horizontalPadding(context),
+                ),
+                child: Column(
+                  children: [
+                    _buildCompactPageIntro(),
+                    _buildAnimatedPageContent(),
+                  ],
+                ),
+              ),
+            ),
+          )
+        : Scaffold(
+            backgroundColor: Colors.transparent,
+            body: SafeArea(
+              child: Row(
                 children: [
-                  _buildDesktopTopBar(),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOut,
+                    width: _sidebarCollapsed ? 92 : 284,
+                    margin: const EdgeInsets.fromLTRB(20, 20, 0, 20),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x160F172A),
+                          blurRadius: 24,
+                          offset: Offset(0, 14),
+                        ),
+                      ],
+                    ),
+                    child: _buildSidebar(
+                      collapsed: _sidebarCollapsed,
+                      mobile: false,
+                    ),
+                  ),
                   Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(24),
-                      child: _buildPageContent(),
+                    child: Column(
+                      children: [
+                        _buildDesktopTopBar(),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                            child: _buildAnimatedPageContent(),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
+          );
+
+    return Theme(
+      data: _moduleTheme(context),
+      child: _buildShellBackdrop(child: themedChild),
     );
   }
 }
