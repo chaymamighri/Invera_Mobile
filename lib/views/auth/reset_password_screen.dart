@@ -1,30 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../config/app_routes.dart';
 import '../../services/auth_service.dart';
 import 'auth_shell.dart';
 
-class CreatePasswordScreen extends StatefulWidget {
-  const CreatePasswordScreen({super.key, this.initialEmail, this.initialCode});
+class ResetPasswordScreen extends StatefulWidget {
+  const ResetPasswordScreen({super.key, required this.email});
 
-  final String? initialEmail;
-  final String? initialCode;
+  final String email;
 
   @override
-  State<CreatePasswordScreen> createState() => _CreatePasswordScreenState();
+  State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
 }
 
-class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
+class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _codeController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final AuthService _authService = AuthService();
   late final TextEditingController _emailController;
-  late final TextEditingController _codeController;
 
   bool _isLoading = false;
-  bool _obscurePassword = true;
+  bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
   String? _feedbackMessage;
   bool _isError = false;
@@ -33,17 +31,14 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
   void initState() {
     super.initState();
     _emailController = TextEditingController(
-      text: (widget.initialEmail ?? '').trim().toLowerCase(),
+      text: widget.email.trim().toLowerCase(),
     );
-    _codeController = TextEditingController(
-      text: (widget.initialCode ?? '').replaceAll(RegExp(r'\s+'), ''),
-    );
-    _passwordController.addListener(_onPasswordChanged);
+    _passwordController.addListener(_onPasswordChange);
   }
 
   @override
   void dispose() {
-    _passwordController.removeListener(_onPasswordChanged);
+    _passwordController.removeListener(_onPasswordChange);
     _emailController.dispose();
     _codeController.dispose();
     _passwordController.dispose();
@@ -51,7 +46,7 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
     super.dispose();
   }
 
-  void _onPasswordChanged() {
+  void _onPasswordChange() {
     if (mounted) {
       setState(() {});
     }
@@ -68,7 +63,7 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
       _isError = false;
     });
 
-    final result = await _authService.createPassword(
+    final result = await _authService.resetPassword(
       email: _emailController.text.trim().toLowerCase(),
       code: _codeController.text.replaceAll(RegExp(r'\s+'), ''),
       newPassword: _passwordController.text,
@@ -87,7 +82,7 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
     if (result.success) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Compte active avec succes.'),
+          content: Text('Mot de passe modifie avec succes.'),
           backgroundColor: AuthPalette.success,
         ),
       );
@@ -97,17 +92,6 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
         (route) => false,
       );
     }
-  }
-
-  bool _hasMinLength(String password) => password.length >= 8;
-
-  bool _hasUppercase(String password) => RegExp(r'[A-Z]').hasMatch(password);
-
-  bool _hasDigit(String password) => RegExp(r'\d').hasMatch(password);
-
-  bool _hasSpecialCharacter(String password) {
-    const specialCharacters = r'''!@#$%^&*()_-+=[]{};:'",.<>/?\|`~''';
-    return password.split('').any(specialCharacters.contains);
   }
 
   String? _validateEmail(String? value) {
@@ -127,12 +111,14 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
   @override
   Widget build(BuildContext context) {
     final password = _passwordController.text;
+    final hasSixChars = password.length >= 6;
+    final hasNumber = RegExp(r'\d').hasMatch(password);
 
     return AuthScaffold(
-      eyebrow: 'Activation',
-      title: 'Activer le compte',
+      eyebrow: 'Reinitialisation',
+      title: 'Reinitialiser le mot de passe',
       subtitle:
-          'Entrez votre email, le code recu par email et votre nouveau mot de passe.',
+          'Entrez le code recu par email puis definissez un nouveau mot de passe.',
       child: Form(
         key: _formKey,
         autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -152,23 +138,15 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
             ),
             const SizedBox(height: 16),
             AuthTextField(
-              label: 'Code d activation',
+              label: 'Code de verification',
               controller: _codeController,
-              hintText: '123456',
+              hintText: 'Collez le code recu par email',
               icon: Icons.pin_outlined,
-              keyboardType: TextInputType.number,
+              keyboardType: TextInputType.text,
               textInputAction: TextInputAction.next,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(6),
-              ],
               validator: (value) {
-                final code = (value ?? '').replaceAll(RegExp(r'\s+'), '');
-                if (code.isEmpty) {
+                if ((value ?? '').trim().isEmpty) {
                   return 'Code requis';
-                }
-                if (!RegExp(r'^\d{6}$').hasMatch(code)) {
-                  return 'Le code doit contenir 6 chiffres';
                 }
                 return null;
               },
@@ -178,9 +156,9 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
             AuthTextField(
               label: 'Nouveau mot de passe',
               controller: _passwordController,
-              hintText: 'Creez un mot de passe',
+              hintText: 'Creez un nouveau mot de passe',
               icon: Icons.lock_outline_rounded,
-              obscureText: _obscurePassword,
+              obscureText: _obscureNewPassword,
               textInputAction: TextInputAction.next,
               autofillHints: const [AutofillHints.newPassword],
               enableSuggestions: false,
@@ -188,11 +166,11 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
               suffixIcon: IconButton(
                 onPressed: () {
                   setState(() {
-                    _obscurePassword = !_obscurePassword;
+                    _obscureNewPassword = !_obscureNewPassword;
                   });
                 },
                 icon: Icon(
-                  _obscurePassword
+                  _obscureNewPassword
                       ? Icons.visibility_off_rounded
                       : Icons.visibility_rounded,
                   color: AuthPalette.muted,
@@ -203,17 +181,11 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
                 if (currentPassword.isEmpty) {
                   return 'Mot de passe requis';
                 }
-                if (!_hasMinLength(currentPassword)) {
-                  return 'Minimum 8 caracteres';
+                if (currentPassword.length < 6) {
+                  return 'Minimum 6 caracteres';
                 }
-                if (!_hasUppercase(currentPassword)) {
-                  return 'Ajoutez 1 majuscule';
-                }
-                if (!_hasDigit(currentPassword)) {
-                  return 'Ajoutez 1 chiffre';
-                }
-                if (!_hasSpecialCharacter(currentPassword)) {
-                  return 'Ajoutez 1 caractere special';
+                if (!RegExp(r'\d').hasMatch(currentPassword)) {
+                  return 'Ajoutez au moins 1 chiffre';
                 }
                 return null;
               },
@@ -224,28 +196,17 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
               title: 'Votre mot de passe doit contenir :',
               rules: [
                 AuthRule(
-                  label: 'Au moins 8 caracteres',
-                  isSatisfied: _hasMinLength(password),
+                  label: 'Au moins 6 caracteres',
+                  isSatisfied: hasSixChars,
                 ),
-                AuthRule(
-                  label: 'Au moins 1 lettre majuscule',
-                  isSatisfied: _hasUppercase(password),
-                ),
-                AuthRule(
-                  label: 'Au moins 1 chiffre',
-                  isSatisfied: _hasDigit(password),
-                ),
-                AuthRule(
-                  label: 'Au moins 1 caractere special',
-                  isSatisfied: _hasSpecialCharacter(password),
-                ),
+                AuthRule(label: 'Au moins 1 chiffre', isSatisfied: hasNumber),
               ],
             ),
             const SizedBox(height: 16),
             AuthTextField(
               label: 'Confirmer le mot de passe',
               controller: _confirmPasswordController,
-              hintText: 'Retapez le mot de passe',
+              hintText: 'Retapez le nouveau mot de passe',
               icon: Icons.lock_reset_rounded,
               obscureText: _obscureConfirmPassword,
               textInputAction: TextInputAction.done,
@@ -278,7 +239,7 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
             ),
             const SizedBox(height: 22),
             AuthPrimaryButton(
-              label: 'Activer mon compte',
+              label: 'Reinitialiser',
               onPressed: _isLoading ? null : _submit,
               isLoading: _isLoading,
             ),
@@ -288,10 +249,12 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
                 onPressed: _isLoading
                     ? null
                     : () {
-                        Navigator.pushNamedAndRemoveUntil(
+                        Navigator.pushReplacementNamed(
                           context,
-                          AppRoutes.login,
-                          (route) => false,
+                          AppRoutes.forgotPassword,
+                          arguments: {
+                            'email': _emailController.text.trim().toLowerCase(),
+                          },
                         );
                       },
                 style: TextButton.styleFrom(
@@ -301,15 +264,15 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
                     fontSize: 13,
                   ),
                 ),
-                child: const Text('Retour a la connexion'),
+                child: const Text('Renvoyer le code'),
               ),
             ),
             if (_feedbackMessage != null) ...[
               const SizedBox(height: 16),
               AuthBanner(
                 title: _isError
-                    ? 'Activation impossible'
-                    : 'Activation terminee',
+                    ? 'Reinitialisation impossible'
+                    : 'Mot de passe mis a jour',
                 message: _feedbackMessage!,
                 tone: _isError ? AuthBannerTone.error : AuthBannerTone.success,
               ),

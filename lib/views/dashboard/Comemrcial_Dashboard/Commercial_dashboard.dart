@@ -12,6 +12,53 @@ import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/commercial_cl
 import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/commercial_commandes_section.dart';
 import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/commercial_factures_section.dart';
 
+const Color _ventePrimary = Color(0xFF2553D4);
+const Color _venteTeal = Color(0xFF14B8A6);
+const Color _venteInk = Color(0xFF10203A);
+const Color _venteMuted = Color(0xFF607089);
+const Color _venteSidebarStart = Color(0xFF0B1730);
+const Color _venteSidebarEnd = Color(0xFF15367A);
+
+String _compactAmount(double value, {bool withUnit = false}) {
+  final abs = value.abs();
+  late String formatted;
+
+  if (abs >= 1000000) {
+    formatted =
+        '${(value / 1000000).toStringAsFixed(abs >= 10000000 ? 0 : 1)}M';
+  } else if (abs >= 1000) {
+    formatted = '${(value / 1000).toStringAsFixed(abs >= 10000 ? 0 : 1)}k';
+  } else if (abs >= 100) {
+    formatted = value.toStringAsFixed(0);
+  } else {
+    formatted = value.toStringAsFixed(1);
+  }
+
+  if (formatted.endsWith('.0')) {
+    formatted = formatted.substring(0, formatted.length - 2);
+  }
+
+  return withUnit ? '$formatted DT' : formatted;
+}
+
+double _niceAxisMax(double value) {
+  if (value <= 0) return 1;
+
+  final exponent = math
+      .pow(10, (math.log(value) / math.ln10).floor())
+      .toDouble();
+  final fraction = value / exponent;
+  final niceFraction = fraction <= 1
+      ? 1.0
+      : fraction <= 2
+      ? 2.0
+      : fraction <= 5
+      ? 5.0
+      : 10.0;
+
+  return niceFraction * exponent;
+}
+
 class CommercialDashboard extends StatefulWidget {
   final User user;
   final String appTitle;
@@ -84,27 +131,31 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
 
   String _pageTitle() {
     switch (_activePage) {
+      case 'dashboard':
+        return widget.analyticsTitle;
       case 'clients':
-        return 'Clients';
+        return 'Gestion des clients';
       case 'commandes':
-        return 'Commandes';
+        return 'Commandes commerciales';
       case 'factures':
-        return 'Factures';
+        return 'Facturation vente';
       default:
-        return 'Dashboard';
+        return widget.analyticsTitle;
     }
   }
 
   String _pageSubtitle() {
     switch (_activePage) {
+      case 'dashboard':
+        return widget.analyticsSubtitle;
       case 'clients':
-        return 'Gerer votre portefeuille client';
+        return 'Prospection, suivi du portefeuille et operations client';
       case 'commandes':
-        return 'Suivre les commandes et statuts';
+        return 'Creation, suivi des statuts et pilotage des commandes de vente';
       case 'factures':
-        return 'Consulter les factures et paiements';
+        return 'Generation, recherche et controle des factures commerciales';
       default:
-        return 'Vue globale de votre activite commerciale';
+        return widget.analyticsSubtitle;
     }
   }
 
@@ -187,109 +238,300 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     );
   }
 
-  Widget _buildPageContent() {
-    if (_activePage == 'dashboard') {
-      return _CommercialAnalyticsDashboard(
-        title: widget.analyticsTitle,
-        subtitle: widget.analyticsSubtitle,
+  ThemeData _moduleTheme(BuildContext context) {
+    final base = Theme.of(context);
+    final scheme = ColorScheme.fromSeed(
+      seedColor: _ventePrimary,
+      primary: _ventePrimary,
+      secondary: _venteTeal,
+      surface: Colors.white,
+    );
+
+    OutlineInputBorder border(Color color, {double width = 1.2}) {
+      return OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: color, width: width),
       );
     }
 
-    if (_activePage == 'clients') {
-      return const CommercialClientsSection();
-    }
-    if (_activePage == 'commandes') {
-      return const CommercialCommandesSection();
-    }
-    if (_activePage == 'factures') {
-      return const CommercialFacturesSection();
-    }
+    final compactButtonStyle = ElevatedButton.styleFrom(
+      backgroundColor: _ventePrimary,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      minimumSize: const Size(0, 40),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+    );
 
-    return _buildModulePlaceholder(
-      title: _pageTitle(),
-      icon: Icons.grid_view_rounded,
+    return base.copyWith(
+      colorScheme: scheme,
+      scaffoldBackgroundColor: Colors.transparent,
+      appBarTheme: const AppBarTheme(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        foregroundColor: _venteInk,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: Colors.white.withValues(alpha: 0.96),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: _venteInk,
+        contentTextStyle: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        isDense: true,
+        filled: true,
+        fillColor: Colors.white.withValues(alpha: 0.88),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
+        labelStyle: const TextStyle(color: _venteMuted, fontSize: 13),
+        hintStyle: const TextStyle(color: Color(0xFF91A0B5), fontSize: 12.5),
+        border: border(const Color(0xFFDCE5F3)),
+        enabledBorder: border(const Color(0xFFDCE5F3)),
+        focusedBorder: border(_ventePrimary, width: 1.6),
+        errorBorder: border(const Color(0xFFDC2626)),
+        focusedErrorBorder: border(const Color(0xFFDC2626), width: 1.6),
+      ),
+      filledButtonTheme: FilledButtonThemeData(style: compactButtonStyle),
+      elevatedButtonTheme: ElevatedButtonThemeData(style: compactButtonStyle),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _venteInk,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          minimumSize: const Size(0, 40),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          side: const BorderSide(color: Color(0xFFD8E2F2)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: _ventePrimary,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          minimumSize: const Size(0, 36),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          foregroundColor: _venteInk,
+          padding: const EdgeInsets.all(8),
+          minimumSize: const Size(36, 36),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          iconSize: 20,
+        ),
+      ),
+      chipTheme: base.chipTheme.copyWith(
+        backgroundColor: Colors.white.withValues(alpha: 0.88),
+        selectedColor: _ventePrimary.withValues(alpha: 0.12),
+        secondarySelectedColor: _ventePrimary.withValues(alpha: 0.12),
+        side: const BorderSide(color: Color(0xFFD8E2F2)),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+        labelStyle: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: _venteInk,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      ),
     );
   }
 
-  Widget _buildModulePlaceholder({
-    required String title,
+  Widget _buildDesktopActionButton({
+    required String tooltip,
     required IconData icon,
+    required VoidCallback onPressed,
+    Color iconColor = Colors.white,
+    Color background = const Color(0x24FFFFFF),
   }) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 760),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE6EAF2)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x14000000),
-                blurRadius: 16,
-                offset: Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 46, color: const Color(0xFF2D47C8)),
-              const SizedBox(height: 14),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1F2A44),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Module en cours de developpement',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.blueGrey[600], fontSize: 14),
-              ),
-            ],
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(16),
+          child: Ink(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0x30FFFFFF)),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildBodyArea({required bool isMobile}) {
-    if (_activePage == 'dashboard' || _activePage == 'factures') {
-      return _buildPageContent();
-    }
-
-    return Padding(
-      padding: EdgeInsets.all(isMobile ? 12 : 24),
-      child: _buildPageContent(),
+  Widget _buildShellBackdrop({required Widget child}) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFF4F7FB), Color(0xFFEAF1FF), Color(0xFFF8FBFF)],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -120,
+            right: -60,
+            child: Container(
+              width: 320,
+              height: 320,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    _ventePrimary.withValues(alpha: 0.16),
+                    _ventePrimary.withValues(alpha: 0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: -80,
+            bottom: -140,
+            child: Container(
+              width: 360,
+              height: 360,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    _venteTeal.withValues(alpha: 0.14),
+                    _venteTeal.withValues(alpha: 0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 120,
+            left: 120,
+            child: Container(
+              width: 180,
+              height: 180,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.05),
+              ),
+            ),
+          ),
+          child,
+        ],
+      ),
     );
+  }
+
+  Widget _buildAnimatedPageContent() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 320),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        final offsetAnimation = Tween<Offset>(
+          begin: const Offset(0.02, 0.03),
+          end: Offset.zero,
+        ).animate(animation);
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(position: offsetAnimation, child: child),
+        );
+      },
+      child: KeyedSubtree(
+        key: ValueKey<String>(_activePage),
+        child: _buildPageContent(),
+      ),
+    );
+  }
+
+  Widget _buildPageContent() {
+    switch (_activePage) {
+      case 'dashboard':
+        return _CommercialAnalyticsDashboard(
+          title: widget.analyticsTitle,
+          subtitle: widget.analyticsSubtitle,
+        );
+      case 'clients':
+        return const CommercialClientsSection();
+      case 'commandes':
+        return const CommercialCommandesSection();
+      case 'factures':
+        return const CommercialFacturesSection();
+      default:
+        return _CommercialAnalyticsDashboard(
+          title: widget.analyticsTitle,
+          subtitle: widget.analyticsSubtitle,
+        );
+    }
   }
 
   PreferredSizeWidget _buildMobileAppBar() {
     return AppBar(
-      backgroundColor: Colors.white,
-      foregroundColor: const Color(0xFF1F2A44),
+      backgroundColor: Colors.white.withValues(alpha: 0.72),
+      foregroundColor: _venteInk,
+      surfaceTintColor: Colors.transparent,
       elevation: 0,
       titleSpacing: 0,
       title: Row(
         children: [
           const SizedBox(width: 4),
-          Image.asset(
-            'assets/images/logo.png',
-            width: 26,
-            height: 26,
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Icon(Icons.business),
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  _ventePrimary.withValues(alpha: 0.14),
+                  _venteTeal.withValues(alpha: 0.10),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: const EdgeInsets.all(6),
+            child: Image.asset(
+              'assets/images/logo.png',
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Icon(Icons.business),
+            ),
           ),
-          const SizedBox(width: 8),
-          Text(
-            widget.appTitle,
-            style: TextStyle(fontWeight: FontWeight.w700),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                widget.appTitle,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                ),
+              ),
+              const Text(
+                'Dashboard vente',
+                style: TextStyle(fontSize: 11.5, color: _venteMuted),
+              ),
+            ],
           ),
         ],
       ),
@@ -300,97 +542,181 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
   List<Widget> _buildTopActions() {
     return [
       IconButton(
-        tooltip: 'Notifications',
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Notifications non disponibles.')),
-          );
-        },
-        icon: const Icon(Icons.notifications_outlined),
+        tooltip: 'Profil',
+        onPressed: _openProfile,
+        icon: const Icon(Icons.person_outline),
       ),
-      PopupMenuButton<String>(
-        tooltip: 'Menu utilisateur',
-        onSelected: (value) {
-          if (value == 'profile') {
-            _openProfile();
-          }
-          if (value == 'logout') {
-            _confirmLogout();
-          }
-        },
-        itemBuilder: (_) => [
-          PopupMenuItem<String>(
-            value: 'profile',
-            child: Row(
-              children: [
-                const Icon(Icons.person_outline, size: 20),
-                const SizedBox(width: 8),
-                Text('${widget.user.prenom} ${widget.user.nom}'),
-              ],
-            ),
-          ),
-          const PopupMenuItem<String>(
-            value: 'logout',
-            child: Row(
-              children: [
-                Icon(Icons.logout, size: 20, color: Colors.red),
-                SizedBox(width: 8),
-                Text('Deconnexion', style: TextStyle(color: Colors.red)),
-              ],
-            ),
-          ),
-        ],
+      IconButton(
+        tooltip: 'Deconnexion',
+        onPressed: _confirmLogout,
+        icon: const Icon(Icons.logout, color: Colors.red),
       ),
       const SizedBox(width: 8),
     ];
   }
 
   Widget _buildDesktopTopBar() {
-    return Container(
-      height: 84,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.92),
-        border: const Border(bottom: BorderSide(color: Color(0xFFE6EAF2))),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 26),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        padding: const EdgeInsets.fromLTRB(28, 24, 24, 24),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0C1934), Color(0xFF163985), Color(0xFF177A99)],
+          ),
+          borderRadius: BorderRadius.all(Radius.circular(30)),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x220F172A),
+              blurRadius: 30,
+              offset: Offset(0, 18),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -30,
+              top: -34,
+              child: Container(
+                width: 180,
+                height: 180,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.08),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 120,
+              bottom: -60,
+              child: Container(
+                width: 220,
+                height: 220,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF7C3AED).withValues(alpha: 0.10),
+                ),
+              ),
+            ),
+            Row(
               children: [
-                Text(
-                  _pageTitle(),
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1F2A44),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: const Color(0x33FFFFFF)),
+                        ),
+                        child: const Text(
+                          'Flux ventes | design studio',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        _pageTitle(),
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _pageSubtitle(),
+                        style: const TextStyle(
+                          color: Color(0xD7F8FAFC),
+                          fontSize: 13.5,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  _pageSubtitle(),
-                  style: TextStyle(color: Colors.blueGrey[600], fontSize: 13),
+                const SizedBox(width: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: const Color(0x33FFFFFF)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${widget.user.prenom} ${widget.user.nom}'.trim(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _roleLabel(widget.user.role),
+                        style: const TextStyle(
+                          color: Color(0xD7E2E8F0),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                _buildDesktopActionButton(
+                  tooltip: 'Profil',
+                  icon: Icons.person_outline,
+                  onPressed: _openProfile,
+                ),
+                const SizedBox(width: 10),
+                _buildDesktopActionButton(
+                  tooltip: 'Deconnexion',
+                  icon: Icons.logout,
+                  onPressed: _confirmLogout,
+                  iconColor: const Color(0xFFFFD6D6),
+                  background: const Color(0x26FF6B6B),
                 ),
               ],
             ),
-          ),
-          ..._buildTopActions(),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildSidebar({required bool collapsed, required bool mobile}) {
     return Container(
-      color: Colors.white,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [_venteSidebarStart, _venteSidebarEnd],
+        ),
+      ),
       child: Column(
         children: [
           Container(
             padding: const EdgeInsets.fromLTRB(16, 20, 12, 18),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: Color(0xFFE6EAF2))),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+              ),
             ),
             child: Row(
               children: [
@@ -399,20 +725,41 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          widget.appTitle,
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF2D47C8),
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.white.withValues(alpha: 0.18),
+                                _venteTeal.withValues(alpha: 0.16),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          padding: const EdgeInsets.all(8),
+                          child: Image.asset(
+                            'assets/images/logo.png',
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) =>
+                                const Icon(Icons.business, color: Colors.white),
                           ),
                         ),
-                        SizedBox(height: 2),
+                        const SizedBox(height: 14),
+                        Text(
+                          widget.appTitle,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
                         Text(
                           widget.appSubtitle,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 12,
-                            color: Color(0xFF607089),
+                            color: Color(0xFFD3DDEB),
                           ),
                         ),
                       ],
@@ -430,6 +777,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                         : (collapsed
                               ? Icons.chevron_right
                               : Icons.chevron_left),
+                    color: Colors.white,
                   ),
                 ),
               ],
@@ -449,7 +797,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                           fontSize: 11,
                           letterSpacing: 0.7,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF8A98AD),
+                          color: Color(0xFFAFC0D9),
                         ),
                       ),
                     ),
@@ -466,9 +814,9 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
             margin: const EdgeInsets.fromLTRB(12, 0, 12, 14),
             padding: EdgeInsets.all(collapsed ? 10 : 12),
             decoration: BoxDecoration(
-              color: const Color(0xFFF4F7FC),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFE6EAF2)),
+              color: Colors.white.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
             ),
             child: collapsed
                 ? Column(
@@ -477,7 +825,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                         onTap: _openProfile,
                         child: CircleAvatar(
                           radius: 18,
-                          backgroundColor: const Color(0xFF2D47C8),
+                          backgroundColor: Colors.white.withValues(alpha: 0.18),
                           child: Text(
                             _initials(),
                             style: const TextStyle(
@@ -491,7 +839,10 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                       IconButton(
                         tooltip: 'Deconnexion',
                         onPressed: _confirmLogout,
-                        icon: const Icon(Icons.logout, color: Colors.red),
+                        icon: const Icon(
+                          Icons.logout,
+                          color: Color(0xFFFFC0C0),
+                        ),
                       ),
                     ],
                   )
@@ -501,7 +852,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                         onTap: _openProfile,
                         child: CircleAvatar(
                           radius: 18,
-                          backgroundColor: const Color(0xFF2D47C8),
+                          backgroundColor: Colors.white.withValues(alpha: 0.18),
                           child: Text(
                             _initials(),
                             style: const TextStyle(
@@ -522,7 +873,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFF1F2A44),
+                                color: Colors.white,
                               ),
                             ),
                             Text(
@@ -530,7 +881,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontSize: 12,
-                                color: Color(0xFF607089),
+                                color: Color(0xFFD3DDEB),
                               ),
                             ),
                           ],
@@ -539,7 +890,10 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                       IconButton(
                         tooltip: 'Deconnexion',
                         onPressed: _confirmLogout,
-                        icon: const Icon(Icons.logout, color: Colors.red),
+                        icon: const Icon(
+                          Icons.logout,
+                          color: Color(0xFFFFC0C0),
+                        ),
                       ),
                     ],
                   ),
@@ -556,18 +910,29 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     final isActive = _activePage == item.id;
 
     final itemWidget = Material(
-      color: isActive ? const Color(0xFFEFF4FF) : Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(18),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(18),
         onTap: () => _setActivePage(item.id),
         child: Container(
-          height: 46,
-          padding: EdgeInsets.symmetric(horizontal: collapsed ? 0 : 12),
+          height: 48,
+          padding: EdgeInsets.symmetric(horizontal: collapsed ? 0 : 14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            gradient: isActive
+                ? LinearGradient(
+                    colors: [
+                      Colors.white.withValues(alpha: 0.20),
+                      _venteTeal.withValues(alpha: 0.16),
+                    ],
+                  )
+                : null,
+            color: isActive ? null : Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: isActive ? const Color(0xFFBFD1FF) : Colors.transparent,
+              color: isActive
+                  ? Colors.white.withValues(alpha: 0.24)
+                  : Colors.white.withValues(alpha: 0.08),
             ),
           ),
           child: Row(
@@ -578,9 +943,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
               Icon(
                 item.icon,
                 size: 20,
-                color: isActive
-                    ? const Color(0xFF2D47C8)
-                    : const Color(0xFF607089),
+                color: isActive ? Colors.white : const Color(0xFFD7E1EF),
               ),
               if (!collapsed) ...[
                 const SizedBox(width: 10),
@@ -588,11 +951,9 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                   child: Text(
                     item.label,
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 13.5,
                       fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                      color: isActive
-                          ? const Color(0xFF2D47C8)
-                          : const Color(0xFF334155),
+                      color: isActive ? Colors.white : const Color(0xFFE2EAF5),
                     ),
                   ),
                 ),
@@ -616,50 +977,76 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.sizeOf(context).width < 960;
 
-    if (isMobile) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFF4F7FC),
-        appBar: _buildMobileAppBar(),
-        drawer: Drawer(
-          width: AdaptiveLayout.drawerWidth(context, max: 304, ratio: 0.88),
-          child: _buildSidebar(collapsed: false, mobile: true),
-        ),
-        body: _buildBodyArea(isMobile: true),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FC),
-      body: SafeArea(
-        child: Row(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOut,
-              width: _sidebarCollapsed ? 92 : 284,
-              decoration: const BoxDecoration(
-                border: Border(right: BorderSide(color: Color(0xFFE6EAF2))),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0x10000000),
-                    blurRadius: 12,
-                    offset: Offset(1, 0),
+    final themedChild = isMobile
+        ? Scaffold(
+            backgroundColor: Colors.transparent,
+            appBar: _buildMobileAppBar(),
+            drawer: Drawer(
+              backgroundColor: Colors.transparent,
+              width: AdaptiveLayout.drawerWidth(context, max: 304, ratio: 0.88),
+              child: _buildSidebar(collapsed: false, mobile: true),
+            ),
+            body: SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AdaptiveLayout.horizontalPadding(context),
+                  16,
+                  AdaptiveLayout.horizontalPadding(context),
+                  16,
+                ),
+                child: Column(
+                  children: [Expanded(child: _buildAnimatedPageContent())],
+                ),
+              ),
+            ),
+          )
+        : Scaffold(
+            backgroundColor: Colors.transparent,
+            body: SafeArea(
+              child: Row(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOut,
+                    width: _sidebarCollapsed ? 92 : 284,
+                    margin: const EdgeInsets.fromLTRB(20, 20, 0, 20),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x160F172A),
+                          blurRadius: 24,
+                          offset: Offset(0, 14),
+                        ),
+                      ],
+                    ),
+                    child: _buildSidebar(
+                      collapsed: _sidebarCollapsed,
+                      mobile: false,
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        _buildDesktopTopBar(),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                            child: _buildAnimatedPageContent(),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
-              child: _buildSidebar(collapsed: _sidebarCollapsed, mobile: false),
             ),
-            Expanded(
-              child: Column(
-                children: [
-                  _buildDesktopTopBar(),
-                  Expanded(child: _buildBodyArea(isMobile: false)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+          );
+
+    return Theme(
+      data: _moduleTheme(context),
+      child: _buildShellBackdrop(child: themedChild),
     );
   }
 }
@@ -771,13 +1158,13 @@ class _CommercialAnalyticsDashboardState
 
   String _money(double value) => '${value.toStringAsFixed(2)} DT';
 
-  String _shortDate(DateTime d) {
-    final dd = d.day.toString().padLeft(2, '0');
-    final mm = d.month.toString().padLeft(2, '0');
-    final yy = d.year.toString();
-    final hh = d.hour.toString().padLeft(2, '0');
-    final mn = d.minute.toString().padLeft(2, '0');
-    return '$dd/$mm/$yy $hh:$mn';
+  String _syncStamp(DateTime? value) {
+    if (value == null) return '-';
+    final dd = value.day.toString().padLeft(2, '0');
+    final mm = value.month.toString().padLeft(2, '0');
+    final hh = value.hour.toString().padLeft(2, '0');
+    final mn = value.minute.toString().padLeft(2, '0');
+    return '$dd/$mm $hh:$mn';
   }
 
   DateTime? _parseCommandeDate(String raw) {
@@ -955,16 +1342,16 @@ class _CommercialAnalyticsDashboardState
     Widget? trailing,
   }) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE6EAF2)),
         boxShadow: const [
           BoxShadow(
             color: Color(0x0E000000),
-            blurRadius: 18,
-            offset: Offset(0, 8),
+            blurRadius: 14,
+            offset: Offset(0, 6),
           ),
         ],
       ),
@@ -974,15 +1361,15 @@ class _CommercialAnalyticsDashboardState
           Row(
             children: [
               Container(
-                width: 34,
-                height: 34,
+                width: 30,
+                height: 30,
                 decoration: BoxDecoration(
                   color: const Color(0xFF2D47C8).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(9),
                 ),
-                child: Icon(icon, color: const Color(0xFF2D47C8), size: 19),
+                child: Icon(icon, color: const Color(0xFF2D47C8), size: 17),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -990,7 +1377,7 @@ class _CommercialAnalyticsDashboardState
                     Text(
                       title,
                       style: const TextStyle(
-                        fontSize: 15,
+                        fontSize: 14,
                         fontWeight: FontWeight.w800,
                         color: Color(0xFF1F2A44),
                       ),
@@ -999,7 +1386,7 @@ class _CommercialAnalyticsDashboardState
                       subtitle,
                       style: const TextStyle(
                         color: Color(0xFF607089),
-                        fontSize: 12,
+                        fontSize: 11.5,
                       ),
                     ),
                   ],
@@ -1008,7 +1395,7 @@ class _CommercialAnalyticsDashboardState
               if (trailing != null) trailing,
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           child,
         ],
       ),
@@ -1065,10 +1452,20 @@ class _CommercialAnalyticsDashboardState
     final recentOrders = _recentOrders();
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isWide = screenWidth > 1240;
+    final isPhone = screenWidth < 560;
+    final showTypeDistribution = screenWidth >= 600;
     final horizontalPadding = screenWidth < 390
         ? 12.0
         : (screenWidth < 760 ? 16.0 : 24.0);
     final verticalPadding = screenWidth < 760 ? 16.0 : 20.0;
+    final kpiColumns = screenWidth < 1100 ? 2 : 4;
+    final kpiAspectRatio = screenWidth < 390
+        ? 1.34
+        : (screenWidth < 700 ? 1.55 : (screenWidth < 1100 ? 2.0 : 2.2));
+    final topClientsPreview = (isPhone ? topClients.take(4) : topClients)
+        .toList();
+    final recentOrdersPreview =
+        (screenWidth < 640 ? recentOrders.take(3) : recentOrders).toList();
 
     final statusSegments = <_DonutSegment>[
       _DonutSegment(
@@ -1102,19 +1499,16 @@ class _CommercialAnalyticsDashboardState
         ),
         children: [
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF2D47C8), Color(0xFF2037A7)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE6EAF2)),
               boxShadow: const [
                 BoxShadow(
-                  color: Color(0x332D47C8),
-                  blurRadius: 20,
-                  offset: Offset(0, 8),
+                  color: Color(0x0D000000),
+                  blurRadius: 14,
+                  offset: Offset(0, 6),
                 ),
               ],
             ),
@@ -1123,22 +1517,25 @@ class _CommercialAnalyticsDashboardState
               children: [
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final compactHero = constraints.maxWidth < 560;
+                    final compactHeader = constraints.maxWidth < 520;
                     final titleBlock = Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           widget.title,
                           style: TextStyle(
-                            color: Colors.white,
+                            color: const Color(0xFF1F2A44),
                             fontWeight: FontWeight.w800,
-                            fontSize: compactHero ? 20 : 22,
+                            fontSize: compactHeader ? 16 : 18,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          widget.subtitle,
-                          style: TextStyle(color: Color(0xFFD9E4FF)),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Vue compacte des indicateurs essentiels.',
+                          style: TextStyle(
+                            color: Color(0xFF607089),
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     );
@@ -1151,27 +1548,18 @@ class _CommercialAnalyticsDashboardState
                           ? const SizedBox(
                               width: 14,
                               height: 14,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.refresh),
                       label: const Text('Actualiser'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.45),
-                        ),
-                      ),
                     );
 
-                    if (compactHero) {
+                    if (compactHeader) {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           titleBlock,
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 10),
                           refreshButton,
                         ],
                       );
@@ -1185,25 +1573,25 @@ class _CommercialAnalyticsDashboardState
                     );
                   },
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
-                    _MiniChip(
+                    _HeaderStatPill(
                       icon: Icons.people_alt_outlined,
-                      label: 'Clients actifs',
+                      label: 'Actifs',
                       value: '$_activeClientCount',
                     ),
-                    _MiniChip(
+                    _HeaderStatPill(
                       icon: Icons.check_circle_outline,
-                      label: 'Taux conversion',
+                      label: 'Conversion',
                       value: '${_conversionRate.toStringAsFixed(1)}%',
                     ),
-                    _MiniChip(
+                    _HeaderStatPill(
                       icon: Icons.schedule_outlined,
-                      label: 'Derniere sync',
-                      value: _lastSync == null ? '-' : _shortDate(_lastSync!),
+                      label: 'Sync',
+                      value: _syncStamp(_lastSync),
                     ),
                   ],
                 ),
@@ -1211,7 +1599,7 @@ class _CommercialAnalyticsDashboardState
             ),
           ),
           if (_error != null) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -1236,42 +1624,42 @@ class _CommercialAnalyticsDashboardState
               ),
             ),
           ],
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
+          const SizedBox(height: 10),
+          GridView.count(
+            crossAxisCount: kpiColumns,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: kpiAspectRatio,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
             children: [
               _KpiTile(
                 label: 'Clients',
                 value: '$_clientsCount',
-                delta: 'Portefeuille total',
                 icon: Icons.people_outline,
                 color: const Color(0xFF0284C7),
               ),
               _KpiTile(
                 label: 'Commandes',
                 value: '$_ordersCount',
-                delta: 'Dossiers suivis',
                 icon: Icons.shopping_cart_outlined,
                 color: const Color(0xFFEA580C),
               ),
               _KpiTile(
                 label: 'CA confirme',
                 value: _money(_revenue),
-                delta: 'Ventes confirmees',
                 icon: Icons.payments_outlined,
                 color: const Color(0xFF16A34A),
               ),
               _KpiTile(
                 label: 'Panier moyen',
                 value: _money(_avgTicket),
-                delta: 'Par commande confirmee',
                 icon: Icons.trending_up_outlined,
                 color: const Color(0xFF7C3AED),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           if (isWide)
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1280,7 +1668,7 @@ class _CommercialAnalyticsDashboardState
                   flex: 2,
                   child: _panelCard(
                     title: 'Evolution des ventes',
-                    subtitle: '6 derniers mois (commandes confirmees)',
+                    subtitle: '6 derniers mois confirmes',
                     icon: Icons.show_chart_rounded,
                     child: _SalesTrendChart(
                       values: salesValues,
@@ -1294,7 +1682,7 @@ class _CommercialAnalyticsDashboardState
                 Expanded(
                   child: _panelCard(
                     title: 'Statut des commandes',
-                    subtitle: 'Distribution actuelle',
+                    subtitle: 'Repartition actuelle',
                     icon: Icons.donut_small_rounded,
                     child: _StatusDonutCard(
                       segments: statusSegments,
@@ -1307,17 +1695,17 @@ class _CommercialAnalyticsDashboardState
           else ...[
             _panelCard(
               title: 'Evolution des ventes',
-              subtitle: '6 derniers mois (commandes confirmees)',
+              subtitle: '6 derniers mois confirmes',
               icon: Icons.show_chart_rounded,
               child: _SalesTrendChart(
                 values: salesValues,
                 labels: monthlySales.map((m) => _monthLabel(m.month)).toList(),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             _panelCard(
               title: 'Statut des commandes',
-              subtitle: 'Distribution actuelle',
+              subtitle: 'Repartition actuelle',
               icon: Icons.donut_small_rounded,
               child: _StatusDonutCard(
                 segments: statusSegments,
@@ -1325,15 +1713,15 @@ class _CommercialAnalyticsDashboardState
               ),
             ),
           ],
-          const SizedBox(height: 12),
-          if (isWide)
+          const SizedBox(height: 10),
+          if (isWide && showTypeDistribution)
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: _panelCard(
                     title: 'Repartition des clients',
-                    subtitle: 'Par type de client',
+                    subtitle: 'Types de client',
                     icon: Icons.pie_chart_outline,
                     child: _TypeDistributionBars(data: typeData),
                   ),
@@ -1342,35 +1730,47 @@ class _CommercialAnalyticsDashboardState
                 Expanded(
                   child: _panelCard(
                     title: 'Top clients',
-                    subtitle: 'Classement par chiffre d affaires',
+                    subtitle: 'Classement CA confirme',
                     icon: Icons.workspace_premium_outlined,
-                    child: _TopClientsList(data: topClients, money: _money),
+                    child: _TopClientsList(
+                      data: topClientsPreview,
+                      money: _money,
+                    ),
                   ),
                 ),
               ],
             )
-          else ...[
+          else if (showTypeDistribution) ...[
             _panelCard(
               title: 'Repartition des clients',
-              subtitle: 'Par type de client',
+              subtitle: 'Types de client',
               icon: Icons.pie_chart_outline,
               child: _TypeDistributionBars(data: typeData),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             _panelCard(
               title: 'Top clients',
-              subtitle: 'Classement par chiffre d affaires',
+              subtitle: 'Classement CA confirme',
               icon: Icons.workspace_premium_outlined,
-              child: _TopClientsList(data: topClients, money: _money),
+              child: _TopClientsList(data: topClientsPreview, money: _money),
+            ),
+          ] else ...[
+            _panelCard(
+              title: 'Top clients',
+              subtitle: 'Classement CA confirme',
+              icon: Icons.workspace_premium_outlined,
+              child: _TopClientsList(data: topClientsPreview, money: _money),
             ),
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           _panelCard(
             title: 'Commandes recentes',
-            subtitle: 'Derniers mouvements sur votre portefeuille',
+            subtitle: isPhone
+                ? 'Derniers dossiers prioritaires'
+                : 'Derniers mouvements du portefeuille',
             icon: Icons.history_toggle_off_rounded,
             child: _RecentOrdersList(
-              orders: recentOrders,
+              orders: recentOrdersPreview,
               statusColor: _statusColor,
               money: _money,
             ),
@@ -1407,12 +1807,12 @@ class _ClientRevenuePoint {
   });
 }
 
-class _MiniChip extends StatelessWidget {
+class _HeaderStatPill extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
 
-  const _MiniChip({
+  const _HeaderStatPill({
     required this.icon,
     required this.label,
     required this.value,
@@ -1420,33 +1820,35 @@ class _MiniChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 320),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.18),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 15, color: Colors.white),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                '$label: $value',
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFDCE5F3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: const Color(0xFF2D47C8)),
+          const SizedBox(width: 6),
+          Text(
+            '$label: ',
+            style: const TextStyle(
+              color: Color(0xFF607089),
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
             ),
-          ],
-        ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Color(0xFF1F2A44),
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1455,14 +1857,12 @@ class _MiniChip extends StatelessWidget {
 class _KpiTile extends StatelessWidget {
   final String label;
   final String value;
-  final String delta;
   final IconData icon;
   final Color color;
 
   const _KpiTile({
     required this.label,
     required this.value,
-    required this.delta,
     required this.icon,
     required this.color,
   });
@@ -1471,10 +1871,10 @@ class _KpiTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 240;
+        final compact = constraints.maxWidth < 170;
         return Container(
-          width: compact ? double.infinity : 280,
-          padding: const EdgeInsets.all(14),
+          width: double.infinity,
+          padding: EdgeInsets.all(compact ? 12 : 13),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(14),
@@ -1487,49 +1887,51 @@ class _KpiTile extends StatelessWidget {
               ),
             ],
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: color),
+              Row(
+                children: [
+                  Container(
+                    width: compact ? 36 : 40,
+                    height: compact ? 36 : 40,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: Icon(icon, color: color, size: compact ? 18 : 20),
+                  ),
+                  const Spacer(),
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      style: const TextStyle(
-                        color: Color(0xFF607089),
-                        fontSize: 12.5,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      value,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF1F2A44),
-                        fontWeight: FontWeight.w800,
-                        fontSize: 17,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      delta,
-                      style: const TextStyle(
-                        color: Color(0xFF94A3B8),
-                        fontSize: 11.5,
-                      ),
-                    ),
-                  ],
+              SizedBox(height: compact ? 10 : 12),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: const Color(0xFF607089),
+                  fontSize: compact ? 11.5 : 12.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: const Color(0xFF1F2A44),
+                  fontWeight: FontWeight.w800,
+                  fontSize: compact ? 15.5 : 17,
+                  height: 1.1,
                 ),
               ),
             ],
@@ -1549,13 +1951,67 @@ class _SalesTrendChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasData = values.any((v) => v > 0);
+    final maxValue = values.fold<double>(0, math.max);
+    final axisMax = _niceAxisMax(maxValue);
+    final axisTicks = List<double>.generate(
+      5,
+      (index) => (axisMax / 4) * (4 - index),
+    );
+    final peakValue = hasData ? values.reduce(math.max) : 0.0;
+    final peakIndex = hasData ? values.indexOf(peakValue) : -1;
+    final helperText = hasData
+        ? 'Montants en DT. Pic ${labels[peakIndex]}: ${_compactAmount(peakValue, withUnit: true)}'
+        : 'Montants en DT. Aucune vente confirmee sur la periode.';
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text(
+          helperText,
+          style: const TextStyle(
+            color: Color(0xFF607089),
+            fontSize: 11.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
         SizedBox(
-          height: 190,
-          child: CustomPaint(
-            painter: _SalesTrendPainter(values: values),
-            child: const SizedBox.expand(),
+          height: 220,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: 42,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    for (final tick in axisTicks)
+                      Text(
+                        _compactAmount(tick),
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          color: hasData
+                              ? const Color(0xFF607089)
+                              : const Color(0xFF94A3B8),
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: CustomPaint(
+                  painter: _SalesTrendPainter(
+                    values: values,
+                    maxValue: axisMax,
+                  ),
+                  child: const SizedBox.expand(),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 8),
@@ -1563,16 +2019,30 @@ class _SalesTrendChart extends StatelessWidget {
           children: [
             for (var i = 0; i < labels.length; i++)
               Expanded(
-                child: Text(
-                  labels[i],
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: hasData
-                        ? const Color(0xFF607089)
-                        : const Color(0xFF94A3B8),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Column(
+                  children: [
+                    Text(
+                      labels[i],
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: hasData
+                            ? const Color(0xFF607089)
+                            : const Color(0xFF94A3B8),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _compactAmount(values[i]),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
           ],
@@ -1584,8 +2054,9 @@ class _SalesTrendChart extends StatelessWidget {
 
 class _SalesTrendPainter extends CustomPainter {
   final List<double> values;
+  final double maxValue;
 
-  _SalesTrendPainter({required this.values});
+  _SalesTrendPainter({required this.values, required this.maxValue});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1593,8 +2064,8 @@ class _SalesTrendPainter extends CustomPainter {
       ..color = const Color(0xFFE6EAF2)
       ..strokeWidth = 1;
 
-    const topPadding = 10.0;
-    const bottomPadding = 20.0;
+    const topPadding = 6.0;
+    const bottomPadding = 16.0;
     final chartHeight = size.height - topPadding - bottomPadding;
     final baseY = topPadding + chartHeight;
 
@@ -1605,7 +2076,6 @@ class _SalesTrendPainter extends CustomPainter {
 
     if (values.isEmpty) return;
 
-    final maxValue = values.fold<double>(0, math.max);
     final safeMax = maxValue <= 0 ? 1.0 : maxValue;
     final stepX = values.length <= 1
         ? size.width
@@ -1665,7 +2135,10 @@ class _SalesTrendPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SalesTrendPainter oldDelegate) {
-    if (oldDelegate.values.length != values.length) return true;
+    if (oldDelegate.values.length != values.length ||
+        oldDelegate.maxValue != maxValue) {
+      return true;
+    }
     for (var i = 0; i < values.length; i++) {
       if (oldDelegate.values[i] != values[i]) return true;
     }
@@ -1696,8 +2169,8 @@ class _StatusDonutCard extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final chartSize = math.min(
-          190.0,
-          math.max(150.0, constraints.maxWidth - 24),
+          172.0,
+          math.max(140.0, constraints.maxWidth - 24),
         );
 
         return Column(
@@ -1717,14 +2190,17 @@ class _StatusDonutCard extends StatelessWidget {
                     children: [
                       const Text(
                         'Total',
-                        style: TextStyle(color: Color(0xFF607089), fontSize: 12),
+                        style: TextStyle(
+                          color: Color(0xFF607089),
+                          fontSize: 12,
+                        ),
                       ),
                       Text(
                         '$total',
                         style: const TextStyle(
                           color: Color(0xFF1F2A44),
                           fontWeight: FontWeight.w800,
-                          fontSize: 26,
+                          fontSize: 23,
                         ),
                       ),
                     ],
@@ -1732,35 +2208,37 @@ class _StatusDonutCard extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             for (final s in segments)
               Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: 6),
                 child: Row(
                   children: [
                     Container(
-                      width: 10,
-                      height: 10,
+                      width: 9,
+                      height: 9,
                       decoration: BoxDecoration(
                         color: s.color,
                         borderRadius: BorderRadius.circular(3),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         s.label,
                         style: const TextStyle(
                           color: Color(0xFF334155),
                           fontWeight: FontWeight.w600,
+                          fontSize: 12.5,
                         ),
                       ),
                     ),
                     Text(
-                      s.value.toStringAsFixed(0),
+                      '${s.value.toStringAsFixed(0)} (${total == 0 ? 0 : ((s.value / total) * 100).round()}%)',
                       style: const TextStyle(
                         color: Color(0xFF1F2A44),
                         fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
                       ),
                     ),
                   ],
@@ -2124,4 +2602,3 @@ class _SidebarItem {
     required this.icon,
   });
 }
-

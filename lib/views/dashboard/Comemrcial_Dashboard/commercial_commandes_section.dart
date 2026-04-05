@@ -22,7 +22,9 @@ const double _baseUnit = 8.0;
 // ---------- REUSABLE WIDGETS ----------
 class _StatusChip extends StatelessWidget {
   final String status;
-  const _StatusChip({required this.status});
+  final bool compact;
+
+  const _StatusChip({required this.status, this.compact = false});
 
   @override
   Widget build(BuildContext context) {
@@ -42,17 +44,21 @@ class _StatusChip extends StatelessWidget {
 
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: _baseUnit * 1.5,
-        vertical: _baseUnit,
+        horizontal: compact ? _baseUnit * 1.2 : _baseUnit * 1.5,
+        vertical: compact ? _baseUnit * 0.7 : _baseUnit,
       ),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(compact ? 16 : 20),
         border: Border.all(color: fg.withValues(alpha: 0.3)),
       ),
       child: Text(
         _displayStatus(status),
-        style: TextStyle(color: fg, fontWeight: FontWeight.w600, fontSize: 12),
+        style: TextStyle(
+          color: fg,
+          fontWeight: FontWeight.w600,
+          fontSize: compact ? 11 : 12,
+        ),
       ),
     );
   }
@@ -69,18 +75,24 @@ class _StatusChip extends StatelessWidget {
 class _InfoBadge extends StatelessWidget {
   final String label;
   final String value;
-  const _InfoBadge({required this.label, required this.value});
+  final bool compact;
+
+  const _InfoBadge({
+    required this.label,
+    required this.value,
+    this.compact = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: _baseUnit * 1.5,
-        vertical: _baseUnit,
+        horizontal: compact ? _baseUnit * 1.15 : _baseUnit * 1.5,
+        vertical: compact ? _baseUnit * 0.8 : _baseUnit,
       ),
       decoration: BoxDecoration(
         color: _background,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(compact ? 10 : 12),
         border: Border.all(color: _borderLight),
       ),
       child: Row(
@@ -88,14 +100,17 @@ class _InfoBadge extends StatelessWidget {
         children: [
           Text(
             '$label: ',
-            style: TextStyle(color: _textSecondary, fontSize: 12),
+            style: TextStyle(
+              color: _textSecondary,
+              fontSize: compact ? 11 : 12,
+            ),
           ),
           Text(
             value,
             style: TextStyle(
               color: _textPrimary,
               fontWeight: FontWeight.w600,
-              fontSize: 12,
+              fontSize: compact ? 11 : 12,
             ),
           ),
         ],
@@ -115,6 +130,7 @@ class CommercialCommandesSection extends StatefulWidget {
 
 class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     with TickerProviderStateMixin {
+  static const Set<String> _factureStatuses = {'CONFIRMEE', 'VALIDEE'};
   final CommandeService _commandeService = CommandeService();
   final ClientService _clientService = ClientService();
 
@@ -129,12 +145,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
   String _statusFilter = 'TOUS';
   int _draftLineSeed = 0;
 
-  static const List<String> _statuses = [
-    'TOUS',
-    'EN_ATTENTE',
-    'CONFIRMEE',
-    'ANNULEE',
-  ];
+  static const List<String> _statuses = ['TOUS', 'EN_ATTENTE', 'ANNULEE'];
 
   bool _useGrid = false;
 
@@ -160,7 +171,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
 
       setState(() {
         _commandes = _sortCommandesByCreation(
-          results[0] as List<CommandeModel>,
+          _visibleCommandes(results[0] as List<CommandeModel>),
         );
         _clients = results[1] as List<ClientModel>;
         _produits = results[2] as List<ProduitOption>;
@@ -182,12 +193,21 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
       final statut = _statusFilter == 'TOUS' ? null : _statusFilter;
       final data = await _commandeService.getCommandes(statut: statut);
       if (!mounted) return;
-      setState(() => _commandes = _sortCommandesByCreation(data));
+      setState(
+        () => _commandes = _sortCommandesByCreation(_visibleCommandes(data)),
+      );
     } catch (e) {
       if (mounted) _showMessage(e.toString(), isError: true);
     } finally {
       if (showBusy && mounted) setState(() => _isBusy = false);
     }
+  }
+
+  List<CommandeModel> _visibleCommandes(List<CommandeModel> commandes) {
+    return commandes.where((commande) {
+      final status = commande.statut.trim().toUpperCase();
+      return !_factureStatuses.contains(status);
+    }).toList();
   }
 
   List<CommandeModel> _sortCommandesByCreation(List<CommandeModel> commandes) {
@@ -346,7 +366,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
       if (!mounted) return;
       await _reloadCommandes();
       if (!mounted) return;
-      _showMessage('Commande confirmée');
+      _showMessage('Commande confirmee. Retrouvez-la dans Factures.');
     } catch (e) {
       if (mounted) _showMessage(e.toString(), isError: true);
     } finally {
@@ -406,43 +426,53 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
       barrierDismissible: true,
       builder: (ctx) {
         final client = cmd.client;
+        final compact = _isPhoneWidth(ctx, breakpoint: 700);
 
         return Dialog(
+          insetPadding: EdgeInsets.all(compact ? 10 : 24),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
           child: Container(
-            width: AdaptiveLayout.dialogWidth(ctx, max: 1000, sideMargin: 12),
-            constraints: BoxConstraints(
-              maxHeight: AdaptiveLayout.dialogHeight(ctx, ratio: 0.9),
+            width: AdaptiveLayout.dialogWidth(
+              ctx,
+              max: 1000,
+              sideMargin: compact ? 8 : 12,
             ),
-            padding: EdgeInsets.all(_baseUnit * 3),
+            constraints: BoxConstraints(
+              maxHeight: AdaptiveLayout.dialogHeight(
+                ctx,
+                ratio: compact ? 0.94 : 0.9,
+              ),
+            ),
+            padding: EdgeInsets.all(compact ? _baseUnit * 2 : _baseUnit * 3),
             child: Column(
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      width: 52,
-                      height: 52,
+                      width: compact ? 42 : 52,
+                      height: compact ? 42 : 52,
                       decoration: BoxDecoration(
                         color: _primary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.receipt_long_outlined,
                         color: _primary,
-                        size: 26,
+                        size: compact ? 22 : 26,
                       ),
                     ),
-                    const SizedBox(width: _baseUnit * 1.5),
+                    SizedBox(width: compact ? _baseUnit : _baseUnit * 1.5),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Détails de la commande',
                             style: TextStyle(
-                              fontSize: 20,
+                              fontSize: compact ? 17 : 20,
                               fontWeight: FontWeight.w800,
                               color: _textPrimary,
                             ),
@@ -450,8 +480,10 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                           const SizedBox(height: 4),
                           Text(
                             cmd.referenceCommandeClient,
-                            style: const TextStyle(
-                              fontSize: 13,
+                            maxLines: compact ? 2 : 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: compact ? 12 : 13,
                               color: _textSecondary,
                               fontWeight: FontWeight.w600,
                             ),
@@ -459,16 +491,17 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                         ],
                       ),
                     ),
-                    _StatusChip(status: cmd.statut),
-                    const SizedBox(width: _baseUnit),
+                    _StatusChip(status: cmd.statut, compact: compact),
+                    SizedBox(width: compact ? 4 : _baseUnit),
                     IconButton(
                       tooltip: 'Fermer',
+                      visualDensity: VisualDensity.compact,
                       onPressed: () => Navigator.pop(ctx),
                       icon: const Icon(Icons.close),
                     ),
                   ],
                 ),
-                const SizedBox(height: _baseUnit * 2),
+                SizedBox(height: compact ? _baseUnit * 1.25 : _baseUnit * 2),
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
@@ -487,11 +520,13 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                     icon: Icons.calendar_today_outlined,
                                     label: 'Date',
                                     value: cmd.dateCommandeFormatted,
+                                    compact: compact,
                                   ),
                                   _buildDetailInfoCard(
                                     icon: Icons.person_outline,
                                     label: 'Client',
                                     value: client?.fullName ?? '-',
+                                    compact: compact,
                                   ),
                                   _buildDetailInfoCard(
                                     icon: Icons.local_offer_outlined,
@@ -503,6 +538,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                     label: 'Remise',
                                     value:
                                         '${cmd.tauxRemise.toStringAsFixed(2)}%',
+                                    compact: compact,
                                   ),
                                 ],
                               ),
@@ -516,6 +552,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                     icon: Icons.person_outline,
                                     label: 'Nom complet',
                                     value: client?.fullName ?? '-',
+                                    compact: compact,
                                   ),
                                   _buildDetailRow(
                                     icon: Icons.phone_outlined,
@@ -526,12 +563,14 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                     icon: Icons.email_outlined,
                                     label: 'Email',
                                     value: client?.email ?? '-',
+                                    compact: compact,
                                   ),
                                   _buildDetailRow(
                                     icon: Icons.location_on_outlined,
                                     label: 'Adresse',
                                     value: client?.adresse ?? '-',
                                     isLast: true,
+                                    compact: compact,
                                   ),
                                 ],
                               ),
@@ -564,6 +603,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                       return _buildProduitDetailCard(
                                         index: index + 1,
                                         produit: p,
+                                        compact: compact,
                                       );
                                     }),
                                 ],
@@ -583,11 +623,13 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                   _buildSummaryTile(
                                     label: 'Nombre de lignes',
                                     value: '${cmd.produits.length}',
+                                    compact: compact,
                                   ),
                                   const SizedBox(height: _baseUnit),
                                   _buildSummaryTile(
                                     label: 'Statut',
                                     value: _displayStatus(cmd.statut),
+                                    compact: compact,
                                   ),
                                   const SizedBox(height: _baseUnit),
                                   _buildSummaryTile(
@@ -607,6 +649,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                     'Total final',
                                     '${cmd.total.toStringAsFixed(2)} DT',
                                     isPrimary: true,
+                                    compact: compact,
                                   ),
                                 ],
                               ),
@@ -679,12 +722,14 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                       );
 
                       if (compact) {
-                        return Column(
-                          children: [
-                            Expanded(child: leftPanel),
-                            const SizedBox(height: _baseUnit * 2),
-                            Expanded(child: rightPanel),
-                          ],
+                        return SingleChildScrollView(
+                          child: Column(
+                            children: [
+                              rightPanel,
+                              const SizedBox(height: _baseUnit * 1.5),
+                              leftPanel,
+                            ],
+                          ),
                         );
                       }
 
@@ -699,7 +744,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                     },
                   ),
                 ),
-                const SizedBox(height: _baseUnit * 2),
+                SizedBox(height: compact ? _baseUnit * 1.25 : _baseUnit * 2),
                 Wrap(
                   alignment: WrapAlignment.end,
                   spacing: _baseUnit,
@@ -714,18 +759,21 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                             _onConfirm(cmd);
                           });
                         },
-                        icon: const Icon(Icons.check_circle_outline),
+                        icon: const Icon(Icons.check_circle_outline, size: 18),
                         label: const Text('Confirmer'),
-                        style: ElevatedButton.styleFrom(
+                        style: _compactFilledButtonStyle(
                           backgroundColor: _success,
-                          foregroundColor: Colors.white,
                         ),
                       ),
                     TextButton.icon(
                       onPressed: () =>
                           Navigator.of(ctx, rootNavigator: true).pop(),
-                      icon: const Icon(Icons.close),
+                      icon: const Icon(Icons.close, size: 18),
                       label: const Text('Fermer'),
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
                     ),
                   ],
                 ),
@@ -852,7 +900,10 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
               );
             }
 
+            final compactViewport = _isPhoneWidth(ctx, breakpoint: 700);
+
             return Dialog(
+              insetPadding: EdgeInsets.all(compactViewport ? 10 : 24),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(24),
               ),
@@ -860,15 +911,17 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                 width: AdaptiveLayout.dialogWidth(
                   dialogContext,
                   max: 980,
-                  sideMargin: 12,
+                  sideMargin: compactViewport ? 8 : 12,
                 ),
                 constraints: BoxConstraints(
                   maxHeight: AdaptiveLayout.dialogHeight(
                     dialogContext,
-                    ratio: 0.9,
+                    ratio: compactViewport ? 0.94 : 0.9,
                   ),
                 ),
-                padding: EdgeInsets.all(_baseUnit * 3),
+                padding: EdgeInsets.all(
+                  compactViewport ? _baseUnit * 2 : _baseUnit * 3,
+                ),
                 child: Form(
                   key: formKey,
                   child: Column(
@@ -880,42 +933,49 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                               isEdit
                                   ? 'Modifier la commande'
                                   : 'Nouvelle commande',
-                              style: const TextStyle(
-                                fontSize: 20,
+                              style: TextStyle(
+                                fontSize: compactViewport ? 18 : 20,
                                 fontWeight: FontWeight.w800,
                                 color: _textPrimary,
                               ),
                             ),
                           ),
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: _baseUnit * 1.5,
-                              vertical: _baseUnit,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _background,
-                              borderRadius: BorderRadius.circular(30),
-                              border: Border.all(color: _borderLight),
-                            ),
-                            child: Text(
-                              'Interface unique',
-                              style: TextStyle(
-                                color: _primaryDark,
-                                fontWeight: FontWeight.w700,
+                          if (!compactViewport) ...[
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: _baseUnit * 1.5,
+                                vertical: _baseUnit,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _background,
+                                borderRadius: BorderRadius.circular(30),
+                                border: Border.all(color: _borderLight),
+                              ),
+                              child: Text(
+                                'Interface unique',
+                                style: TextStyle(
+                                  color: _primaryDark,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: _baseUnit),
+                            const SizedBox(width: _baseUnit),
+                          ],
                           IconButton(
                             onPressed: () => Navigator.of(
                               dialogContext,
                               rootNavigator: true,
                             ).pop(),
+                            visualDensity: VisualDensity.compact,
                             icon: const Icon(Icons.close),
                           ),
                         ],
                       ),
-                      const SizedBox(height: _baseUnit * 2),
+                      SizedBox(
+                        height: compactViewport
+                            ? _baseUnit * 1.25
+                            : _baseUnit * 2,
+                      ),
                       Expanded(
                         child: SingleChildScrollView(
                           child: Column(
@@ -1037,10 +1097,14 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                               return Container(
                                                 key: ValueKey(line.rowKey),
                                                 margin: EdgeInsets.only(
-                                                  bottom: _baseUnit * 1.5,
+                                                  bottom: compactViewport
+                                                      ? _baseUnit
+                                                      : _baseUnit * 1.5,
                                                 ),
                                                 padding: EdgeInsets.all(
-                                                  _baseUnit * 1.5,
+                                                  compactViewport
+                                                      ? _baseUnit * 1.25
+                                                      : _baseUnit * 1.5,
                                                 ),
                                                 decoration: BoxDecoration(
                                                   color: _background,
@@ -1180,15 +1244,19 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                                         ),
                                                         Expanded(
                                                           child: Container(
-                                                            padding:
-                                                                EdgeInsets.symmetric(
-                                                                  horizontal:
-                                                                      _baseUnit *
-                                                                      1.5,
-                                                                  vertical:
-                                                                      _baseUnit *
-                                                                      1.8,
-                                                                ),
+                                                            padding: EdgeInsets.symmetric(
+                                                              horizontal:
+                                                                  compactViewport
+                                                                  ? _baseUnit
+                                                                  : _baseUnit *
+                                                                        1.5,
+                                                              vertical:
+                                                                  compactViewport
+                                                                  ? _baseUnit *
+                                                                        1.25
+                                                                  : _baseUnit *
+                                                                        1.8,
+                                                            ),
                                                             decoration: BoxDecoration(
                                                               color: _surface,
                                                               borderRadius:
@@ -1211,7 +1279,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                                                     color:
                                                                         _textSecondary,
                                                                     fontSize:
-                                                                        12,
+                                                                        11,
                                                                   ),
                                                                 ),
                                                                 const SizedBox(
@@ -1236,15 +1304,19 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                                         ),
                                                         Expanded(
                                                           child: Container(
-                                                            padding:
-                                                                EdgeInsets.symmetric(
-                                                                  horizontal:
-                                                                      _baseUnit *
-                                                                      1.5,
-                                                                  vertical:
-                                                                      _baseUnit *
-                                                                      1.8,
-                                                                ),
+                                                            padding: EdgeInsets.symmetric(
+                                                              horizontal:
+                                                                  compactViewport
+                                                                  ? _baseUnit
+                                                                  : _baseUnit *
+                                                                        1.5,
+                                                              vertical:
+                                                                  compactViewport
+                                                                  ? _baseUnit *
+                                                                        1.25
+                                                                  : _baseUnit *
+                                                                        1.8,
+                                                            ),
                                                             decoration: BoxDecoration(
                                                               color: _surface,
                                                               borderRadius:
@@ -1267,7 +1339,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                                                     color:
                                                                         _textSecondary,
                                                                     fontSize:
-                                                                        12,
+                                                                        11,
                                                                   ),
                                                                 ),
                                                                 const SizedBox(
@@ -1477,23 +1549,17 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                               dialogContext,
                               rootNavigator: true,
                             ).pop(),
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
                             child: const Text('Annuler'),
                           ),
                           ElevatedButton.icon(
                             onPressed: save,
-                            icon: const Icon(Icons.save_outlined),
+                            icon: const Icon(Icons.save_outlined, size: 18),
                             label: Text(isEdit ? 'Enregistrer' : 'Créer'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _accent,
-                              foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(
-                                horizontal: _baseUnit * 2,
-                                vertical: _baseUnit * 1.5,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
+                            style: _compactFilledButtonStyle(),
                           ),
                         ],
                       ),
@@ -1523,10 +1589,14 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     return result;
   }
 
-  Widget _buildFormSection({required String title, required Widget child}) {
+  Widget _buildFormSection({
+    required String title,
+    required Widget child,
+    bool compact = false,
+  }) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(_baseUnit * 2),
+      padding: EdgeInsets.all(compact ? _baseUnit * 1.5 : _baseUnit * 2),
       decoration: BoxDecoration(
         color: _surface,
         borderRadius: BorderRadius.circular(20),
@@ -1544,23 +1614,27 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 15,
+            style: TextStyle(
+              fontSize: compact ? 14 : 15,
               fontWeight: FontWeight.w800,
               color: _textPrimary,
             ),
           ),
-          const SizedBox(height: _baseUnit * 1.5),
+          SizedBox(height: compact ? _baseUnit : _baseUnit * 1.5),
           child,
         ],
       ),
     );
   }
 
-  Widget _buildDetailsSection({required String title, required Widget child}) {
+  Widget _buildDetailsSection({
+    required String title,
+    required Widget child,
+    bool compact = false,
+  }) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(_baseUnit * 2),
+      padding: EdgeInsets.all(compact ? _baseUnit * 1.5 : _baseUnit * 2),
       decoration: BoxDecoration(
         color: _surface,
         borderRadius: BorderRadius.circular(20),
@@ -1578,13 +1652,13 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 15,
+            style: TextStyle(
+              fontSize: compact ? 14 : 15,
               fontWeight: FontWeight.w800,
               color: _textPrimary,
             ),
           ),
-          const SizedBox(height: _baseUnit * 1.5),
+          SizedBox(height: compact ? _baseUnit : _baseUnit * 1.5),
           child,
         ],
       ),
@@ -1595,27 +1669,28 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     required IconData icon,
     required String label,
     required String value,
+    bool compact = false,
   }) {
     return Container(
-      constraints: const BoxConstraints(minWidth: 190),
-      padding: EdgeInsets.all(_baseUnit * 1.5),
+      constraints: BoxConstraints(minWidth: compact ? 150 : 190),
+      padding: EdgeInsets.all(compact ? _baseUnit * 1.2 : _baseUnit * 1.5),
       decoration: BoxDecoration(
         color: _background,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(compact ? 12 : 16),
         border: Border.all(color: _borderLight),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: compact ? 30 : 36,
+            height: compact ? 30 : 36,
             decoration: BoxDecoration(
               color: _surface,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(compact ? 8 : 10),
               border: Border.all(color: _borderLight),
             ),
-            child: Icon(icon, size: 18, color: _primary),
+            child: Icon(icon, size: compact ? 16 : 18, color: _primary),
           ),
           const SizedBox(width: _baseUnit),
           Flexible(
@@ -1624,16 +1699,19 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
               children: [
                 Text(
                   label,
-                  style: const TextStyle(color: _textSecondary, fontSize: 12),
+                  style: TextStyle(
+                    color: _textSecondary,
+                    fontSize: compact ? 11 : 12,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   value,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: _textPrimary,
                     fontWeight: FontWeight.w700,
-                    fontSize: 13,
+                    fontSize: compact ? 12 : 13,
                   ),
                 ),
               ],
@@ -1649,19 +1727,20 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     required String label,
     required String value,
     bool isLast = false,
+    bool compact = false,
   }) {
     return Container(
       margin: EdgeInsets.only(bottom: isLast ? 0 : _baseUnit),
-      padding: EdgeInsets.all(_baseUnit * 1.25),
+      padding: EdgeInsets.all(compact ? _baseUnit : _baseUnit * 1.25),
       decoration: BoxDecoration(
         color: _background,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(compact ? 10 : 12),
         border: Border.all(color: _borderLight),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: _textSecondary),
+          Icon(icon, size: compact ? 16 : 18, color: _textSecondary),
           const SizedBox(width: _baseUnit),
           Expanded(
             child: Column(
@@ -1669,15 +1748,18 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
               children: [
                 Text(
                   label,
-                  style: const TextStyle(color: _textSecondary, fontSize: 12),
+                  style: TextStyle(
+                    color: _textSecondary,
+                    fontSize: compact ? 11 : 12,
+                  ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: _textPrimary,
                     fontWeight: FontWeight.w600,
-                    fontSize: 13,
+                    fontSize: compact ? 12 : 13,
                   ),
                 ),
               ],
@@ -1691,13 +1773,14 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
   Widget _buildProduitDetailCard({
     required int index,
     required dynamic produit,
+    bool compact = false,
   }) {
     return Container(
-      margin: EdgeInsets.only(bottom: _baseUnit * 1.25),
-      padding: EdgeInsets.all(_baseUnit * 1.5),
+      margin: EdgeInsets.only(bottom: compact ? _baseUnit : _baseUnit * 1.25),
+      padding: EdgeInsets.all(compact ? _baseUnit * 1.2 : _baseUnit * 1.5),
       decoration: BoxDecoration(
         color: _background,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(compact ? 12 : 16),
         border: Border.all(color: _borderLight),
       ),
       child: Column(
@@ -1705,12 +1788,12 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
           Row(
             children: [
               Container(
-                width: 34,
-                height: 34,
+                width: compact ? 30 : 34,
+                height: compact ? 30 : 34,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: _surface,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(compact ? 8 : 10),
                   border: Border.all(color: _borderLight),
                 ),
                 child: Text(
@@ -1725,23 +1808,24 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
               Expanded(
                 child: Text(
                   produit.libelle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
-                    fontSize: 14,
+                    fontSize: compact ? 13 : 14,
                     color: _textPrimary,
                   ),
                 ),
               ),
               Text(
                 '${produit.sousTotal.toStringAsFixed(2)} DT',
-                style: const TextStyle(
+                style: TextStyle(
                   color: _primaryDark,
                   fontWeight: FontWeight.w800,
+                  fontSize: compact ? 13 : 14,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: _baseUnit * 1.25),
+          SizedBox(height: compact ? _baseUnit : _baseUnit * 1.25),
           Wrap(
             spacing: _baseUnit,
             runSpacing: _baseUnit,
@@ -1750,10 +1834,12 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
               _InfoBadge(
                 label: 'Prix unitaire',
                 value: '${produit.prixUnitaire.toStringAsFixed(2)} DT',
+                compact: compact,
               ),
               _InfoBadge(
                 label: 'Sous-total',
                 value: '${produit.sousTotal.toStringAsFixed(2)} DT',
+                compact: compact,
               ),
             ],
           ),
@@ -1762,16 +1848,20 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     );
   }
 
-  Widget _buildSummaryTile({required String label, required String value}) {
+  Widget _buildSummaryTile({
+    required String label,
+    required String value,
+    bool compact = false,
+  }) {
     return Container(
       width: double.infinity,
       padding: EdgeInsets.symmetric(
-        horizontal: _baseUnit * 1.5,
-        vertical: _baseUnit * 1.3,
+        horizontal: compact ? _baseUnit * 1.15 : _baseUnit * 1.5,
+        vertical: compact ? _baseUnit : _baseUnit * 1.3,
       ),
       decoration: BoxDecoration(
         color: _background,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(compact ? 10 : 12),
         border: Border.all(color: _borderLight),
       ),
       child: Row(
@@ -1779,14 +1869,18 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(color: _textSecondary, fontSize: 12),
+              style: TextStyle(
+                color: _textSecondary,
+                fontSize: compact ? 11 : 12,
+              ),
             ),
           ),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               color: _textPrimary,
               fontWeight: FontWeight.w700,
+              fontSize: compact ? 12 : 13,
             ),
           ),
         ],
@@ -1794,7 +1888,12 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     );
   }
 
-  Widget _buildAmountRow(String label, String value, {bool isPrimary = false}) {
+  Widget _buildAmountRow(
+    String label,
+    String value, {
+    bool isPrimary = false,
+    bool compact = false,
+  }) {
     return Row(
       children: [
         Expanded(
@@ -1803,7 +1902,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
             style: TextStyle(
               color: isPrimary ? _textPrimary : _textSecondary,
               fontWeight: isPrimary ? FontWeight.w700 : FontWeight.w600,
-              fontSize: isPrimary ? 15 : 13,
+              fontSize: compact ? (isPrimary ? 14 : 12) : (isPrimary ? 15 : 13),
             ),
           ),
         ),
@@ -1812,7 +1911,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
           style: TextStyle(
             color: isPrimary ? _accent : _textPrimary,
             fontWeight: FontWeight.w800,
-            fontSize: isPrimary ? 18 : 14,
+            fontSize: compact ? (isPrimary ? 16 : 13) : (isPrimary ? 18 : 14),
           ),
         ),
       ],
@@ -1926,6 +2025,8 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
 
   @override
   Widget build(BuildContext context) {
+    final isPhone = _isPhoneWidth(context, breakpoint: 700);
+
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -1950,19 +2051,24 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
 
     return Container(
       color: _background,
-      child: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(child: _buildHeader()),
-          if (_isBusy)
-            const SliverToBoxAdapter(
-              child: LinearProgressIndicator(minHeight: 2),
-            ),
-          if (_commandes.isEmpty)
-            SliverFillRemaining(hasScrollBody: false, child: _buildEmptyState())
-          else
-            ..._buildOrderSlivers(),
-        ],
+      child: Scrollbar(
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(child: _buildHeader()),
+            if (_isBusy)
+              const SliverToBoxAdapter(
+                child: LinearProgressIndicator(minHeight: 2),
+              ),
+            if (_commandes.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: _buildEmptyState(compact: isPhone),
+              )
+            else
+              ..._buildOrderSlivers(compact: isPhone),
+          ],
+        ),
       ),
     );
   }
@@ -1979,7 +2085,11 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: EdgeInsets.all(_baseUnit * 2),
+            padding: EdgeInsets.all(
+              _isPhoneWidth(context, breakpoint: 760)
+                  ? _baseUnit * 1.5
+                  : _baseUnit * 2,
+            ),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 begin: Alignment.topLeft,
@@ -2000,19 +2110,22 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                 final compact = constraints.maxWidth < 760;
                 final titleBlock = Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
+                  children: [
                     Text(
                       'Commandes Commerciales',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 24,
+                        fontSize: compact ? 18 : 24,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    SizedBox(height: 6),
+                    SizedBox(height: compact ? 4 : 6),
                     Text(
                       'Workflow de vente, suivi et actions sur commandes dans une interface unifiée.',
-                      style: TextStyle(color: Color(0xFFE3EBFF), fontSize: 13),
+                      style: TextStyle(
+                        color: const Color(0xFFE3EBFF),
+                        fontSize: compact ? 12 : 13,
+                      ),
                     ),
                   ],
                 );
@@ -2020,6 +2133,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                 final counter = _buildCountPill(
                   _commandes.length,
                   onDark: true,
+                  compact: compact,
                 );
 
                 if (compact) {
@@ -2044,7 +2158,11 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
           ),
           const SizedBox(height: _baseUnit * 1.5),
           Container(
-            padding: EdgeInsets.all(_baseUnit * 2),
+            padding: EdgeInsets.all(
+              _isPhoneWidth(context, breakpoint: 760)
+                  ? _baseUnit * 1.5
+                  : _baseUnit * 2,
+            ),
             decoration: BoxDecoration(
               color: _surface,
               borderRadius: BorderRadius.circular(20),
@@ -2067,46 +2185,50 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                       const Text(
                         'Filtres & Actions',
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 13,
                           fontWeight: FontWeight.w700,
                           color: _textPrimary,
                         ),
                       ),
                       const SizedBox(height: _baseUnit),
-                      _buildStatusFilter(),
-                      const SizedBox(height: _baseUnit * 1.5),
-                      Wrap(
-                        spacing: _baseUnit,
-                        runSpacing: _baseUnit,
+                      _buildStatusFilter(compact: true),
+                      const SizedBox(height: _baseUnit * 1.25),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _isBusy ? null : _onCreate,
+                          icon: const Icon(Icons.add, size: 18),
+                          label: const Text('Nouvelle commande'),
+                          style: _compactFilledButtonStyle(),
+                        ),
+                      ),
+                      const SizedBox(height: _baseUnit),
+                      Row(
                         children: [
-                          ElevatedButton.icon(
-                            onPressed: _isBusy ? null : _onCreate,
-                            icon: const Icon(Icons.add),
-                            label: const Text('Nouvelle commande'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _accent,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _isBusy
+                                  ? null
+                                  : () => _reloadCommandes(showBusy: true),
+                              icon: const Icon(Icons.refresh, size: 18),
+                              label: const Text('Actualiser'),
+                              style: _compactOutlinedButtonStyle(),
+                            ),
+                          ),
+                          const SizedBox(width: _baseUnit),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () =>
+                                  setState(() => _useGrid = !_useGrid),
+                              icon: Icon(
+                                _useGrid
+                                    ? Icons.view_agenda_outlined
+                                    : Icons.grid_view_rounded,
+                                size: 18,
                               ),
+                              label: Text(_useGrid ? 'Liste' : 'Grille'),
+                              style: _compactOutlinedButtonStyle(),
                             ),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: _isBusy
-                                ? null
-                                : () => _reloadCommandes(showBusy: true),
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Actualiser'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: () =>
-                                setState(() => _useGrid = !_useGrid),
-                            icon: Icon(
-                              _useGrid
-                                  ? Icons.view_agenda_outlined
-                                  : Icons.grid_view_rounded,
-                            ),
-                            label: Text(_useGrid ? 'Vue liste' : 'Vue grille'),
                           ),
                         ],
                       ),
@@ -2135,6 +2257,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                               : () => _reloadCommandes(showBusy: true),
                           icon: const Icon(Icons.refresh),
                           label: const Text('Actualiser'),
+                          style: _compactOutlinedButtonStyle(),
                         ),
                         const SizedBox(width: _baseUnit),
                         OutlinedButton.icon(
@@ -2145,19 +2268,14 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                 : Icons.grid_view_rounded,
                           ),
                           label: Text(_useGrid ? 'Vue liste' : 'Vue grille'),
+                          style: _compactOutlinedButtonStyle(),
                         ),
                         const SizedBox(width: _baseUnit),
                         ElevatedButton.icon(
                           onPressed: _isBusy ? null : _onCreate,
-                          icon: const Icon(Icons.add),
+                          icon: const Icon(Icons.add, size: 18),
                           label: const Text('Nouvelle commande'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _accent,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
+                          style: _compactFilledButtonStyle(),
                         ),
                       ],
                     ),
@@ -2178,17 +2296,56 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     _reloadCommandes(showBusy: true);
   }
 
-  Widget _buildCountPill(int count, {bool onDark = false}) {
-    return Container(
+  bool _isPhoneWidth(BuildContext context, {double breakpoint = 640}) {
+    return MediaQuery.sizeOf(context).width < breakpoint;
+  }
+
+  ButtonStyle _compactOutlinedButtonStyle({Color? foregroundColor}) {
+    return OutlinedButton.styleFrom(
+      foregroundColor: foregroundColor,
+      visualDensity: VisualDensity.compact,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      minimumSize: const Size(0, 36),
+      padding: EdgeInsets.symmetric(
+        horizontal: _baseUnit * 1.25,
+        vertical: _baseUnit,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+    );
+  }
+
+  ButtonStyle _compactFilledButtonStyle({Color backgroundColor = _accent}) {
+    return ElevatedButton.styleFrom(
+      backgroundColor: backgroundColor,
+      foregroundColor: Colors.white,
+      visualDensity: VisualDensity.compact,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      minimumSize: const Size(0, 38),
       padding: EdgeInsets.symmetric(
         horizontal: _baseUnit * 1.5,
-        vertical: _baseUnit,
+        vertical: _baseUnit * 1.1,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+    );
+  }
+
+  Widget _buildCountPill(
+    int count, {
+    bool onDark = false,
+    bool compact = false,
+  }) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? _baseUnit * 1.2 : _baseUnit * 1.5,
+        vertical: compact ? _baseUnit * 0.8 : _baseUnit,
       ),
       decoration: BoxDecoration(
         color: onDark
             ? Colors.white.withValues(alpha: 0.18)
             : _primary.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(compact ? 18 : 30),
         border: Border.all(
           color: onDark
               ? Colors.white.withValues(alpha: 0.28)
@@ -2200,48 +2357,64 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
         style: TextStyle(
           color: onDark ? Colors.white : _primary,
           fontWeight: FontWeight.w800,
+          fontSize: compact ? 12 : 14,
         ),
       ),
     );
   }
 
-  Widget _buildStatusFilter() {
+  Widget _buildStatusFilter({bool compact = false}) {
     final icons = <String, IconData>{
       'TOUS': Icons.all_inbox_outlined,
       'EN_ATTENTE': Icons.hourglass_top_outlined,
-      'CONFIRMEE': Icons.verified_outlined,
       'ANNULEE': Icons.block_outlined,
     };
 
-    return Wrap(
+    final chips = _statuses.map((status) {
+      final selected = _statusFilter == status;
+      return ChoiceChip(
+        label: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icons[status] ?? Icons.tune,
+              size: compact ? 14 : 16,
+              color: selected ? _primaryDark : _textSecondary,
+            ),
+            SizedBox(width: compact ? 5 : 6),
+            Text(status == 'TOUS' ? 'Tous' : _displayStatus(status)),
+          ],
+        ),
+        selected: selected,
+        selectedColor: _primary.withValues(alpha: 0.16),
+        backgroundColor: _surface,
+        side: BorderSide(color: selected ? _primary : _borderLight),
+        labelStyle: TextStyle(
+          color: selected ? _primaryDark : _textPrimary,
+          fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+          fontSize: compact ? 12 : 13,
+        ),
+        labelPadding: EdgeInsets.symmetric(
+          horizontal: compact ? 4 : 6,
+          vertical: compact ? 0 : 2,
+        ),
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
+        onSelected: (_) => _setFilter(status),
+      );
+    }).toList();
+
+    final content = Wrap(
       spacing: _baseUnit,
       runSpacing: _baseUnit,
-      children: _statuses.map((status) {
-        final selected = _statusFilter == status;
-        return ChoiceChip(
-          label: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icons[status] ?? Icons.tune,
-                size: 16,
-                color: selected ? _primaryDark : _textSecondary,
-              ),
-              const SizedBox(width: 6),
-              Text(status == 'TOUS' ? 'Tous' : _displayStatus(status)),
-            ],
-          ),
-          selected: selected,
-          selectedColor: _primary.withValues(alpha: 0.16),
-          backgroundColor: _surface,
-          side: BorderSide(color: selected ? _primary : _borderLight),
-          labelStyle: TextStyle(
-            color: selected ? _primaryDark : _textPrimary,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-          ),
-          onSelected: (_) => _setFilter(status),
-        );
-      }).toList(),
+      children: chips,
+    );
+
+    if (!compact) return content;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: content,
     );
   }
 
@@ -2252,11 +2425,11 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     return raw;
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState({bool compact = false}) {
     return Center(
       child: Container(
-        padding: EdgeInsets.all(_baseUnit * 4),
-        margin: EdgeInsets.all(_baseUnit * 2),
+        padding: EdgeInsets.all(compact ? _baseUnit * 2.5 : _baseUnit * 4),
+        margin: EdgeInsets.all(compact ? _baseUnit * 1.5 : _baseUnit * 2),
         decoration: BoxDecoration(
           color: _surface,
           borderRadius: BorderRadius.circular(20),
@@ -2265,8 +2438,12 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.shopping_cart_outlined, size: 64, color: _textSecondary),
-            const SizedBox(height: _baseUnit * 2),
+            Icon(
+              Icons.shopping_cart_outlined,
+              size: compact ? 48 : 64,
+              color: _textSecondary,
+            ),
+            SizedBox(height: compact ? _baseUnit * 1.5 : _baseUnit * 2),
             const Text(
               'Aucune commande disponible',
               style: TextStyle(
@@ -2276,23 +2453,22 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
               ),
             ),
             const SizedBox(height: _baseUnit),
-            const Text(
-              'Créez votre première commande en cliquant sur le bouton ci-dessous.',
-              style: TextStyle(color: _textSecondary),
+            Text(
+              _statusFilter == 'TOUS'
+                  ? 'Les commandes confirmees sont transferees vers Factures. Creez une nouvelle commande pour continuer.'
+                  : 'Ajustez les filtres ou creez une nouvelle commande.',
+              style: TextStyle(
+                color: _textSecondary,
+                fontSize: compact ? 12 : 13,
+              ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: _baseUnit * 2),
+            SizedBox(height: compact ? _baseUnit * 1.5 : _baseUnit * 2),
             ElevatedButton.icon(
               onPressed: _isBusy ? null : _onCreate,
-              icon: const Icon(Icons.add),
+              icon: const Icon(Icons.add, size: 18),
               label: const Text('Créer une commande'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _accent,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-              ),
+              style: _compactFilledButtonStyle(),
             ),
           ],
         ),
@@ -2300,22 +2476,22 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     );
   }
 
-  List<Widget> _buildOrderSlivers() {
+  List<Widget> _buildOrderSlivers({bool compact = false}) {
     if (_useGrid) {
       return [
         SliverPadding(
           padding: EdgeInsets.fromLTRB(
-            _baseUnit * 2,
+            compact ? _baseUnit * 1.5 : _baseUnit * 2,
             _baseUnit,
-            _baseUnit * 2,
-            _baseUnit * 2,
+            compact ? _baseUnit * 1.5 : _baseUnit * 2,
+            compact ? _baseUnit * 1.5 : _baseUnit * 2,
           ),
           sliver: SliverGrid(
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 430,
-              crossAxisSpacing: _baseUnit * 2,
-              mainAxisSpacing: _baseUnit * 2,
-              mainAxisExtent: 300,
+            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: compact ? 360 : 430,
+              crossAxisSpacing: compact ? _baseUnit * 1.5 : _baseUnit * 2,
+              mainAxisSpacing: compact ? _baseUnit * 1.5 : _baseUnit * 2,
+              mainAxisExtent: compact ? 252 : 300,
             ),
             delegate: SliverChildBuilderDelegate((context, index) {
               return _buildOrderCard(_commandes[index], grid: true);
@@ -2328,16 +2504,18 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     return [
       SliverPadding(
         padding: EdgeInsets.fromLTRB(
-          _baseUnit * 2,
+          compact ? _baseUnit * 1.5 : _baseUnit * 2,
           _baseUnit,
-          _baseUnit * 2,
-          _baseUnit * 2,
+          compact ? _baseUnit * 1.5 : _baseUnit * 2,
+          compact ? _baseUnit * 1.5 : _baseUnit * 2,
         ),
         sliver: SliverList.builder(
           itemCount: _commandes.length,
           itemBuilder: (context, index) {
             return Padding(
-              padding: EdgeInsets.only(bottom: _baseUnit * 1.5),
+              padding: EdgeInsets.only(
+                bottom: compact ? _baseUnit * 1.1 : _baseUnit * 1.5,
+              ),
               child: _buildOrderCard(_commandes[index], grid: false),
             );
           },
@@ -2350,32 +2528,46 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     required IconData icon,
     required String label,
     required String value,
+    bool compact = false,
   }) {
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: _baseUnit * 1.25,
-        vertical: _baseUnit,
+        horizontal: compact ? _baseUnit : _baseUnit * 1.25,
+        vertical: compact ? _baseUnit * 0.8 : _baseUnit,
       ),
       decoration: BoxDecoration(
         color: _background,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(compact ? 10 : 12),
         border: Border.all(color: _borderLight),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 14, color: _textSecondary),
+          Icon(icon, size: compact ? 13 : 14, color: _textSecondary),
           const SizedBox(width: 6),
-          Text(
-            '$label: ',
-            style: const TextStyle(color: _textSecondary, fontSize: 12),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              color: _textPrimary,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: _textSecondary,
+                    fontSize: compact ? 11 : 12,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: _textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: compact ? 12 : 13,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -2408,7 +2600,11 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
           borderRadius: BorderRadius.circular(20),
           onTap: () => _onDetails(cmd),
           child: Padding(
-            padding: EdgeInsets.all(_baseUnit * 2),
+            padding: EdgeInsets.all(
+              _isPhoneWidth(context, breakpoint: 480)
+                  ? _baseUnit * 1.5
+                  : _baseUnit * 2,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -2416,15 +2612,16 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      width: 40,
-                      height: 40,
+                      width: _isPhoneWidth(context, breakpoint: 480) ? 34 : 40,
+                      height: _isPhoneWidth(context, breakpoint: 480) ? 34 : 40,
                       decoration: BoxDecoration(
                         color: _primary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.receipt_long_outlined,
                         color: _primary,
+                        size: _isPhoneWidth(context, breakpoint: 480) ? 20 : 24,
                       ),
                     ),
                     const SizedBox(width: _baseUnit * 1.25),
@@ -2434,10 +2631,14 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                         children: [
                           Text(
                             cmd.referenceCommandeClient,
-                            maxLines: 1,
+                            maxLines: _isPhoneWidth(context, breakpoint: 480)
+                                ? 2
+                                : 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 15,
+                            style: TextStyle(
+                              fontSize: _isPhoneWidth(context, breakpoint: 480)
+                                  ? 14
+                                  : 15,
                               fontWeight: FontWeight.w800,
                               color: _textPrimary,
                             ),
@@ -2445,68 +2646,98 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                           const SizedBox(height: 3),
                           Text(
                             cmd.dateCommandeFormatted,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: _textSecondary,
-                              fontSize: 12,
+                              fontSize: _isPhoneWidth(context, breakpoint: 480)
+                                  ? 11
+                                  : 12,
                             ),
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(width: _baseUnit),
-                    _StatusChip(status: cmd.statut),
+                    _StatusChip(
+                      status: cmd.statut,
+                      compact: _isPhoneWidth(context, breakpoint: 480),
+                    ),
                   ],
                 ),
-                const SizedBox(height: _baseUnit * 1.5),
+                SizedBox(
+                  height: _isPhoneWidth(context, breakpoint: 480)
+                      ? _baseUnit
+                      : _baseUnit * 1.5,
+                ),
                 Wrap(
-                  spacing: _baseUnit,
-                  runSpacing: _baseUnit,
+                  spacing: _isPhoneWidth(context, breakpoint: 480)
+                      ? _baseUnit * 0.75
+                      : _baseUnit,
+                  runSpacing: _isPhoneWidth(context, breakpoint: 480)
+                      ? _baseUnit * 0.75
+                      : _baseUnit,
                   children: [
                     _buildMetaTile(
                       icon: Icons.person_outline,
                       label: 'Client',
                       value: cmd.client?.fullName ?? '-',
+                      compact: _isPhoneWidth(context, breakpoint: 480),
                     ),
                     _buildMetaTile(
                       icon: Icons.payments_outlined,
                       label: 'Total',
                       value: '${cmd.total.toStringAsFixed(2)} DT',
+                      compact: _isPhoneWidth(context, breakpoint: 480),
                     ),
                     _buildMetaTile(
                       icon: Icons.shopping_bag_outlined,
                       label: 'Lignes',
                       value: '${cmd.produits.length}',
+                      compact: _isPhoneWidth(context, breakpoint: 480),
                     ),
                   ],
                 ),
-                const SizedBox(height: _baseUnit * 1.5),
+                SizedBox(
+                  height: _isPhoneWidth(context, breakpoint: 480)
+                      ? _baseUnit
+                      : _baseUnit * 1.5,
+                ),
                 Container(
                   width: double.infinity,
                   padding: EdgeInsets.symmetric(
-                    horizontal: _baseUnit * 1.25,
-                    vertical: _baseUnit,
+                    horizontal: _isPhoneWidth(context, breakpoint: 480)
+                        ? _baseUnit
+                        : _baseUnit * 1.25,
+                    vertical: _isPhoneWidth(context, breakpoint: 480)
+                        ? _baseUnit * 0.8
+                        : _baseUnit,
                   ),
                   decoration: BoxDecoration(
                     color: _background,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(
+                      _isPhoneWidth(context, breakpoint: 480) ? 10 : 12,
+                    ),
                     border: Border.all(color: _borderLight),
                   ),
                   child: Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.inventory_2_outlined,
-                        size: 16,
+                        size: _isPhoneWidth(context, breakpoint: 480) ? 14 : 16,
                         color: _textSecondary,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           _productsPreview(cmd),
-                          maxLines: 2,
+                          maxLines: _isPhoneWidth(context, breakpoint: 480)
+                              ? 3
+                              : 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: _textSecondary,
-                            fontSize: 12,
+                            fontSize: _isPhoneWidth(context, breakpoint: 480)
+                                ? 11
+                                : 12,
                           ),
                         ),
                       ),
@@ -2514,35 +2745,44 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                   ),
                 ),
                 if (!grid) ...[
-                  const SizedBox(height: _baseUnit * 1.5),
+                  SizedBox(
+                    height: _isPhoneWidth(context, breakpoint: 480)
+                        ? _baseUnit
+                        : _baseUnit * 1.5,
+                  ),
                   Wrap(
                     alignment: WrapAlignment.end,
-                    spacing: _baseUnit,
-                    runSpacing: _baseUnit,
+                    spacing: _isPhoneWidth(context, breakpoint: 480)
+                        ? _baseUnit * 0.75
+                        : _baseUnit,
+                    runSpacing: _isPhoneWidth(context, breakpoint: 480)
+                        ? _baseUnit * 0.75
+                        : _baseUnit,
                     children: [
                       OutlinedButton.icon(
                         onPressed: () => _onDetails(cmd),
-                        icon: const Icon(Icons.visibility_outlined),
+                        icon: const Icon(Icons.visibility_outlined, size: 16),
                         label: const Text('Détails'),
                       ),
                       OutlinedButton.icon(
                         onPressed: canEdit ? () => _onEdit(cmd) : null,
-                        icon: const Icon(Icons.edit_outlined),
+                        icon: const Icon(Icons.edit_outlined, size: 16),
                         label: const Text('Modifier'),
+                        style: _compactOutlinedButtonStyle(),
                       ),
                       OutlinedButton.icon(
                         onPressed: canConfirm ? () => _onConfirm(cmd) : null,
-                        icon: const Icon(Icons.check_circle_outline),
+                        icon: const Icon(Icons.check_circle_outline, size: 16),
                         label: const Text('Confirmer'),
-                        style: OutlinedButton.styleFrom(
+                        style: _compactOutlinedButtonStyle(
                           foregroundColor: _success,
                         ),
                       ),
                       OutlinedButton.icon(
                         onPressed: canCancel ? () => _onCancel(cmd) : null,
-                        icon: const Icon(Icons.cancel_outlined),
+                        icon: const Icon(Icons.cancel_outlined, size: 16),
                         label: const Text('Annuler'),
-                        style: OutlinedButton.styleFrom(
+                        style: _compactOutlinedButtonStyle(
                           foregroundColor: _error,
                         ),
                       ),
@@ -2560,18 +2800,21 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                       ),
                       IconButton(
                         tooltip: 'Modifier',
+                        visualDensity: VisualDensity.compact,
                         onPressed: canEdit ? () => _onEdit(cmd) : null,
-                        icon: const Icon(Icons.edit_outlined),
+                        icon: const Icon(Icons.edit_outlined, size: 20),
                       ),
                       IconButton(
                         tooltip: 'Confirmer',
+                        visualDensity: VisualDensity.compact,
                         onPressed: canConfirm ? () => _onConfirm(cmd) : null,
-                        icon: const Icon(Icons.check_circle_outline),
+                        icon: const Icon(Icons.check_circle_outline, size: 20),
                       ),
                       IconButton(
                         tooltip: 'Annuler',
+                        visualDensity: VisualDensity.compact,
                         onPressed: canCancel ? () => _onCancel(cmd) : null,
-                        icon: const Icon(Icons.cancel_outlined),
+                        icon: const Icon(Icons.cancel_outlined, size: 20),
                       ),
                     ],
                   ),

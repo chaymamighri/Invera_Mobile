@@ -1,19 +1,17 @@
-// lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:invera_mobile/views/auth/welcome_screen.dart';
+import 'package:invera_mobile/views/auth/create_password_screen.dart';
+import 'package:invera_mobile/views/auth/forgot_password_screen.dart';
+import 'package:invera_mobile/views/auth/reset_password_screen.dart';
 import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/Commercial_dashboard.dart';
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/approvisionnement_dashboard.dart';
 import 'package:invera_mobile/views/dashboard/vente_dashboard/responsable_vente_dashboard.dart';
-import 'package:invera_mobile/views/auth/forgot_password_screen.dart';
-import 'package:invera_mobile/views/auth/create_password_screen.dart';
-import 'package:invera_mobile/views/auth/reset-password.dart';
 import 'package:invera_mobile/views/profile/profile_screen.dart';
-import 'config/app_routes.dart';
-import 'config/app_globals.dart';
-import 'views/auth/login_screen.dart';
 
+import 'config/app_globals.dart';
+import 'config/app_routes.dart';
 import 'models/user_model.dart';
+import 'views/auth/login_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -36,13 +34,8 @@ class MyApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [Locale('en'), Locale('fr', 'FR')],
-      routes: {
-        // Routes sans paramètres
-        AppRoutes.welcome: (context) => const WelcomeScreen(),
-        AppRoutes.login: (context) => const LoginScreen(),
-      },
+      routes: {AppRoutes.login: (context) => const LoginScreen()},
       onGenerateRoute: (settings) {
-        // Routes avec paramètres
         switch (settings.name) {
           case AppRoutes.approvisionnementDashboard:
             final args = settings.arguments as Map<String, dynamic>?;
@@ -108,10 +101,9 @@ class MyApp extends StatelessWidget {
             );
         }
 
-        // Route par défaut si aucune correspondance
         return MaterialPageRoute(
           builder: (context) =>
-              const Scaffold(body: Center(child: Text('Page non trouvée'))),
+              const Scaffold(body: Center(child: Text('Page non trouvee'))),
         );
       },
       theme: ThemeData(
