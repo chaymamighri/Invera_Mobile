@@ -12,6 +12,7 @@ import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/commercial_cl
 import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/commercial_commandes_section.dart';
 import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/commercial_factures_section.dart';
 
+// Valeurs globales partagees utilisees par l'interface.
 const Color _ventePrimary = Color(0xFF2553D4);
 const Color _venteTeal = Color(0xFF14B8A6);
 const Color _venteInk = Color(0xFF10203A);
@@ -19,6 +20,7 @@ const Color _venteMuted = Color(0xFF607089);
 const Color _venteSidebarStart = Color(0xFF0B1730);
 const Color _venteSidebarEnd = Color(0xFF15367A);
 
+/// Methode utilitaire pour le montant compact.
 String _compactAmount(double value, {bool withUnit = false}) {
   final abs = value.abs();
   late String formatted;
@@ -41,6 +43,7 @@ String _compactAmount(double value, {bool withUnit = false}) {
   return withUnit ? '$formatted DT' : formatted;
 }
 
+/// Methode utilitaire pour la valeur maximale harmonieuse de l'axe.
 double _niceAxisMax(double value) {
   if (value <= 0) return 1;
 
@@ -59,7 +62,9 @@ double _niceAxisMax(double value) {
   return niceFraction * exponent;
 }
 
+/// Widget qui affiche le tableau de bord commercial.
 class CommercialDashboard extends StatefulWidget {
+  // Configuration, dependances et etat local de l'interface.
   final User user;
   final String appTitle;
   final String appSubtitle;
@@ -76,11 +81,16 @@ class CommercialDashboard extends StatefulWidget {
         'Suivi en temps reel de vos clients, ventes et commandes.',
   });
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<CommercialDashboard> createState() => _CommercialDashboardState();
 }
 
+/// Objet d'etat qui stocke les donnees temporaires de l'interface pour le tableau de bord commercial.
 class _CommercialDashboardState extends State<CommercialDashboard> {
+  // Configuration, dependances et etat local de l'interface.
   bool _sidebarCollapsed = false;
   String _activePage = 'dashboard';
 
@@ -117,18 +127,25 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     ),
   ];
 
+  // Actions utilisateur et traitements asynchrones.
+
+  /// Bascule l'etat de la barre laterale.
   void _toggleSidebar() {
     setState(() {
       _sidebarCollapsed = !_sidebarCollapsed;
     });
   }
 
+  /// Met a jour la page active.
   void _setActivePage(String pageId) {
     setState(() {
       _activePage = pageId;
     });
   }
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Methode utilitaire pour le titre de la page.
   String _pageTitle() {
     switch (_activePage) {
       case 'dashboard':
@@ -144,6 +161,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     }
   }
 
+  /// Methode utilitaire pour le sous-titre de la page.
   String _pageSubtitle() {
     switch (_activePage) {
       case 'dashboard':
@@ -159,6 +177,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     }
   }
 
+  /// Retourne le libelle affiche pour le role actuel de l'utilisateur.
   String _roleLabel(UserRole role) {
     switch (role) {
       case UserRole.ADMIN:
@@ -172,6 +191,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     }
   }
 
+  /// Construit les initiales affichees dans l'avatar.
   String _initials() {
     final name = '${widget.user.prenom} ${widget.user.nom}'.trim();
     if (name.isEmpty) return 'US';
@@ -191,6 +211,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
   }
 
+  /// Methode utilitaire pour la deconnexion.
   Future<void> _logout() async {
     final authService = AuthService();
     await authService.logout();
@@ -203,6 +224,9 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     );
   }
 
+  // Actions utilisateur et traitements asynchrones.
+
+  /// Methode utilitaire pour la confirmation de deconnexion.
   Future<void> _confirmLogout() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -230,6 +254,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     }
   }
 
+  /// Ouvre le profil.
   void _openProfile() {
     Navigator.pushNamed(
       context,
@@ -238,6 +263,9 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     );
   }
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Methode utilitaire pour le theme du module.
   ThemeData _moduleTheme(BuildContext context) {
     final base = Theme.of(context);
     final scheme = ColorScheme.fromSeed(
@@ -351,6 +379,9 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     );
   }
 
+  // Construction de l'interface.
+
+  /// Construit le bouton d'action du mode bureau.
   Widget _buildDesktopActionButton({
     required String tooltip,
     required IconData icon,
@@ -380,6 +411,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     );
   }
 
+  /// Construit la toile de fond de l'enveloppe.
   Widget _buildShellBackdrop({required Widget child}) {
     return Container(
       decoration: const BoxDecoration(
@@ -443,6 +475,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     );
   }
 
+  /// Construit le contenu de page anime.
   Widget _buildAnimatedPageContent() {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 320),
@@ -465,6 +498,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     );
   }
 
+  /// Construit le contenu de la page.
   Widget _buildPageContent() {
     switch (_activePage) {
       case 'dashboard':
@@ -486,6 +520,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     }
   }
 
+  /// Construit la barre d'application mobile.
   PreferredSizeWidget _buildMobileAppBar() {
     return AppBar(
       backgroundColor: Colors.white.withValues(alpha: 0.72),
@@ -539,6 +574,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     );
   }
 
+  /// Construit les actions principales.
   List<Widget> _buildTopActions() {
     return [
       IconButton(
@@ -555,6 +591,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     ];
   }
 
+  /// Construit la barre superieure du mode bureau.
   Widget _buildDesktopTopBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
@@ -700,6 +737,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     );
   }
 
+  /// Construit la barre laterale.
   Widget _buildSidebar({required bool collapsed, required bool mobile}) {
     return Container(
       decoration: const BoxDecoration(
@@ -903,6 +941,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     );
   }
 
+  /// Construit l'element de barre laterale.
   Widget _buildSidebarItem({
     required _SidebarItem item,
     required bool collapsed,
@@ -973,6 +1012,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     );
   }
 
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.sizeOf(context).width < 960;
@@ -1051,7 +1091,9 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
   }
 }
 
+/// Widget qui affiche le tableau de bord analytique commercial.
 class _CommercialAnalyticsDashboard extends StatefulWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String title;
   final String subtitle;
 
@@ -1060,11 +1102,15 @@ class _CommercialAnalyticsDashboard extends StatefulWidget {
     required this.subtitle,
   });
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<_CommercialAnalyticsDashboard> createState() =>
       _CommercialAnalyticsDashboardState();
 }
 
+/// Classe utilitaire pour l'etat du tableau de bord analytique commercial.
 class _CommercialAnalyticsDashboardState
     extends State<_CommercialAnalyticsDashboard> {
   final ClientService _clientService = ClientService();
@@ -1781,21 +1827,27 @@ class _CommercialAnalyticsDashboardState
   }
 }
 
+/// Classe utilitaire pour le point de ventes mensuelles.
 class _MonthlySalesPoint {
+  // Configuration, dependances et etat local de l'interface.
   final DateTime month;
   final double value;
 
   const _MonthlySalesPoint({required this.month, required this.value});
 }
 
+/// Classe utilitaire pour labeled int valeur.
 class _LabeledIntValue {
+  // Configuration, dependances et etat local de l'interface.
   final String label;
   final int value;
 
   const _LabeledIntValue({required this.label, required this.value});
 }
 
+/// Classe utilitaire pour le point de chiffre d'affaires client.
 class _ClientRevenuePoint {
+  // Configuration, dependances et etat local de l'interface.
   final String label;
   final double value;
   final int orders;
@@ -1807,7 +1859,9 @@ class _ClientRevenuePoint {
   });
 }
 
+/// Widget qui affiche la pastille statistique d'en-tete.
 class _HeaderStatPill extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final IconData icon;
   final String label;
   final String value;
@@ -1818,6 +1872,9 @@ class _HeaderStatPill extends StatelessWidget {
     required this.value,
   });
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1854,7 +1911,9 @@ class _HeaderStatPill extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche la tuile d'indicateur cle.
 class _KpiTile extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String label;
   final String value;
   final IconData icon;
@@ -1867,6 +1926,9 @@ class _KpiTile extends StatelessWidget {
     required this.color,
   });
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -1942,12 +2004,17 @@ class _KpiTile extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche le graphique de tendance des ventes.
 class _SalesTrendChart extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final List<double> values;
   final List<String> labels;
 
   const _SalesTrendChart({required this.values, required this.labels});
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     final hasData = values.any((v) => v > 0);
@@ -2052,12 +2119,17 @@ class _SalesTrendChart extends StatelessWidget {
   }
 }
 
+/// Classe utilitaire pour le peintre de tendance des ventes.
 class _SalesTrendPainter extends CustomPainter {
+  // Configuration, dependances et etat local de l'interface.
   final List<double> values;
   final double maxValue;
 
   _SalesTrendPainter({required this.values, required this.maxValue});
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Methode utilitaire pour le dessin.
   @override
   void paint(Canvas canvas, Size size) {
     final gridPaint = Paint()
@@ -2133,6 +2205,7 @@ class _SalesTrendPainter extends CustomPainter {
     }
   }
 
+  /// Methode utilitaire pour la necessite de repeindre.
   @override
   bool shouldRepaint(covariant _SalesTrendPainter oldDelegate) {
     if (oldDelegate.values.length != values.length ||
@@ -2146,7 +2219,9 @@ class _SalesTrendPainter extends CustomPainter {
   }
 }
 
+/// Classe utilitaire pour le segment de diagramme en anneau.
 class _DonutSegment {
+  // Configuration, dependances et etat local de l'interface.
   final String label;
   final double value;
   final Color color;
@@ -2158,12 +2233,17 @@ class _DonutSegment {
   });
 }
 
+/// Widget qui affiche la carte en anneau des statuts.
 class _StatusDonutCard extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final List<_DonutSegment> segments;
   final int total;
 
   const _StatusDonutCard({required this.segments, required this.total});
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -2251,11 +2331,16 @@ class _StatusDonutCard extends StatelessWidget {
   }
 }
 
+/// Classe utilitaire pour le peintre de diagramme en anneau.
 class _DonutPainter extends CustomPainter {
+  // Configuration, dependances et etat local de l'interface.
   final List<_DonutSegment> segments;
 
   _DonutPainter({required this.segments});
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Methode utilitaire pour le dessin.
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
@@ -2291,6 +2376,7 @@ class _DonutPainter extends CustomPainter {
     }
   }
 
+  /// Methode utilitaire pour la necessite de repeindre.
   @override
   bool shouldRepaint(covariant _DonutPainter oldDelegate) {
     if (oldDelegate.segments.length != segments.length) return true;
@@ -2305,11 +2391,16 @@ class _DonutPainter extends CustomPainter {
   }
 }
 
+/// Widget qui affiche les barres de repartition par type.
 class _TypeDistributionBars extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final List<_LabeledIntValue> data;
 
   const _TypeDistributionBars({required this.data});
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     if (data.isEmpty) {
@@ -2375,12 +2466,17 @@ class _TypeDistributionBars extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche la liste des meilleurs clients.
 class _TopClientsList extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final List<_ClientRevenuePoint> data;
   final String Function(double value) money;
 
   const _TopClientsList({required this.data, required this.money});
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     if (data.isEmpty) {
@@ -2455,7 +2551,9 @@ class _TopClientsList extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche la liste des commandes recentes.
 class _RecentOrdersList extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final List<CommandeModel> orders;
   final Color Function(String status) statusColor;
   final String Function(double value) money;
@@ -2466,6 +2564,9 @@ class _RecentOrdersList extends StatelessWidget {
     required this.money,
   });
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     if (orders.isEmpty) {
@@ -2584,14 +2685,18 @@ class _RecentOrdersList extends StatelessWidget {
   }
 }
 
+/// Petit modele utilitaire qui stocke les donnees de la section de barre laterale.
 class _SidebarSection {
+  // Configuration, dependances et etat local de l'interface.
   final String title;
   final List<_SidebarItem> items;
 
   const _SidebarSection({required this.title, required this.items});
 }
 
+/// Petit modele utilitaire qui stocke les donnees de l'element de barre laterale.
 class _SidebarItem {
+  // Configuration, dependances et etat local de l'interface.
   final String id;
   final String label;
   final IconData icon;

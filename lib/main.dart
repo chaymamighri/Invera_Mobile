@@ -13,13 +13,18 @@ import 'config/app_routes.dart';
 import 'models/user_model.dart';
 import 'views/auth/login_screen.dart';
 
+/// Lance l'application Flutter.
 void main() {
   runApp(const MyApp());
 }
 
+/// Widget racine qui configure la navigation, les routes et le theme.
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(

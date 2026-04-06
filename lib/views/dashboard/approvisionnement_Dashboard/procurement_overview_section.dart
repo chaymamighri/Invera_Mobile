@@ -3,14 +3,19 @@ import 'package:invera_mobile/models/procurement_models.dart';
 import 'package:invera_mobile/services/procurement_service.dart';
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procurement_shared.dart';
 
+/// Widget qui affiche la section de vue d'ensemble de l'approvisionnement.
 class ProcurementOverviewSection extends StatefulWidget {
   const ProcurementOverviewSection({super.key});
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<ProcurementOverviewSection> createState() =>
       _ProcurementOverviewSectionState();
 }
 
+/// Classe utilitaire pour l'etat de la section de vue d'ensemble de l'approvisionnement.
 class _ProcurementOverviewSectionState
     extends State<ProcurementOverviewSection> {
   final ProcurementService _service = ProcurementService();

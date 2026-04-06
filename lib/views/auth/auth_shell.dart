@@ -5,9 +5,11 @@ import 'package:flutter/services.dart';
 
 import '../../core/ui/adaptive_layout.dart';
 
+/// Palette de couleurs partagee utilisee par l'interface d'authentification.
 class AuthPalette {
   const AuthPalette._();
 
+  // Configuration, dependances et etat local de l'interface.
   static const Color primary = Color(0xFF2553D4);
   static const Color primaryDark = Color(0xFF15367A);
   static const Color accent = Color(0xFF14B8A6);
@@ -30,6 +32,7 @@ class AuthPalette {
   static const Color info = Color(0xFF0284C7);
 }
 
+/// Widget qui affiche la structure d'authentification.
 class AuthScaffold extends StatelessWidget {
   const AuthScaffold({
     super.key,
@@ -40,12 +43,16 @@ class AuthScaffold extends StatelessWidget {
     this.showBackButton = true,
   });
 
+  // Configuration, dependances et etat local de l'interface.
   final String? eyebrow;
   final String title;
   final String subtitle;
   final Widget child;
   final bool showBackButton;
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     final canGoBack = showBackButton && Navigator.of(context).canPop();
@@ -171,6 +178,7 @@ class AuthScaffold extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche le champ de texte d'authentification.
 class AuthTextField extends StatelessWidget {
   const AuthTextField({
     super.key,
@@ -192,6 +200,7 @@ class AuthTextField extends StatelessWidget {
     this.autocorrect = true,
   });
 
+  // Configuration, dependances et etat local de l'interface.
   final String label;
   final TextEditingController controller;
   final String hintText;
@@ -209,6 +218,9 @@ class AuthTextField extends StatelessWidget {
   final bool enableSuggestions;
   final bool autocorrect;
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -292,6 +304,7 @@ class AuthTextField extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche le bouton principal d'authentification.
 class AuthPrimaryButton extends StatelessWidget {
   const AuthPrimaryButton({
     super.key,
@@ -300,10 +313,14 @@ class AuthPrimaryButton extends StatelessWidget {
     this.isLoading = false,
   });
 
+  // Configuration, dependances et etat local de l'interface.
   final String label;
   final VoidCallback? onPressed;
   final bool isLoading;
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -336,8 +353,10 @@ class AuthPrimaryButton extends StatelessWidget {
   }
 }
 
+/// Valeurs possibles de tonalite de la banniere d'authentification utilisees dans ce fichier.
 enum AuthBannerTone { info, success, error }
 
+/// Widget qui affiche la banniere d'authentification.
 class AuthBanner extends StatelessWidget {
   const AuthBanner({
     super.key,
@@ -347,11 +366,15 @@ class AuthBanner extends StatelessWidget {
     this.action,
   });
 
+  // Configuration, dependances et etat local de l'interface.
   final String message;
   final String? title;
   final AuthBannerTone tone;
   final Widget? action;
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     final Color accent = switch (tone) {
@@ -415,13 +438,16 @@ class AuthBanner extends StatelessWidget {
   }
 }
 
+/// Petit modele utilitaire qui stocke les donnees de la regle d'authentification.
 class AuthRule {
   const AuthRule({required this.label, required this.isSatisfied});
 
+  // Configuration, dependances et etat local de l'interface.
   final String label;
   final bool isSatisfied;
 }
 
+/// Widget qui affiche la liste de verification des regles d'authentification.
 class AuthRuleChecklist extends StatelessWidget {
   const AuthRuleChecklist({
     super.key,
@@ -429,9 +455,13 @@ class AuthRuleChecklist extends StatelessWidget {
     required this.rules,
   });
 
+  // Configuration, dependances et etat local de l'interface.
   final String title;
   final List<AuthRule> rules;
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -464,11 +494,16 @@ class AuthRuleChecklist extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche la tuile de regle d'authentification.
 class _AuthRuleTile extends StatelessWidget {
   const _AuthRuleTile({required this.rule});
 
+  // Configuration, dependances et etat local de l'interface.
   final AuthRule rule;
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     final iconColor = rule.isSatisfied
@@ -499,11 +534,16 @@ class _AuthRuleTile extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche le bouton retour d'authentification.
 class _AuthBackButton extends StatelessWidget {
   const _AuthBackButton({required this.onPressed});
 
+  // Configuration, dependances et etat local de l'interface.
   final VoidCallback onPressed;
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
@@ -531,9 +571,13 @@ class _AuthBackButton extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche le decor d'arriere-plan d'authentification.
 class _AuthBackgroundDecor extends StatelessWidget {
   const _AuthBackgroundDecor();
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
@@ -612,12 +656,17 @@ class _AuthBackgroundDecor extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche l'orbe lumineuse.
 class _GlowOrb extends StatelessWidget {
   const _GlowOrb({required this.size, required this.colors});
 
+  // Configuration, dependances et etat local de l'interface.
   final double size;
   final List<Color> colors;
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Container(

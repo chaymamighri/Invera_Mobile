@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:invera_mobile/config/api_config.dart';
 import 'package:invera_mobile/models/procurement_models.dart';
 
+// Valeurs globales partagees utilisees par l'interface.
 const Color _procurementPrimary = Color(0xFF2553D4);
 const Color _procurementInk = Color(0xFF13233D);
 const Color _procurementMuted = Color(0xFF607089);
@@ -14,17 +15,23 @@ const List<BoxShadow> _procurementCardShadow = [
   BoxShadow(color: Color(0x0A0D1B2A), blurRadius: 10, offset: Offset(0, 4)),
 ];
 
+/// Methode utilitaire pour le repere de section.
 String _sectionMarker(String title) {
   final trimmed = title.trim();
   if (trimmed.isEmpty) return 'A';
   return trimmed.characters.first.toUpperCase();
 }
 
+/// Widget qui affiche le panneau de chargement.
 class LoadingPanel extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String message;
 
   const LoadingPanel({super.key, required this.message});
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -81,7 +88,9 @@ class LoadingPanel extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche la carte d'erreur asynchrone.
 class AsyncErrorCard extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String title;
   final String message;
   final Future<void> Function() onRetry;
@@ -93,6 +102,9 @@ class AsyncErrorCard extends StatelessWidget {
     required this.onRetry,
   });
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return SectionSurface(
@@ -149,7 +161,9 @@ class AsyncErrorCard extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche la surface de section.
 class SectionSurface extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String title;
   final String subtitle;
   final Widget child;
@@ -161,6 +175,9 @@ class SectionSurface extends StatelessWidget {
     required this.child,
   });
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     final marker = _sectionMarker(title);
@@ -277,7 +294,9 @@ class SectionSurface extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche la carte de statistique d'information.
 class InfoStatCard extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String label;
   final String value;
   final String helper;
@@ -293,6 +312,9 @@ class InfoStatCard extends StatelessWidget {
     required this.color,
   });
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return ConstrainedBox(
@@ -415,7 +437,9 @@ class InfoStatCard extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche la mini metrique.
 class MiniMetric extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String label;
   final String value;
   final Color color;
@@ -427,6 +451,9 @@ class MiniMetric extends StatelessWidget {
     required this.color,
   });
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -462,7 +489,9 @@ class MiniMetric extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche la carte de repartition des statuts.
 class StatusBreakdownCard extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String label;
   final int value;
   final Color color;
@@ -474,6 +503,9 @@ class StatusBreakdownCard extends StatelessWidget {
     required this.color,
   });
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -513,12 +545,17 @@ class StatusBreakdownCard extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche le panneau vide.
 class EmptyPanel extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String title;
   final String message;
 
   const EmptyPanel({super.key, required this.title, required this.message});
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -578,11 +615,16 @@ class EmptyPanel extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche la tuile de stock faible.
 class LowStockTile extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final ProcurementProduct product;
 
   const LowStockTile({super.key, required this.product});
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -634,11 +676,16 @@ class LowStockTile extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche la tuile recapitulative de commande.
 class OrderSummaryTile extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final ProcurementOrder order;
 
   const OrderSummaryTile({super.key, required this.order});
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -692,7 +739,9 @@ class OrderSummaryTile extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche le badge de detail.
 class DetailBadge extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String label;
   final String value;
   final Color color;
@@ -706,6 +755,9 @@ class DetailBadge extends StatelessWidget {
     this.dense = false,
   });
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -747,12 +799,17 @@ class DetailBadge extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche la pastille de statut.
 class StatusPill extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String label;
   final Color color;
 
   const StatusPill({super.key, required this.label, required this.color});
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -774,7 +831,9 @@ class StatusPill extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche la carte produit.
 class ProductCard extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final ProcurementProduct product;
   final VoidCallback onEdit;
   final VoidCallback onAdjustStock;
@@ -788,6 +847,9 @@ class ProductCard extends StatelessWidget {
     required this.onToggleActive,
   });
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     final activeColor = product.active
@@ -1105,12 +1167,17 @@ class ProductCard extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche l'etiquette legere du produit.
 class _ProductSoftTag extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String label;
   final Color color;
 
   const _ProductSoftTag({required this.label, required this.color});
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1132,7 +1199,9 @@ class _ProductSoftTag extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche le panneau de specifications du produit.
 class _ProductSpecPanel extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String title;
   final Color tint;
   final List<({String label, String value, Color? color})> rows;
@@ -1143,6 +1212,9 @@ class _ProductSpecPanel extends StatelessWidget {
     required this.rows,
   });
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1183,7 +1255,9 @@ class _ProductSpecPanel extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche la ligne de specifications du produit.
 class _ProductSpecRow extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String label;
   final String value;
   final Color? valueColor;
@@ -1194,6 +1268,9 @@ class _ProductSpecRow extends StatelessWidget {
     this.valueColor,
   });
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -1227,7 +1304,9 @@ class _ProductSpecRow extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche le bouton d'action produit.
 class _ProductActionButton extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String label;
   final IconData icon;
   final VoidCallback onPressed;
@@ -1240,6 +1319,9 @@ class _ProductActionButton extends StatelessWidget {
     this.foregroundColor,
   });
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return OutlinedButton.icon(
@@ -1267,7 +1349,9 @@ class _ProductActionButton extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche l'avatar du produit.
 class ProductAvatar extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String? imageUrl;
   final ProcurementProduct product;
   final double size;
@@ -1279,6 +1363,9 @@ class ProductAvatar extends StatelessWidget {
     this.size = 68,
   });
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     final radius = size <= 70 ? 18.0 : 20.0;
@@ -1342,7 +1429,9 @@ class ProductAvatar extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche la carte de commande.
 class OrderCard extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final ProcurementOrder order;
   final bool receptionMode;
   final bool showArchived;
@@ -1372,6 +1461,9 @@ class OrderCard extends StatelessWidget {
     this.onCancel,
   });
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     final headerColor = orderStatusColor(order.statut);
@@ -1508,6 +1600,7 @@ class OrderCard extends StatelessWidget {
   }
 }
 
+/// Affiche le dialogue de confirmation.
 Future<bool?> showConfirmationDialog(
   BuildContext context, {
   required String title,
@@ -1537,6 +1630,7 @@ Future<bool?> showConfirmationDialog(
   );
 }
 
+/// Affiche le message.
 void showMessage(BuildContext context, String message, {bool error = false}) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
@@ -1548,6 +1642,7 @@ void showMessage(BuildContext context, String message, {bool error = false}) {
   );
 }
 
+/// Formate date pour l'affichage.
 String formatDate(DateTime? date, {bool withTime = false}) {
   if (date == null) return '-';
   final day = date.day.toString().padLeft(2, '0');
@@ -1559,6 +1654,7 @@ String formatDate(DateTime? date, {bool withTime = false}) {
   return '$day/$month/$year $hour:$minute';
 }
 
+/// Formate money pour l'affichage.
 String formatMoney(num value) => '${value.toStringAsFixed(3)} DT';
 
 Color productStatusColor(String status) {
@@ -1644,7 +1740,9 @@ List<OrderStatusBucket> orderStatusBuckets(List<ProcurementOrder> orders) {
   return data.where((bucket) => bucket.count > 0).toList();
 }
 
+/// Classe utilitaire pour le groupe de statuts de commande.
 class OrderStatusBucket {
+  // Configuration, dependances et etat local de l'interface.
   final String label;
   final int count;
   final Color color;

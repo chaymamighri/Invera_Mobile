@@ -4,16 +4,23 @@ import '../../config/app_routes.dart';
 import '../../services/auth_service.dart';
 import 'auth_shell.dart';
 
+/// Widget qui affiche l'ecran de recuperation du mot de passe.
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key, this.initialEmail});
 
+  // Configuration, dependances et etat local de l'interface.
   final String? initialEmail;
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
 }
 
+/// Objet d'etat qui stocke les donnees temporaires de l'interface pour l'ecran de recuperation du mot de passe.
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+  // Configuration, dependances et etat local de l'interface.
   final _formKey = GlobalKey<FormState>();
   final AuthService _authService = AuthService();
   late final TextEditingController _emailController;
@@ -22,18 +29,25 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   String? _feedbackMessage;
   bool _isError = false;
 
+  // Cycle de vie du widget.
+
+  /// S'execute une seule fois quand le widget est insere dans l'arbre des widgets.
   @override
   void initState() {
     super.initState();
     _emailController = TextEditingController(text: widget.initialEmail ?? '');
   }
 
+  /// Libere les controleurs et les ecouteurs avant la destruction du widget.
   @override
   void dispose() {
     _emailController.dispose();
     super.dispose();
   }
 
+  // Actions utilisateur et traitements asynchrones.
+
+  /// Soumet les donnees actuelles du formulaire.
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -60,6 +74,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
   }
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Valide l'adresse e-mail.
   String? _validateEmail(String? value) {
     final email = (value ?? '').trim();
     if (email.isEmpty) {
@@ -74,6 +91,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     return null;
   }
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return AuthScaffold(

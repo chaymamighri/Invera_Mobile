@@ -8,6 +8,7 @@ import 'package:invera_mobile/services/auth_service.dart';
 import 'package:invera_mobile/services/client_service.dart';
 import 'package:invera_mobile/services/commande_service.dart';
 
+// Valeurs globales partagees utilisees par l'interface.
 const Color _primary = Color(0xFF2D47C8);
 const Color _primaryDark = Color(0xFF2037A7);
 const Color _background = Color(0xFFF4F7FC);
@@ -18,16 +19,23 @@ const Color _border = Color(0xFFE6EAF2);
 const Color _success = Color(0xFF16A34A);
 const Color _danger = Color(0xFFDC2626);
 
+/// Widget qui affiche l'ecran de profil.
 class ProfileScreen extends StatefulWidget {
+  // Configuration, dependances et etat local de l'interface.
   final User user;
 
   const ProfileScreen({super.key, required this.user});
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
+/// Objet d'etat qui stocke les donnees temporaires de l'interface pour l'ecran de profil.
 class _ProfileScreenState extends State<ProfileScreen> {
+  // Configuration, dependances et etat local de l'interface.
   final AuthService _authService = AuthService();
   final ClientService _clientService = ClientService();
   final CommandeService _commandeService = CommandeService();
@@ -42,6 +50,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int _clientTypeCount = 0;
   List<CommandeModel> _commandes = <CommandeModel>[];
 
+  // Cycle de vie du widget.
+
+  /// S'execute une seule fois quand le widget est insere dans l'arbre des widgets.
   @override
   void initState() {
     super.initState();
@@ -49,6 +60,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _reload(showLoader: true);
   }
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Execute la requete de maniere sure et utilise une valeur de secours en cas d'echec.
   Future<T> _safe<T>(Future<T> request, T fallback) async {
     try {
       return await request;
@@ -57,6 +71,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  /// Recharge les donnees actuelles.
   Future<void> _reload({bool showLoader = false}) async {
     if (showLoader) {
       setState(() {
@@ -115,6 +130,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  /// Retourne le libelle affiche pour le role actuel de l'utilisateur.
   String _roleLabel(UserRole role) {
     switch (role) {
       case UserRole.ADMIN:
@@ -128,6 +144,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  /// Construit les initiales affichees dans l'avatar.
   String _initials() {
     final full = '${_user.prenom} ${_user.nom}'.trim();
     if (full.isEmpty) return 'US';
@@ -140,20 +157,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
   }
 
+  /// Compte le statut.
   int _countStatus(Set<String> statuses) {
     return _commandes
         .where((c) => statuses.contains(c.statut.trim().toUpperCase()))
         .length;
   }
 
+  /// Retourne le chiffre d'affaires.
   double get _revenue => _commandes.fold<double>(0, (sum, c) => sum + c.total);
+
+  /// Retourne la moyenne par commande.
   double get _avgOrder => _commandes.isEmpty ? 0 : _revenue / _commandes.length;
+
+  /// Retourne les elements recents.
   List<CommandeModel> get _recent {
     final list = List<CommandeModel>.from(_commandes)
       ..sort((a, b) => b.idCommandeClient.compareTo(a.idCommandeClient));
     return list.take(5).toList();
   }
 
+  /// Methode utilitaire pour la couleur du statut.
   Color _statusColor(String status) {
     final s = status.trim().toUpperCase();
     if (s == 'EN_ATTENTE') return const Color(0xFFD97706);
@@ -162,10 +186,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return _primary;
   }
 
+  /// Formate amount pour l'affichage.
   String _money(double v) => '${v.toStringAsFixed(2)} DT';
+
+  /// Formate date pour l'affichage.
   String _date(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
+  // Actions utilisateur et traitements asynchrones.
+
+  /// Copie l'e-mail.
   Future<void> _copyEmail() async {
     await Clipboard.setData(ClipboardData(text: _user.email));
     if (!mounted) return;
@@ -177,6 +207,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Methode utilitaire pour le champ securise du mot de passe.
   Widget _securePasswordInput({
     required TextEditingController controller,
     required String label,
@@ -227,6 +260,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// Methode utilitaire pour le score du mot de passe.
   int _passwordScore(String value) {
     var score = 0;
     if (value.length >= 8) score += 1;
@@ -238,6 +272,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return score;
   }
 
+  /// Methode utilitaire pour la couleur de la force du mot de passe.
   Color _passwordStrengthColor(int score) {
     if (score <= 1) return _danger;
     if (score == 2) return const Color(0xFFD97706);
@@ -245,6 +280,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return _success;
   }
 
+  /// Methode utilitaire pour le libelle de la force du mot de passe.
   String _passwordStrengthLabel(int score) {
     if (score <= 1) return 'Faible';
     if (score == 2) return 'Moyen';
@@ -252,6 +288,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return 'Tres fort';
   }
 
+  /// Methode utilitaire pour la regle du mot de passe.
   Widget _passwordRule({required bool valid, required String label}) {
     final color = valid ? _success : _textSecondary;
     return Row(
@@ -276,6 +313,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// Methode utilitaire pour le champ des parametres du profil.
   Widget _profileSettingInput({
     required TextEditingController controller,
     required String label,
@@ -317,6 +355,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // Actions utilisateur et traitements asynchrones.
+
+  /// Affiche le dialogue des parametres du profil.
   Future<void> _showProfileSettingsDialog() async {
     final formKey = GlobalKey<FormState>();
     final nomCtrl = TextEditingController(text: _user.nom);
@@ -660,6 +701,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  /// Affiche le dialogue de changement de mot de passe.
   Future<void> _showChangePasswordDialog() async {
     final formKey = GlobalKey<FormState>();
     final oldCtrl = TextEditingController();
@@ -1114,6 +1156,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -1598,6 +1643,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Methode utilitaire pour la pastille hero.
   Widget _heroChip(IconData icon, String text, {Color color = Colors.white}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1623,6 +1671,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// Methode utilitaire pour la metrique.
   Widget _metric(Map<String, dynamic> m) {
     final icon = m['icon'] as IconData;
     final label = m['label'] as String;
@@ -1672,6 +1721,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// Methode utilitaire pour le panneau.
   Widget _panel(String title, IconData icon, Widget child) {
     return Container(
       width: double.infinity,
@@ -1722,6 +1772,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// Methode utilitaire pour la ligne d'information.
   Widget _infoRow(IconData icon, String label, String value) {
     return Row(
       children: [
@@ -1746,6 +1797,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// Methode utilitaire pour la ligne de securite.
   Widget _securityRow(String label, String value, Color color) {
     return Container(
       padding: const EdgeInsets.all(10),
@@ -1781,5 +1833,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// Methode utilitaire pour le separateur.
   Widget _sep() => const Divider(height: 16, color: _border);
 }

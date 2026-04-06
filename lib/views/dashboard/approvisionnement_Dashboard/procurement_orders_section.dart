@@ -5,7 +5,9 @@ import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procur
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procurement_order_form_dialog.dart';
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procurement_shared.dart';
 
+/// Widget qui affiche la section des commandes d'approvisionnement.
 class ProcurementOrdersSection extends StatefulWidget {
+  // Configuration, dependances et etat local de l'interface.
   final bool receptionMode;
   final VoidCallback? onSwitchToReceptions;
 
@@ -15,12 +17,17 @@ class ProcurementOrdersSection extends StatefulWidget {
     this.onSwitchToReceptions,
   });
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<ProcurementOrdersSection> createState() =>
       _ProcurementOrdersSectionState();
 }
 
+/// Objet d'etat qui stocke les donnees temporaires de l'interface pour la section des commandes d'approvisionnement.
 class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
+  // Configuration, dependances et etat local de l'interface.
   final ProcurementService _service = ProcurementService();
   final TextEditingController _searchController = TextEditingController();
 
@@ -33,6 +40,9 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
   List<ProcurementSupplier> _suppliers = const [];
   List<ProcurementProduct> _products = const [];
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Verifie si la commande est visible dans le mode actuel.
   bool _isOrderVisibleInCurrentMode(ProcurementOrder order) {
     if (_showArchived) return true;
 
@@ -44,21 +54,29 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     return status != 'RECUE' && status != 'FACTUREE';
   }
 
+  /// Retourne les commandes du mode actuel.
   List<ProcurementOrder> get _ordersForCurrentMode =>
       _orders.where(_isOrderVisibleInCurrentMode).toList();
 
+  // Cycle de vie du widget.
+
+  /// S'execute une seule fois quand le widget est insere dans l'arbre des widgets.
   @override
   void initState() {
     super.initState();
     _loadData();
   }
 
+  /// Libere les controleurs et les ecouteurs avant la destruction du widget.
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Charge les donnees.
   Future<void> _loadData() async {
     setState(() {
       _loading = true;
@@ -95,6 +113,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     }
   }
 
+  /// Retourne les commandes filtrees.
   List<ProcurementOrder> get _filteredOrders {
     final query = _searchController.text.trim().toLowerCase();
 
@@ -118,6 +137,9 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     return filtered;
   }
 
+  // Actions utilisateur et traitements asynchrones.
+
+  /// Affiche le dialogue de commande.
   Future<void> _showOrderDialog({ProcurementOrder? initial}) async {
     if (!widget.receptionMode &&
         initial == null &&
@@ -177,6 +199,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     }
   }
 
+  /// Affiche les details de la commande.
   Future<void> _showOrderDetails(ProcurementOrder order) async {
     await showDialog<void>(
       context: context,
@@ -184,6 +207,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     );
   }
 
+  /// Supprime la commande.
   Future<void> _deleteOrder(ProcurementOrder order) async {
     final confirmed = await showConfirmationDialog(
       context,
@@ -215,6 +239,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     }
   }
 
+  /// Restaure la commande.
   Future<void> _restoreOrder(ProcurementOrder order) async {
     final confirmed = await showConfirmationDialog(
       context,
@@ -243,6 +268,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     }
   }
 
+  /// Marque la commande comme facturee.
   Future<void> _invoiceOrder(ProcurementOrder order) async {
     final confirmed = await showConfirmationDialog(
       context,
@@ -298,6 +324,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     }
   }
 
+  /// Exporte le PDF de la facture.
   Future<void> _exportInvoicePdf(
     ProcurementOrder order, {
     DateTime? billedAt,
@@ -316,11 +343,17 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     );
   }
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Verifie si le widget peut generer le PDF de la facture.
   bool _canGenerateInvoicePdf(ProcurementOrder order) {
     final status = order.statut.toUpperCase();
     return status == 'RECUE' || status == 'FACTUREE';
   }
 
+  // Actions utilisateur et traitements asynchrones.
+
+  /// Gere l'action de facturation.
   Future<void> _handleInvoiceAction(ProcurementOrder order) async {
     if (order.canInvoice) {
       await _invoiceOrder(order);
@@ -330,6 +363,9 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     await _exportInvoicePdf(order);
   }
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Methode utilitaire pour l'execution de l'action de commande.
   Future<void> _runOrderAction(
     ProcurementOrder order, {
     required Future<ProcurementOrder> Function() action,
@@ -372,6 +408,9 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     }
   }
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -621,7 +660,9 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
   }
 }
 
+/// Petit modele utilitaire qui stocke les donnees de la ligne brouillon de commande.
 class DraftOrderLine {
+  // Configuration, dependances et etat local de l'interface.
   final int produitId;
   final String produitLabel;
   final int quantite;
@@ -636,8 +677,12 @@ class DraftOrderLine {
     required this.status,
   });
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Retourne le total TTC.
   double get totalTtc => quantite * prixUnitaire * 1.19;
 
+  /// Retourne une copie de cet objet avec les modifications fournies.
   DraftOrderLine copyWith({int? quantite, double? prixUnitaire}) {
     return DraftOrderLine(
       produitId: produitId,
@@ -649,14 +694,18 @@ class DraftOrderLine {
   }
 }
 
+/// Petit modele utilitaire qui stocke les donnees du resultat du dialogue de commande.
 class OrderDialogResult {
+  // Configuration, dependances et etat local de l'interface.
   final ProcurementOrderCreatePayload? createPayload;
   final ProcurementOrderUpdatePayload? updatePayload;
 
   const OrderDialogResult({this.createPayload, this.updatePayload});
 }
 
+/// Widget qui affiche le dialogue du formulaire de bon de commande.
 class PurchaseOrderFormDialog extends StatefulWidget {
+  // Configuration, dependances et etat local de l'interface.
   final List<ProcurementSupplier> suppliers;
   final List<ProcurementProduct> products;
   final ProcurementOrder? initialOrder;
@@ -668,11 +717,15 @@ class PurchaseOrderFormDialog extends StatefulWidget {
     required this.initialOrder,
   });
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<PurchaseOrderFormDialog> createState() =>
       _PurchaseOrderFormDialogLegacyState();
 }
 
+/// Classe utilitaire pour l'ancien etat du dialogue du formulaire de bon de commande.
 class _PurchaseOrderFormDialogLegacyState
     extends State<PurchaseOrderFormDialog> {
   final _formKey = GlobalKey<FormState>();
@@ -1135,11 +1188,16 @@ class _PurchaseOrderFormDialogLegacyState
   }
 }
 
+/// Widget qui affiche le dialogue des details de la commande.
 class OrderDetailsDialog extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final ProcurementOrder order;
 
   const OrderDetailsDialog({super.key, required this.order});
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return AlertDialog(

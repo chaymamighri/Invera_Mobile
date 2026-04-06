@@ -6,6 +6,7 @@ import 'package:printing/printing.dart';
 import 'package:invera_mobile/models/facture_model.dart';
 import 'package:invera_mobile/models/procurement_models.dart';
 
+// Valeurs globales partagees utilisees par l'interface.
 const Color _primary = Color(0xFF2D47C8);
 const double _pdfVatRate = 0.19;
 const String _pdfCompanyAddress = '123 Rue de la Republique, 1000 Tunis';
@@ -13,6 +14,7 @@ const String _pdfCompanyPhone = '+216 00 000 000';
 const String _pdfCompanyEmail = 'contact@invera.tn';
 const String _pdfCompanyTaxId = 'MF: 0000000/A/M/000';
 
+/// Exporte le PDF de la facture d'approvisionnement.
 Future<void> exportProcurementInvoicePdf(
   ProcurementOrder order,
   FactureModel facture,
@@ -24,6 +26,7 @@ Future<void> exportProcurementInvoicePdf(
   );
 }
 
+/// Construit les octets du PDF de la facture d'approvisionnement.
 Future<Uint8List> buildProcurementInvoicePdfBytes(
   ProcurementOrder order,
   FactureModel facture,
@@ -183,6 +186,7 @@ FactureModel buildProcurementFactureModelFromOrder(
   );
 }
 
+/// Methode utilitaire pour la reference de facture d'approvisionnement.
 String procurementInvoiceReference(ProcurementOrder order) {
   final number = order.referenceCommande.trim();
   if (number.isEmpty) {
@@ -197,11 +201,13 @@ List<_ProcurementInvoiceLine> _buildInvoiceLines(ProcurementOrder order) {
   return order.produits.map(_ProcurementInvoiceLine.fromOrderLine).toList();
 }
 
+/// Methode utilitaire pour effective vat rate.
 double _effectiveVatRate(ProcurementOrder order) {
   final rawRate = order.tauxTVA > 0 ? order.tauxTVA / 100 : _pdfVatRate;
   return rawRate <= 0 ? _pdfVatRate : rawRate;
 }
 
+/// Methode utilitaire pour la reference de facture.
 String _factureReference(FactureModel facture, ProcurementOrder order) {
   final reference = facture.referenceFactureClient.trim();
   return reference.isEmpty || reference == '-'
@@ -209,6 +215,7 @@ String _factureReference(FactureModel facture, ProcurementOrder order) {
       : reference;
 }
 
+/// Methode utilitaire pour le libelle du statut de facture.
 String _factureStatusLabel(FactureModel facture, ProcurementOrder order) {
   final status = facture.statut.trim();
   if (status.isEmpty || status == 'INCONNU') {
@@ -217,6 +224,7 @@ String _factureStatusLabel(FactureModel facture, ProcurementOrder order) {
   return _displayStatus(status);
 }
 
+/// Methode utilitaire pour la localisation du fournisseur.
 String _composeSupplierLocation(ProcurementSupplier? supplier) {
   if (supplier == null) return '-';
   final parts = <String>[
@@ -765,6 +773,7 @@ pw.Widget _buildPdfFooter() {
   );
 }
 
+/// Retourne un libelle d'affichage pour le statut.
 String _displayStatus(String raw) {
   final norm = raw.trim().toUpperCase();
   if (norm == 'EN_ATTENTE') return 'En attente';
@@ -777,6 +786,7 @@ String _displayStatus(String raw) {
   return raw.trim().isEmpty ? '-' : raw;
 }
 
+/// Formate pdf amount pour l'affichage.
 String _formatPdfAmount(double value) {
   final absolute = value.abs().toStringAsFixed(3);
   final parts = absolute.split('.');
@@ -788,6 +798,7 @@ String _formatPdfAmount(double value) {
   return value < 0 ? '-$formatted' : formatted;
 }
 
+/// Formate pdf date pour l'affichage.
 String _formatPdfDate(String raw) {
   final trimmed = raw.trim();
   if (trimmed.isEmpty) return '-';
@@ -822,6 +833,7 @@ DateTime? _parseFlexibleDate(String raw) {
   return DateTime(year, month, day, hour, minute, second);
 }
 
+/// Formate la date et l'heure pour l'affichage.
 String _formatDateTime(DateTime value) {
   final local = value.toLocal();
   final day = local.day.toString().padLeft(2, '0');
@@ -832,12 +844,15 @@ String _formatDateTime(DateTime value) {
   return '$day/$month/$year $hour:$minute';
 }
 
+/// Methode utilitaire pour le nettoyage du nom de fichier.
 String _sanitizeFileName(String value) {
   final sanitized = value.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
   return sanitized.isEmpty ? 'facture-achat' : sanitized;
 }
 
+/// Petit modele utilitaire qui stocke les donnees de la ligne de facture d'approvisionnement.
 class _ProcurementInvoiceLine {
+  // Configuration, dependances et etat local de l'interface.
   final String description;
   final int quantity;
   final double prixUnitaire;

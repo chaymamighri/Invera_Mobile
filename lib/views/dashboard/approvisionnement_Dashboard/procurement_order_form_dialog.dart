@@ -3,6 +3,7 @@ import 'package:invera_mobile/core/ui/adaptive_layout.dart';
 import 'package:invera_mobile/models/procurement_models.dart';
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procurement_shared.dart';
 
+// Valeurs globales partagees utilisees par l'interface.
 const double _purchaseBaseUnit = 8.0;
 const double _purchaseDefaultVatRate = 0.19;
 const Color _purchasePrimary = Color(0xFF2D47C8);
@@ -15,14 +16,18 @@ const Color _purchaseTextSecondary = Color(0xFF607089);
 const Color _purchaseBorderLight = Color(0xFFE6EAF2);
 const Color _purchaseError = Color(0xFFB42318);
 
+/// Petit modele utilitaire qui stocke les donnees du resultat du dialogue de commande d'approvisionnement.
 class ProcurementOrderDialogResult {
+  // Configuration, dependances et etat local de l'interface.
   final ProcurementOrderCreatePayload? createPayload;
   final ProcurementOrderUpdatePayload? updatePayload;
 
   const ProcurementOrderDialogResult({this.createPayload, this.updatePayload});
 }
 
+/// Widget qui affiche le dialogue du formulaire de commande d'approvisionnement.
 class ProcurementOrderFormDialog extends StatefulWidget {
+  // Configuration, dependances et etat local de l'interface.
   final List<ProcurementSupplier> suppliers;
   final List<ProcurementProduct> products;
   final ProcurementOrder? initialOrder;
@@ -34,12 +39,17 @@ class ProcurementOrderFormDialog extends StatefulWidget {
     required this.initialOrder,
   });
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<ProcurementOrderFormDialog> createState() =>
       _ProcurementOrderFormDialogState();
 }
 
+/// Petit modele utilitaire qui stocke les donnees de la ligne brouillon d'achat.
 class _PurchaseDraftLine {
+  // Configuration, dependances et etat local de l'interface.
   final String rowKey;
   int? categorieId;
   int? produitId;
@@ -59,17 +69,25 @@ class _PurchaseDraftLine {
          text: prixUnitaire == null ? '' : prixUnitaire.toStringAsFixed(3),
        );
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Retourne la quantite.
   int get quantity => int.tryParse(quantiteController.text) ?? 0;
 
+  /// Retourne le prix unitaire.
   double get unitPrice =>
       double.tryParse(prixController.text.replaceAll(',', '.')) ?? 0;
 
+  // Cycle de vie du widget.
+
+  /// Libere les controleurs et les ecouteurs avant la destruction du widget.
   void dispose() {
     quantiteController.dispose();
     prixController.dispose();
   }
 }
 
+/// Classe utilitaire pour l'etat du dialogue du formulaire de commande d'approvisionnement.
 class _ProcurementOrderFormDialogState
     extends State<ProcurementOrderFormDialog> {
   final _formKey = GlobalKey<FormState>();

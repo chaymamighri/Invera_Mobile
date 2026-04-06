@@ -1,4 +1,6 @@
+/// Liste centrale des routes nommees utilisees par l'application.
 class AppRoutes {
+  // Configuration, dependances et etat local de l'interface.
   static const String login = '/login';
   static const String commercialDashboard = '/commercial-dashboard';
   static const String responsableVenteDashboard =

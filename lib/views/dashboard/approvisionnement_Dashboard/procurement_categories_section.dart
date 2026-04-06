@@ -3,14 +3,19 @@ import 'package:invera_mobile/models/procurement_models.dart';
 import 'package:invera_mobile/services/procurement_service.dart';
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procurement_shared.dart';
 
+/// Widget qui affiche la section des categories d'approvisionnement.
 class ProcurementCategoriesSection extends StatefulWidget {
   const ProcurementCategoriesSection({super.key});
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<ProcurementCategoriesSection> createState() =>
       _ProcurementCategoriesSectionState();
 }
 
+/// Classe utilitaire pour l'etat de la section des categories d'approvisionnement.
 class _ProcurementCategoriesSectionState
     extends State<ProcurementCategoriesSection> {
   final ProcurementService _service = ProcurementService();
@@ -394,7 +399,9 @@ class _ProcurementCategoriesSectionState
   }
 }
 
+/// Widget qui affiche la tuile mobile de categorie.
 class _CategoryMobileTile extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final ProcurementCategory category;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -405,6 +412,9 @@ class _CategoryMobileTile extends StatelessWidget {
     required this.onDelete,
   });
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -471,7 +481,9 @@ class _CategoryMobileTile extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche le dialogue toast de modification de categorie.
 class _CategoryEditToastDialog extends StatefulWidget {
+  // Configuration, dependances et etat local de l'interface.
   final ProcurementCategory initialCategory;
   final String initialVat;
 
@@ -480,17 +492,25 @@ class _CategoryEditToastDialog extends StatefulWidget {
     required this.initialVat,
   });
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<_CategoryEditToastDialog> createState() =>
       _CategoryEditToastDialogState();
 }
 
+/// Objet d'etat qui stocke les donnees temporaires de l'interface pour le dialogue toast de modification de categorie.
 class _CategoryEditToastDialogState extends State<_CategoryEditToastDialog> {
+  // Configuration, dependances et etat local de l'interface.
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _vatController;
 
+  // Cycle de vie du widget.
+
+  /// S'execute une seule fois quand le widget est insere dans l'arbre des widgets.
   @override
   void initState() {
     super.initState();
@@ -503,6 +523,7 @@ class _CategoryEditToastDialogState extends State<_CategoryEditToastDialog> {
     _vatController = TextEditingController(text: widget.initialVat);
   }
 
+  /// Libere les controleurs et les ecouteurs avant la destruction du widget.
   @override
   void dispose() {
     _nameController.dispose();
@@ -511,6 +532,9 @@ class _CategoryEditToastDialogState extends State<_CategoryEditToastDialog> {
     super.dispose();
   }
 
+  // Actions utilisateur et traitements asynchrones.
+
+  /// Soumet les donnees actuelles du formulaire.
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
 
@@ -524,6 +548,9 @@ class _CategoryEditToastDialogState extends State<_CategoryEditToastDialog> {
     );
   }
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return AlertDialog(

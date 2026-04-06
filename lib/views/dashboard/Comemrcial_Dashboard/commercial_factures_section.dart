@@ -10,6 +10,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+// Valeurs globales partagees utilisees par l'interface.
 const Color _primary = Color(0xFF2D47C8);
 const Color _primaryDark = Color(0xFF2037A7);
 const Color _accent = Color(0xFF0CAE4A);
@@ -25,15 +26,21 @@ const String _pdfCompanyPhone = '+216 00 000 000';
 const String _pdfCompanyEmail = 'contact@invera.tn';
 const String _pdfCompanyTaxId = 'MF: 0000000/A/M/000';
 
+/// Widget qui affiche la section des factures commerciales.
 class CommercialFacturesSection extends StatefulWidget {
   const CommercialFacturesSection({super.key});
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<CommercialFacturesSection> createState() =>
       _CommercialFacturesSectionState();
 }
 
+/// Objet d'etat qui stocke les donnees temporaires de l'interface pour la section des factures commerciales.
 class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
+  // Configuration, dependances et etat local de l'interface.
   static const Set<String> _confirmedStatuses = {'CONFIRMEE', 'VALIDEE'};
 
   final CommandeService _commandeService = CommandeService();
@@ -50,18 +57,25 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
   DateTimeRange? _selectedDateRange;
   String _searchQuery = '';
 
+  // Cycle de vie du widget.
+
+  /// S'execute une seule fois quand le widget est insere dans l'arbre des widgets.
   @override
   void initState() {
     super.initState();
     _loadData(showLoader: true);
   }
 
+  /// Libere les controleurs et les ecouteurs avant la destruction du widget.
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Charge les donnees.
   Future<void> _loadData({required bool showLoader}) async {
     setState(() {
       if (showLoader) {
@@ -118,8 +132,10 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     }
   }
 
+  /// Methode utilitaire pour la date seule.
   DateTime _dayOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
+  /// Trie les commandes par creation dans l'ordre souhaite.
   List<CommandeModel> _sortCommandesByCreation(List<CommandeModel> commandes) {
     final sorted = List<CommandeModel>.from(commandes);
     sorted.sort((a, b) {
@@ -140,6 +156,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     return sorted;
   }
 
+  /// Methode utilitaire pour l'analyse de la date de creation de la commande.
   DateTime? _parseCommandeCreationDate(CommandeModel cmd) {
     final raw = cmd.dateCommande.trim();
     if (raw.isNotEmpty) {
@@ -173,12 +190,14 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     return DateTime(year, month, day, hour, minute, second);
   }
 
+  /// Methode utilitaire pour l'analyse de la date de la commande.
   DateTime? _parseCommandeDate(CommandeModel cmd) {
     final parsed = _parseCommandeCreationDate(cmd);
     if (parsed == null) return null;
     return DateTime(parsed.year, parsed.month, parsed.day);
   }
 
+  /// Methode utilitaire pour l'appartenance a la plage de dates.
   bool _belongsToDateRange(CommandeModel cmd) {
     final selected = _selectedDateRange;
     if (selected == null) return true;
@@ -192,16 +211,19 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     return !order.isBefore(start) && !order.isAfter(end);
   }
 
+  /// Verifie si la commande est facturee.
   bool _isInvoiced(int commandeId) {
     return _facturesByCommandeId.containsKey(commandeId);
   }
 
+  /// Retourne les commandes en attente.
   List<CommandeModel> get _pendingCommandes {
     return _confirmedCommandes
         .where((cmd) => !_isInvoiced(cmd.idCommandeClient))
         .toList();
   }
 
+  /// Retourne les commandes visibles.
   List<CommandeModel> get _visibleCommandes {
     final terms = _searchQueryTerms;
 
@@ -213,18 +235,21 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     }).toList();
   }
 
+  /// Formate la date pour l'affichage dans l'interface.
   String _formatDateForUi(DateTime value) {
     final day = value.day.toString().padLeft(2, '0');
     final month = value.month.toString().padLeft(2, '0');
     return '$day/$month/${value.year}';
   }
 
+  /// Retourne le libelle de la plage de dates.
   String get _dateRangeLabel {
     final selected = _selectedDateRange;
     if (selected == null) return 'Toutes dates';
     return '${_formatDateForUi(selected.start)} -> ${_formatDateForUi(selected.end)}';
   }
 
+  /// Verifie si la plage de dates est identique.
   bool _isSameDateRange(DateTimeRange? a, DateTimeRange? b) {
     if (a == null || b == null) return a == b;
     final startA = _dayOnly(a.start);
@@ -234,6 +259,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     return startA == startB && endA == endB;
   }
 
+  /// Methode utilitaire pour la plage normalisee.
   DateTimeRange _normalizedRange(DateTime start, DateTime end) {
     final normalizedStart = _dayOnly(start);
     final normalizedEnd = _dayOnly(end);
@@ -243,6 +269,9 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     return DateTimeRange(start: normalizedEnd, end: normalizedStart);
   }
 
+  // Actions utilisateur et traitements asynchrones.
+
+  /// Ouvre la feuille de filtre par date.
   Future<void> _openDateFilterSheet() async {
     final now = DateTime.now();
     final firstDate = DateTime(now.year - 10, 1, 1);
@@ -492,6 +521,9 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     );
   }
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Normalise le texte de recherche.
   String _normalizeSearchText(String value) {
     return value
         .toLowerCase()
@@ -508,6 +540,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
         .trim();
   }
 
+  /// Retourne les termes de la recherche.
   List<String> get _searchQueryTerms {
     final normalized = _normalizeSearchText(_searchQuery);
     if (normalized.isEmpty) return const <String>[];
@@ -517,6 +550,9 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
         .toList(growable: false);
   }
 
+  // Construction de l'interface.
+
+  /// Construit la chaine de recherche.
   String _buildSearchHaystack(CommandeModel cmd) {
     final date = _parseCommandeDate(cmd);
     final normalizedDate = date == null
@@ -536,12 +572,17 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     return _normalizeSearchText(raw);
   }
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Calcule le total.
   double _sumTotal(List<CommandeModel> items) {
     return items.fold<double>(0, (sum, e) => sum + e.total);
   }
 
+  /// Formate amount pour l'affichage.
   String _formatAmount(double value) => '${value.toStringAsFixed(2)} DT';
 
+  /// Retourne un libelle d'affichage pour le statut.
   String _displayStatus(String raw) {
     final norm = raw.trim().toUpperCase();
     if (norm == 'EN_ATTENTE') return 'En attente';
@@ -550,6 +591,9 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     return raw;
   }
 
+  // Construction de l'interface.
+
+  /// Construit l'apercu des produits.
   String _buildProductsPreview(CommandeModel cmd) {
     if (cmd.produits.isEmpty) return 'Aucun produit';
     final names = cmd.produits.map((p) => p.libelle).toList();
@@ -557,6 +601,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     return '${names[0]} + ${names[1]} + ${names.length - 2} autres';
   }
 
+  /// Construit le sous-total de la commande.
   String _buildCommandeSubtotal(CommandeModel cmd) {
     final subtotal = cmd.produits.fold<double>(
       0,
@@ -565,6 +610,9 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     return '${subtotal.toStringAsFixed(2)} DT';
   }
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Verifie s'il s'agit d'une erreur d'authentification.
   bool _isAuthError(String message) {
     final normalized = message.toLowerCase();
     return normalized.contains('http 401') ||
@@ -573,6 +621,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
         normalized.contains('access denied');
   }
 
+  /// Nettoie le message d'erreur avant l'affichage.
   String _cleanErrorMessage(Object error) {
     final raw = error.toString().trim();
     if (raw.startsWith('Exception:')) {
@@ -581,10 +630,12 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     return raw;
   }
 
+  /// Verifie si la generation est en cours.
   bool _isGeneratingFor(int commandeId) {
     return _generatingCommandeId == commandeId;
   }
 
+  /// Methode utilitaire pour la creation d'une facture pour la commande.
   Future<FactureModel?> _ensureFactureForCommande(CommandeModel cmd) async {
     final cached = _facturesByCommandeId[cmd.idCommandeClient];
     if (cached != null) return cached;
@@ -633,12 +684,16 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     }
   }
 
+  // Actions utilisateur et traitements asynchrones.
+
+  /// Ouvre le flux de facture.
   Future<void> _openFactureFlow(CommandeModel cmd) async {
     final facture = await _ensureFactureForCommande(cmd);
     if (!mounted || facture == null) return;
     _showFactureDetails(cmd, facture);
   }
 
+  /// Exporte le PDF de la facture.
   Future<void> _exportFacturePdf(
     CommandeModel cmd,
     FactureModel facture,
@@ -657,6 +712,9 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     }
   }
 
+  // Construction de l'interface.
+
+  /// Construit les octets du PDF de la facture.
   Future<Uint8List> _buildFacturePdfBytes(
     CommandeModel cmd,
     FactureModel facture,
@@ -1324,6 +1382,9 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     );
   }
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Formate pdf amount pour l'affichage.
   String _formatPdfAmount(double value) {
     final absolute = value.abs().toStringAsFixed(3);
     final parts = absolute.split('.');
@@ -1335,6 +1396,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     return value < 0 ? '-$formatted' : formatted;
   }
 
+  /// Formate pdf date pour l'affichage.
   String _formatPdfDate(String raw) {
     final trimmed = raw.trim();
     if (trimmed.isEmpty) return '-';
@@ -1346,6 +1408,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     return '$day/$month/$year';
   }
 
+  /// Methode utilitaire pour l'analyse d'une date flexible.
   DateTime? _parseFlexibleDate(String raw) {
     final parsedRaw = DateTime.tryParse(raw);
     if (parsedRaw != null) return parsedRaw;
@@ -1369,12 +1432,16 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     return DateTime(year, month, day, hour, minute, second);
   }
 
+  /// Formate le type de client pour l'affichage.
   String _formatClientType(String? raw) {
     final normalized = ClientType.normalize(raw);
     if (normalized.isEmpty) return '-';
     return normalized == 'FIDEL' ? 'FIDELE' : normalized;
   }
 
+  // Actions utilisateur et traitements asynchrones.
+
+  /// Affiche les details de la facture.
   void _showFactureDetails(CommandeModel cmd, FactureModel facture) {
     showDialog<void>(
       context: context,
@@ -1481,6 +1548,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     );
   }
 
+  /// Affiche les details de la commande.
   void _showCommandeDetails(CommandeModel cmd) {
     final facture = _facturesByCommandeId[cmd.idCommandeClient];
     showDialog<void>(
@@ -1764,6 +1832,9 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     );
   }
 
+  // Construction de l'interface.
+
+  /// Construit la pastille de statut.
   Widget _buildStatusChip(String status) {
     final normalized = status.trim().toUpperCase();
     late Color bg;
@@ -1797,6 +1868,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     );
   }
 
+  /// Construit la tuile meta.
   Widget _buildMetaTile({
     required IconData icon,
     required String label,
@@ -1834,6 +1906,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     );
   }
 
+  /// Construit la section de details.
   Widget _buildDetailsSection({required String title, required Widget child}) {
     return Container(
       width: double.infinity,
@@ -1868,6 +1941,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     );
   }
 
+  /// Construit la carte d'information detaillee.
   Widget _buildDetailInfoCard({
     required IconData icon,
     required String label,
@@ -1921,6 +1995,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     );
   }
 
+  /// Construit la ligne de detail de la commande.
   Widget _buildCommandeDetailRow({
     required IconData icon,
     required String label,
@@ -1965,6 +2040,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     );
   }
 
+  /// Construit la carte detaillee du produit.
   Widget _buildProduitDetailCard({
     required int index,
     required CommandeProduitDetail produit,
@@ -2045,6 +2121,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     );
   }
 
+  /// Construit la tuile recapitulative.
   Widget _buildSummaryTile({required String label, required String value}) {
     final decoration = BoxDecoration(
       color: _background,
@@ -2114,6 +2191,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     );
   }
 
+  /// Construit amount ligne.
   Widget _buildAmountRow(String label, String value, {bool isPrimary = false}) {
     return Row(
       children: [
@@ -2139,6 +2217,9 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     );
   }
 
+  // Actions utilisateur et traitements asynchrones.
+
+  /// Affiche le message.
   void _showMessage(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -2148,6 +2229,9 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     );
   }
 
+  // Construction de l'interface.
+
+  /// Construit le badge.
   Widget _buildBadge(String label, Color fg, Color bg) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -2166,6 +2250,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     );
   }
 
+  /// Construit la pastille de compteur.
   Widget _buildCountPill(int count, {bool onDark = false}) {
     return Container(
       padding: EdgeInsets.symmetric(
@@ -2193,6 +2278,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     );
   }
 
+  /// Construit l'en-tete.
   Widget _buildHeader({
     required List<CommandeModel> visible,
     required int pending,
@@ -2437,6 +2523,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     );
   }
 
+  /// Construit le panneau des commandes.
   Widget _buildOrdersPanel(List<CommandeModel> visible) {
     if (visible.isEmpty) {
       return Container(
@@ -2468,6 +2555,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     );
   }
 
+  /// Construit la carte de commande.
   Widget _buildCommandeCard(CommandeModel cmd) {
     final invoiced = _isInvoiced(cmd.idCommandeClient);
     final facture = _facturesByCommandeId[cmd.idCommandeClient];
@@ -2640,6 +2728,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     );
   }
 
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     if (_loading) {

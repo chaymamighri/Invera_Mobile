@@ -6,7 +6,7 @@ import 'package:invera_mobile/models/client_model.dart';
 import 'package:invera_mobile/services/commande_service.dart';
 import 'package:invera_mobile/services/client_service.dart';
 
-// ---------- THEME CONSTANTS ----------
+// ---------- CONSTANTES DU THEME ----------
 const Color _primary = Color(0xFF2D47C8);
 const Color _primaryDark = Color(0xFF2037A7);
 const Color _accent = Color(0xFF0CAE4A);
@@ -19,12 +19,16 @@ const Color _success = Color(0xFF0CAE4A);
 const Color _error = Color(0xFFB42318);
 const double _baseUnit = 8.0;
 
-// ---------- HELPER WIDGETS ----------
+// ---------- WIDGETS UTILITAIRES ----------
 class _StatusChip extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String label;
   final Color color;
   const _StatusChip({required this.label, required this.color});
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -49,11 +53,16 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche le badge d'information.
 class _InfoBadge extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String label;
   final String value;
   const _InfoBadge({required this.label, required this.value});
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -90,15 +99,19 @@ class _InfoBadge extends StatelessWidget {
   }
 }
 
-// ---------- MAIN SECTION ----------
+// ---------- SECTION PRINCIPALE ----------
 class CommercialClientsSection extends StatefulWidget {
   const CommercialClientsSection({super.key});
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<CommercialClientsSection> createState() =>
       _CommercialClientsSectionState();
 }
 
+/// Objet d'etat qui stocke les donnees temporaires de l'interface pour la section des clients commerciaux.
 class _CommercialClientsSectionState extends State<CommercialClientsSection>
     with TickerProviderStateMixin {
   final ClientService _clientService = ClientService();
@@ -116,11 +129,11 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
   String? _selectedType;
   Timer? _searchDebounce;
 
-  // Sorting
+  // Tri
   bool _sortAscending = true;
   int _sortColumnIndex = 0; // 0 = name, 1 = type, 2 = phone, 3 = email
 
-  // Animation controllers for hover effects (optional, can be omitted)
+  // Controleurs d'animation pour les effets de survol (optionnels, peuvent etre omis)
   late AnimationController _hoverController;
   final Map<int, AnimationController> _rowHoverControllers = {};
 
@@ -225,7 +238,7 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
     _loadClients(showBusy: true);
   }
 
-  // Sorting logic
+  // Logique de tri
   void _sortClients() {
     switch (_sortColumnIndex) {
       case 0: // name
@@ -269,7 +282,7 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
     setState(() {});
   }
 
-  // CRUD operations (unchanged from original but with improved UI feedback)
+  // Operations CRUD (inchangées par rapport a l'original, avec un meilleur retour visuel)
   Future<void> _onCreateClient() async {
     final payload = await _openClientForm();
     if (payload == null) return;
@@ -419,7 +432,7 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
     );
   }
 
-  // Improved client form (dialog or bottom sheet based on screen size)
+  // Formulaire client ameliore (dialogue ou bottom sheet selon la taille de l'ecran)
   Future<NouveauClientPayload?> _openClientForm({ClientModel? initialClient}) {
     {
       final useBottomSheet = MediaQuery.of(context).size.width < 600;
@@ -463,7 +476,7 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
           )
         : ClientType.particulier;
 
-    // Decide on presentation: bottom sheet for small screens, dialog for larger
+    // Choix d'affichage : bottom sheet sur petit ecran, dialogue sur grand ecran
     final isSmall = MediaQuery.of(context).size.width < 600;
 
     Widget buildForm(StateSetter setModalState) {
@@ -731,7 +744,7 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
       );
   }
 
-  // ---------- UI ----------
+  // ---------- INTERFACE ----------
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -1114,7 +1127,7 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Sortable header
+          // En-tete triable
           Container(
             padding: EdgeInsets.symmetric(
               horizontal: _baseUnit * 2,
@@ -1523,7 +1536,9 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
   }
 }
 
+/// Widget qui affiche la surface du formulaire client.
 class _ClientFormSurface extends StatefulWidget {
+  // Configuration, dependances et etat local de l'interface.
   final ClientModel? initialClient;
   final List<String> clientTypes;
   final bool isBottomSheet;
@@ -1534,11 +1549,16 @@ class _ClientFormSurface extends StatefulWidget {
     required this.isBottomSheet,
   });
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<_ClientFormSurface> createState() => _ClientFormSurfaceState();
 }
 
+/// Objet d'etat qui stocke les donnees temporaires de l'interface pour la surface du formulaire client.
 class _ClientFormSurfaceState extends State<_ClientFormSurface> {
+  // Configuration, dependances et etat local de l'interface.
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   late final TextEditingController _nomCtrl;
   late final TextEditingController _telCtrl;
@@ -1546,8 +1566,12 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
   late final TextEditingController _addrCtrl;
   late String _selectedClientType;
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Retourne l'etat de modification.
   bool get _isEditing => widget.initialClient != null;
 
+  /// Retourne les types disponibles.
   List<String> get _availableTypes {
     final source = widget.clientTypes.isEmpty
         ? ClientType.allowedValues
@@ -1563,6 +1587,9 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
       );
   }
 
+  // Cycle de vie du widget.
+
+  /// S'execute une seule fois quand le widget est insere dans l'arbre des widgets.
   @override
   void initState() {
     super.initState();
@@ -1582,6 +1609,7 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
         : ClientType.particulier;
   }
 
+  /// Libere les controleurs et les ecouteurs avant la destruction du widget.
   @override
   void dispose() {
     _nomCtrl.dispose();
@@ -1591,6 +1619,9 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
     super.dispose();
   }
 
+  // Actions utilisateur et traitements asynchrones.
+
+  /// Soumet les donnees actuelles du formulaire.
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
 
@@ -1605,6 +1636,9 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
     );
   }
 
+  // Construction de l'interface.
+
+  /// Construit le champ de texte.
   Widget _buildTextField(
     TextEditingController controller,
     String label,
@@ -1659,6 +1693,7 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
     );
   }
 
+  /// Construit le formulaire.
   Widget _buildForm() {
     return Form(
       key: _formKey,
@@ -1778,6 +1813,7 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
     );
   }
 
+  /// Construit l'en-tete du formulaire.
   Widget _buildFormHeader({required String title, required bool isCompact}) {
     final subtitle = _isEditing
         ? 'Mettez a jour les coordonnees et le type du client.'
@@ -1834,6 +1870,7 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
     );
   }
 
+  /// Construit la carte du formulaire.
   Widget _buildFormCard() {
     return Container(
       width: double.infinity,
@@ -1873,6 +1910,9 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
     );
   }
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Construit les actions du formulaire.
   Widget buildFormActions({required bool isCompact}) {
     final cancelButton = TextButton(
       onPressed: () => Navigator.of(context).pop(),
@@ -1924,6 +1964,9 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
     );
   }
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     final title = _isEditing ? 'Modifier client' : 'Nouveau client';
@@ -2029,10 +2072,15 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
   }
 }
 
+/// Widget qui affiche l'en-tete de tableau.
 class _TableHeader extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String text;
   const _TableHeader(this.text);
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Text(

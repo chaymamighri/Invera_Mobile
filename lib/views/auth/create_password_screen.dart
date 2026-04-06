@@ -5,17 +5,24 @@ import '../../config/app_routes.dart';
 import '../../services/auth_service.dart';
 import 'auth_shell.dart';
 
+/// Widget qui affiche create mot de passe ecran.
 class CreatePasswordScreen extends StatefulWidget {
   const CreatePasswordScreen({super.key, this.initialEmail, this.initialCode});
 
+  // Configuration, dependances et etat local de l'interface.
   final String? initialEmail;
   final String? initialCode;
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<CreatePasswordScreen> createState() => _CreatePasswordScreenState();
 }
 
+/// Objet d'etat qui stocke les donnees temporaires de l'interface pour create mot de passe ecran.
 class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
+  // Configuration, dependances et etat local de l'interface.
   final _formKey = GlobalKey<FormState>();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -29,6 +36,9 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
   String? _feedbackMessage;
   bool _isError = false;
 
+  // Cycle de vie du widget.
+
+  /// S'execute une seule fois quand le widget est insere dans l'arbre des widgets.
   @override
   void initState() {
     super.initState();
@@ -41,6 +51,7 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
     _passwordController.addListener(_onPasswordChanged);
   }
 
+  /// Libere les controleurs et les ecouteurs avant la destruction du widget.
   @override
   void dispose() {
     _passwordController.removeListener(_onPasswordChanged);
@@ -51,12 +62,16 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
     super.dispose();
   }
 
+  // Actions utilisateur et traitements asynchrones.
+
+  /// Reagit lorsque le mot de passe change.
   void _onPasswordChanged() {
     if (mounted) {
       setState(() {});
     }
   }
 
+  /// Soumet les donnees actuelles du formulaire.
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -99,17 +114,24 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
     }
   }
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Verifie si la valeur a une longueur minimale.
   bool _hasMinLength(String password) => password.length >= 8;
 
+  /// Verifie si la valeur contient une majuscule.
   bool _hasUppercase(String password) => RegExp(r'[A-Z]').hasMatch(password);
 
+  /// Verifie si la valeur contient un chiffre.
   bool _hasDigit(String password) => RegExp(r'\d').hasMatch(password);
 
+  /// Verifie si la valeur contient un caractere special.
   bool _hasSpecialCharacter(String password) {
     const specialCharacters = r'''!@#$%^&*()_-+=[]{};:'",.<>/?\|`~''';
     return password.split('').any(specialCharacters.contains);
   }
 
+  /// Valide l'adresse e-mail.
   String? _validateEmail(String? value) {
     final email = (value ?? '').trim();
     if (email.isEmpty) {
@@ -124,6 +146,9 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
     return null;
   }
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     final password = _passwordController.text;

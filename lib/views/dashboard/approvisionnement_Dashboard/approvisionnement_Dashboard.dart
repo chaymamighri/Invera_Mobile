@@ -7,6 +7,7 @@ import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procur
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procurement_orders_section.dart';
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procurement_products_section.dart';
 
+// Valeurs globales partagees utilisees par l'interface.
 const Color _achatPrimary = Color(0xFF2553D4);
 const Color _achatTeal = Color(0xFF14B8A6);
 const Color _achatInk = Color(0xFF10203A);
@@ -14,16 +15,22 @@ const Color _achatMuted = Color(0xFF607089);
 const Color _achatSidebarStart = Color(0xFF0B1730);
 const Color _achatSidebarEnd = Color(0xFF15367A);
 
+/// Widget qui affiche le tableau de bord d'approvisionnement.
 class ApprovisionnementDashboard extends StatefulWidget {
+  // Configuration, dependances et etat local de l'interface.
   final User user;
 
   const ApprovisionnementDashboard({super.key, required this.user});
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<ApprovisionnementDashboard> createState() =>
       _ApprovisionnementDashboardState();
 }
 
+/// Classe utilitaire pour l'etat du tableau de bord d'approvisionnement.
 class _ApprovisionnementDashboardState
     extends State<ApprovisionnementDashboard> {
   bool _sidebarCollapsed = false;
@@ -1026,14 +1033,18 @@ class _ApprovisionnementDashboardState
   }
 }
 
+/// Petit modele utilitaire qui stocke les donnees de la section de barre laterale.
 class _SidebarSection {
+  // Configuration, dependances et etat local de l'interface.
   final String title;
   final List<_SidebarItem> items;
 
   const _SidebarSection({required this.title, required this.items});
 }
 
+/// Petit modele utilitaire qui stocke les donnees de l'element de barre laterale.
 class _SidebarItem {
+  // Configuration, dependances et etat local de l'interface.
   final String id;
   final String label;
   final IconData icon;

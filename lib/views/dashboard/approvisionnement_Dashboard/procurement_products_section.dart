@@ -7,14 +7,19 @@ import 'package:invera_mobile/models/procurement_models.dart';
 import 'package:invera_mobile/services/procurement_service.dart';
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procurement_shared.dart';
 
+/// Widget qui affiche la section des produits d'approvisionnement.
 class ProcurementProductsSection extends StatefulWidget {
   const ProcurementProductsSection({super.key});
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<ProcurementProductsSection> createState() =>
       _ProcurementProductsSectionState();
 }
 
+/// Classe utilitaire pour l'etat de la section des produits d'approvisionnement.
 class _ProcurementProductsSectionState
     extends State<ProcurementProductsSection> {
   final ProcurementService _service = ProcurementService();
@@ -417,7 +422,9 @@ class _ProcurementProductsSectionState
   }
 }
 
+/// Widget qui affiche le dialogue du formulaire produit.
 class ProductFormDialog extends StatefulWidget {
+  // Configuration, dependances et etat local de l'interface.
   final List<ProcurementCategory> categories;
   final ProcurementProduct? initialProduct;
 
@@ -427,11 +434,16 @@ class ProductFormDialog extends StatefulWidget {
     required this.initialProduct,
   });
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<ProductFormDialog> createState() => _ProductFormDialogState();
 }
 
+/// Objet d'etat qui stocke les donnees temporaires de l'interface pour le dialogue du formulaire produit.
 class _ProductFormDialogState extends State<ProductFormDialog> {
+  // Configuration, dependances et etat local de l'interface.
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   late final TextEditingController _salePriceController;
@@ -448,12 +460,19 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
   String? _selectedImageMimeType;
   bool _pickingImage = false;
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Retourne l'etat de modification.
   bool get _isEditing => widget.initialProduct != null;
 
+  /// Retourne l'url de l'image existante.
   String? get _existingImageUrl {
     return ApiConfig.resolveMediaUrl(widget.initialProduct?.imageUrl);
   }
 
+  // Cycle de vie du widget.
+
+  /// S'execute une seule fois quand le widget est insere dans l'arbre des widgets.
   @override
   void initState() {
     super.initState();
@@ -484,6 +503,9 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
     _active = product?.active ?? true;
   }
 
+  // Actions utilisateur et traitements asynchrones.
+
+  /// Permet a l'utilisateur de choisir l'image.
   Future<void> _pickImage() async {
     setState(() {
       _pickingImage = true;
@@ -536,6 +558,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
     }
   }
 
+  /// Efface l'image selectionnee.
   void _clearSelectedImage() {
     setState(() {
       _selectedImageBytes = null;
@@ -544,6 +567,9 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
     });
   }
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Determine automatiquement le type MIME de l'image.
   String _guessImageMimeType(String fileName, {String? extension}) {
     final parts = fileName.split('.');
     final fallbackExtension = parts.length > 1 ? parts.last : '';
@@ -565,6 +591,9 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
     }
   }
 
+  // Construction de l'interface.
+
+  /// Construit l'espace reserve de l'image.
   Widget _buildImagePlaceholder() {
     return Container(
       width: 96,
@@ -582,6 +611,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
     );
   }
 
+  /// Construit la section image.
   Widget _buildImageSection() {
     final hasExistingImage = _existingImageUrl != null;
     final helperText = _selectedImageBytes != null
@@ -681,6 +711,9 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
     );
   }
 
+  // Cycle de vie du widget.
+
+  /// Libere les controleurs et les ecouteurs avant la destruction du widget.
   @override
   void dispose() {
     _nameController.dispose();
@@ -692,6 +725,9 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
     super.dispose();
   }
 
+  // Actions utilisateur et traitements asynchrones.
+
+  /// Soumet les donnees actuelles du formulaire.
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
     if (_categoryId == null) return;
@@ -718,6 +754,9 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
     Navigator.pop(context, payload);
   }
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -948,19 +987,29 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
   }
 }
 
+/// Widget qui affiche le dialogue d'ajustement du stock.
 class StockAdjustDialog extends StatefulWidget {
+  // Configuration, dependances et etat local de l'interface.
   final int initialQuantity;
 
   const StockAdjustDialog({super.key, required this.initialQuantity});
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<StockAdjustDialog> createState() => _StockAdjustDialogState();
 }
 
+/// Objet d'etat qui stocke les donnees temporaires de l'interface pour le dialogue d'ajustement du stock.
 class _StockAdjustDialogState extends State<StockAdjustDialog> {
+  // Configuration, dependances et etat local de l'interface.
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _quantityController;
 
+  // Cycle de vie du widget.
+
+  /// S'execute une seule fois quand le widget est insere dans l'arbre des widgets.
   @override
   void initState() {
     super.initState();
@@ -969,17 +1018,24 @@ class _StockAdjustDialogState extends State<StockAdjustDialog> {
     );
   }
 
+  /// Libere les controleurs et les ecouteurs avant la destruction du widget.
   @override
   void dispose() {
     _quantityController.dispose();
     super.dispose();
   }
 
+  // Actions utilisateur et traitements asynchrones.
+
+  /// Soumet les donnees actuelles du formulaire.
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
     Navigator.pop(context, int.parse(_quantityController.text));
   }
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return AlertDialog(

@@ -6,7 +6,7 @@ import 'package:invera_mobile/models/commande_model.dart';
 import 'package:invera_mobile/services/client_service.dart';
 import 'package:invera_mobile/services/commande_service.dart';
 
-// ---------- THEME CONSTANTS (reuse from clients section) ----------
+// ---------- CONSTANTES DU THEME (reprises depuis la section clients) ----------
 const Color _primary = Color(0xFF2D47C8);
 const Color _primaryDark = Color(0xFF2037A7);
 const Color _accent = Color(0xFF0CAE4A);
@@ -19,13 +19,17 @@ const Color _success = Color(0xFF0CAE4A);
 const Color _error = Color(0xFFB42318);
 const double _baseUnit = 8.0;
 
-// ---------- REUSABLE WIDGETS ----------
+// ---------- WIDGETS REUTILISABLES ----------
 class _StatusChip extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String status;
   final bool compact;
 
   const _StatusChip({required this.status, this.compact = false});
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     final normalized = status.trim().toUpperCase();
@@ -63,6 +67,9 @@ class _StatusChip extends StatelessWidget {
     );
   }
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Retourne un libelle d'affichage pour le statut.
   String _displayStatus(String raw) {
     final norm = raw.trim().toUpperCase();
     if (norm == 'EN_ATTENTE') return 'En attente';
@@ -72,7 +79,9 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
+/// Widget qui affiche le badge d'information.
 class _InfoBadge extends StatelessWidget {
+  // Configuration, dependances et etat local de l'interface.
   final String label;
   final String value;
   final bool compact;
@@ -83,6 +92,9 @@ class _InfoBadge extends StatelessWidget {
     this.compact = false,
   });
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -119,15 +131,19 @@ class _InfoBadge extends StatelessWidget {
   }
 }
 
-// ---------- MAIN SECTION ----------
+// ---------- SECTION PRINCIPALE ----------
 class CommercialCommandesSection extends StatefulWidget {
   const CommercialCommandesSection({super.key});
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<CommercialCommandesSection> createState() =>
       _CommercialCommandesSectionState();
 }
 
+/// Objet d'etat qui stocke les donnees temporaires de l'interface pour la section des commandes commerciales.
 class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     with TickerProviderStateMixin {
   static const Set<String> _factureStatuses = {'CONFIRMEE', 'VALIDEE'};
@@ -1573,9 +1589,9 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
       },
     );
 
-    // Important fix:
-    // wait until the dialog is fully removed from the widget tree
-    // before disposing controllers used by TextFormField.
+    // Correction importante :
+    // attendre que le dialogue soit completement retire de l'arbre des widgets
+    // avant de liberer les controleurs utilises par TextFormField.
     await WidgetsBinding.instance.endOfFrame;
 
     for (final l in lines) {
@@ -2835,8 +2851,9 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
   }
 }
 
-// Helper classes
+// Classes utilitaires
 class _DraftLine {
+  // Configuration, dependances et etat local de l'interface.
   final String rowKey;
   int? produitId;
   final TextEditingController quantiteController;
@@ -2849,10 +2866,15 @@ class _DraftLine {
     this.fallbackPrix,
   }) : quantiteController = TextEditingController(text: '$quantite');
 
+  // Cycle de vie du widget.
+
+  /// Libere les controleurs et les ecouteurs avant la destruction du widget.
   void dispose() => quantiteController.dispose();
 }
 
+/// Petit modele utilitaire qui stocke les donnees du resultat du formulaire de commande.
 class _CommandeFormResult {
+  // Configuration, dependances et etat local de l'interface.
   final int clientId;
   final List<CommandeProduitPayload> produits;
   final double remiseTotale;

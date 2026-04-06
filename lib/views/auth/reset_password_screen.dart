@@ -4,16 +4,23 @@ import '../../config/app_routes.dart';
 import '../../services/auth_service.dart';
 import 'auth_shell.dart';
 
+/// Widget qui affiche l'ecran de reinitialisation du mot de passe.
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({super.key, required this.email});
 
+  // Configuration, dependances et etat local de l'interface.
   final String email;
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
 }
 
+/// Objet d'etat qui stocke les donnees temporaires de l'interface pour l'ecran de reinitialisation du mot de passe.
 class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
+  // Configuration, dependances et etat local de l'interface.
   final _formKey = GlobalKey<FormState>();
   final _codeController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -27,6 +34,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   String? _feedbackMessage;
   bool _isError = false;
 
+  // Cycle de vie du widget.
+
+  /// S'execute une seule fois quand le widget est insere dans l'arbre des widgets.
   @override
   void initState() {
     super.initState();
@@ -36,6 +46,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     _passwordController.addListener(_onPasswordChange);
   }
 
+  /// Libere les controleurs et les ecouteurs avant la destruction du widget.
   @override
   void dispose() {
     _passwordController.removeListener(_onPasswordChange);
@@ -46,12 +57,16 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     super.dispose();
   }
 
+  // Actions utilisateur et traitements asynchrones.
+
+  /// Reagit lorsque le mot de passe change.
   void _onPasswordChange() {
     if (mounted) {
       setState(() {});
     }
   }
 
+  /// Soumet les donnees actuelles du formulaire.
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -94,6 +109,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     }
   }
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Valide l'adresse e-mail.
   String? _validateEmail(String? value) {
     final email = (value ?? '').trim();
     if (email.isEmpty) {
@@ -108,6 +126,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     return null;
   }
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     final password = _passwordController.text;

@@ -5,14 +5,20 @@ import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import 'auth_shell.dart';
 
+/// Widget qui affiche l'ecran de connexion.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
+  // Cycle de vie du widget.
+
+  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
+/// Objet d'etat qui stocke les donnees temporaires de l'interface pour l'ecran de connexion.
 class _LoginScreenState extends State<LoginScreen> {
+  // Configuration, dependances et etat local de l'interface.
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -22,6 +28,9 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   String? _errorMessage;
 
+  // Cycle de vie du widget.
+
+  /// Libere les controleurs et les ecouteurs avant la destruction du widget.
   @override
   void dispose() {
     _emailController.dispose();
@@ -29,6 +38,9 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  // Actions utilisateur et traitements asynchrones.
+
+  /// Gere la connexion.
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -96,6 +108,9 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
+  // Valeurs calculees et methodes utilitaires.
+
+  /// Valide l'adresse e-mail.
   String? _validateEmail(String? value) {
     final email = (value ?? '').trim();
     if (email.isEmpty) {
@@ -110,6 +125,9 @@ class _LoginScreenState extends State<LoginScreen> {
     return null;
   }
 
+  // Construction de l'interface.
+
+  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     final linkStyle = TextButton.styleFrom(
