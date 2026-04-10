@@ -11,6 +11,7 @@ import 'package:invera_mobile/services/commande_service.dart';
 import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/commercial_clients_section.dart';
 import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/commercial_commandes_section.dart';
 import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/commercial_factures_section.dart';
+import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/commercial_products_section.dart';
 
 // Valeurs globales partagees utilisees par l'interface.
 const Color _ventePrimary = Color(0xFF2553D4);
@@ -62,6 +63,21 @@ double _niceAxisMax(double value) {
   return niceFraction * exponent;
 }
 
+/// Retourne un facteur d'echelle progressif pour telephone.
+double _phoneScale(BuildContext context, {double min = 0.84}) {
+  final width = MediaQuery.sizeOf(context).width;
+  if (width >= 600) return 1;
+
+  final normalizedWidth = width.clamp(320.0, 600.0).toDouble();
+  final progress = (normalizedWidth - 320.0) / 280.0;
+  return min + ((1 - min) * progress);
+}
+
+/// Reduit une valeur numerique sur les petits ecrans.
+double _scaledValue(BuildContext context, double value, {double min = 0.84}) {
+  return value * _phoneScale(context, min: min);
+}
+
 /// Widget qui affiche le tableau de bord commercial.
 class CommercialDashboard extends StatefulWidget {
   // Configuration, dependances et etat local de l'interface.
@@ -94,8 +110,8 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
   bool _sidebarCollapsed = false;
   String _activePage = 'dashboard';
 
-  final List<_SidebarSection> _sections = const [
-    _SidebarSection(
+  List<_SidebarSection> get _sections => [
+    const _SidebarSection(
       title: 'Tableau de bord',
       items: [
         _SidebarItem(
@@ -108,17 +124,24 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
     _SidebarSection(
       title: 'Gestion commerciale',
       items: [
-        _SidebarItem(
+        const _SidebarItem(
           id: 'clients',
           label: 'Clients',
           icon: Icons.people_alt_outlined,
         ),
-        _SidebarItem(
+        if (widget.user.role == UserRole.COMMERCIAL ||
+            widget.user.role == UserRole.RESPONSABLE_VENTE)
+          const _SidebarItem(
+            id: 'produits',
+            label: 'Produits',
+            icon: Icons.inventory_2_outlined,
+          ),
+        const _SidebarItem(
           id: 'commandes',
           label: 'Commandes',
           icon: Icons.shopping_cart_outlined,
         ),
-        _SidebarItem(
+        const _SidebarItem(
           id: 'factures',
           label: 'Factures',
           icon: Icons.receipt_long_outlined,
@@ -152,6 +175,8 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
         return widget.analyticsTitle;
       case 'clients':
         return 'Gestion des clients';
+      case 'produits':
+        return 'Catalogue produits';
       case 'commandes':
         return 'Commandes commerciales';
       case 'factures':
@@ -168,6 +193,8 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
         return widget.analyticsSubtitle;
       case 'clients':
         return 'Prospection, suivi du portefeuille et operations client';
+      case 'produits':
+        return 'Consultation du catalogue, des prix et des disponibilites produits';
       case 'commandes':
         return 'Creation, suivi des statuts et pilotage des commandes de vente';
       case 'factures':
@@ -268,6 +295,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
   /// Methode utilitaire pour le theme du module.
   ThemeData _moduleTheme(BuildContext context) {
     final base = Theme.of(context);
+    final scale = _phoneScale(context);
     final scheme = ColorScheme.fromSeed(
       seedColor: _ventePrimary,
       primary: _ventePrimary,
@@ -275,9 +303,12 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
       surface: Colors.white,
     );
 
+    double size(double value, {double min = 0.84}) =>
+        _scaledValue(context, value, min: min);
+
     OutlineInputBorder border(Color color, {double width = 1.2}) {
       return OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(size(16)),
         borderSide: BorderSide(color: color, width: width),
       );
     }
@@ -286,11 +317,13 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
       backgroundColor: _ventePrimary,
       foregroundColor: Colors.white,
       elevation: 0,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      minimumSize: const Size(0, 40),
+      padding: EdgeInsets.symmetric(horizontal: size(14), vertical: size(12)),
+      minimumSize: Size(0, size(40)),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(size(14)),
+      ),
+      textStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: size(13)),
     );
 
     return base.copyWith(
@@ -303,27 +336,35 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: Colors.white.withValues(alpha: 0.96),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(size(28)),
+        ),
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: _venteInk,
-        contentTextStyle: const TextStyle(
+        contentTextStyle: TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.w600,
+          fontSize: size(13),
         ),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(size(18)),
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         isDense: true,
         filled: true,
         fillColor: Colors.white.withValues(alpha: 0.88),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 12,
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: size(14),
+          vertical: size(12),
         ),
-        labelStyle: const TextStyle(color: _venteMuted, fontSize: 13),
-        hintStyle: const TextStyle(color: Color(0xFF91A0B5), fontSize: 12.5),
+        labelStyle: TextStyle(color: _venteMuted, fontSize: size(13)),
+        hintStyle: TextStyle(
+          color: const Color(0xFF91A0B5),
+          fontSize: size(12.5),
+        ),
         border: border(const Color(0xFFDCE5F3)),
         enabledBorder: border(const Color(0xFFDCE5F3)),
         focusedBorder: border(_ventePrimary, width: 1.6),
@@ -335,32 +376,38 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: _venteInk,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          minimumSize: const Size(0, 40),
+          padding: EdgeInsets.symmetric(
+            horizontal: size(14),
+            vertical: size(12),
+          ),
+          minimumSize: Size(0, size(40)),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           side: const BorderSide(color: Color(0xFFD8E2F2)),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(size(14)),
           ),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+          textStyle: TextStyle(fontWeight: FontWeight.w600, fontSize: size(13)),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: _ventePrimary,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          minimumSize: const Size(0, 36),
+          padding: EdgeInsets.symmetric(
+            horizontal: size(12),
+            vertical: size(10),
+          ),
+          minimumSize: Size(0, size(36)),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+          textStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: size(13)),
         ),
       ),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
           foregroundColor: _venteInk,
-          padding: const EdgeInsets.all(8),
-          minimumSize: const Size(36, 36),
+          padding: EdgeInsets.all(size(8, min: 0.88)),
+          minimumSize: Size(size(36), size(36)),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          iconSize: 20,
+          iconSize: size(20),
         ),
       ),
       chipTheme: base.chipTheme.copyWith(
@@ -368,13 +415,18 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
         selectedColor: _ventePrimary.withValues(alpha: 0.12),
         secondarySelectedColor: _ventePrimary.withValues(alpha: 0.12),
         side: const BorderSide(color: Color(0xFFD8E2F2)),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-        labelStyle: const TextStyle(
-          fontSize: 12,
+        padding: EdgeInsets.symmetric(
+          horizontal: size(8, min: 0.9),
+          vertical: size(1, min: 0.9),
+        ),
+        labelStyle: TextStyle(
+          fontSize: size(12),
           fontWeight: FontWeight.w600,
           color: _venteInk,
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(999 * scale),
+        ),
       ),
     );
   }
@@ -508,6 +560,8 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
         );
       case 'clients':
         return const CommercialClientsSection();
+      case 'produits':
+        return const CommercialProductsSection();
       case 'commandes':
         return const CommercialCommandesSection();
       case 'factures':
@@ -522,7 +576,10 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
 
   /// Construit la barre d'application mobile.
   PreferredSizeWidget _buildMobileAppBar() {
+    final currentPageTitle = _pageTitle();
+    final scale = _phoneScale(context, min: 0.86);
     return AppBar(
+      toolbarHeight: 64 * scale,
       backgroundColor: Colors.white.withValues(alpha: 0.72),
       foregroundColor: _venteInk,
       surfaceTintColor: Colors.transparent,
@@ -530,10 +587,10 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
       titleSpacing: 0,
       title: Row(
         children: [
-          const SizedBox(width: 4),
+          SizedBox(width: 4 * scale),
           Container(
-            width: 34,
-            height: 34,
+            width: 32 * scale,
+            height: 32 * scale,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -541,32 +598,38 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                   _venteTeal.withValues(alpha: 0.10),
                 ],
               ),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(11 * scale),
             ),
-            padding: const EdgeInsets.all(6),
+            padding: EdgeInsets.all(5.5 * scale),
             child: Image.asset(
               'assets/images/logo.png',
               fit: BoxFit.contain,
               errorBuilder: (_, __, ___) => const Icon(Icons.business),
             ),
           ),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                widget.appTitle,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 15,
+          SizedBox(width: 8 * scale),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  widget.appTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5 * scale,
+                  ),
                 ),
-              ),
-              const Text(
-                'Dashboard vente',
-                style: TextStyle(fontSize: 11.5, color: _venteMuted),
-              ),
-            ],
+                Text(
+                  currentPageTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 11 * scale, color: _venteMuted),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -576,18 +639,19 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
 
   /// Construit les actions principales.
   List<Widget> _buildTopActions() {
+    final scale = _phoneScale(context, min: 0.86);
     return [
       IconButton(
         tooltip: 'Profil',
         onPressed: _openProfile,
-        icon: const Icon(Icons.person_outline),
+        icon: Icon(Icons.person_outline, size: 19 * scale),
       ),
       IconButton(
         tooltip: 'Deconnexion',
         onPressed: _confirmLogout,
-        icon: const Icon(Icons.logout, color: Colors.red),
+        icon: Icon(Icons.logout, color: Colors.red, size: 19 * scale),
       ),
-      const SizedBox(width: 8),
+      SizedBox(width: 4 * scale),
     ];
   }
 
@@ -739,7 +803,9 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
 
   /// Construit la barre laterale.
   Widget _buildSidebar({required bool collapsed, required bool mobile}) {
-    return Container(
+    final scale = mobile ? _phoneScale(context, min: 0.84) : 1.0;
+
+    final sidebar = Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -750,7 +816,12 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 20, 12, 18),
+            padding: EdgeInsets.fromLTRB(
+              16 * scale,
+              18 * scale,
+              12 * scale,
+              16 * scale,
+            ),
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
@@ -764,8 +835,8 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
-                          width: 44,
-                          height: 44,
+                          width: 40 * scale,
+                          height: 40 * scale,
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
@@ -773,9 +844,9 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                                 _venteTeal.withValues(alpha: 0.16),
                               ],
                             ),
-                            borderRadius: BorderRadius.circular(15),
+                            borderRadius: BorderRadius.circular(14 * scale),
                           ),
-                          padding: const EdgeInsets.all(8),
+                          padding: EdgeInsets.all(7 * scale),
                           child: Image.asset(
                             'assets/images/logo.png',
                             fit: BoxFit.contain,
@@ -783,20 +854,20 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                                 const Icon(Icons.business, color: Colors.white),
                           ),
                         ),
-                        const SizedBox(height: 14),
+                        SizedBox(height: 12 * scale),
                         Text(
                           widget.appTitle,
-                          style: const TextStyle(
-                            fontSize: 20,
+                          style: TextStyle(
+                            fontSize: 18.5 * scale,
                             fontWeight: FontWeight.w800,
                             color: Colors.white,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        SizedBox(height: 2 * scale),
                         Text(
                           widget.appSubtitle,
-                          style: const TextStyle(
-                            fontSize: 12,
+                          style: TextStyle(
+                            fontSize: 11.5 * scale,
                             color: Color(0xFFD3DDEB),
                           ),
                         ),
@@ -823,16 +894,21 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
           ),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.all(11 * scale),
               children: [
                 for (final section in _sections) ...[
                   if (!collapsed)
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+                      padding: EdgeInsets.fromLTRB(
+                        8 * scale,
+                        8 * scale,
+                        8 * scale,
+                        8 * scale,
+                      ),
                       child: Text(
                         section.title,
-                        style: const TextStyle(
-                          fontSize: 11,
+                        style: TextStyle(
+                          fontSize: 10.5 * scale,
                           letterSpacing: 0.7,
                           fontWeight: FontWeight.w700,
                           color: Color(0xFFAFC0D9),
@@ -840,20 +916,24 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                       ),
                     ),
                   for (final item in section.items) ...[
-                    _buildSidebarItem(item: item, collapsed: collapsed),
-                    const SizedBox(height: 6),
+                    _buildSidebarItem(
+                      item: item,
+                      collapsed: collapsed,
+                      mobile: mobile,
+                    ),
+                    SizedBox(height: 6 * scale),
                   ],
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8 * scale),
                 ],
               ],
             ),
           ),
           Container(
-            margin: const EdgeInsets.fromLTRB(12, 0, 12, 14),
-            padding: EdgeInsets.all(collapsed ? 10 : 12),
+            margin: EdgeInsets.fromLTRB(12 * scale, 0, 12 * scale, 14 * scale),
+            padding: EdgeInsets.all((collapsed ? 10 : 12) * scale),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(18 * scale),
               border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
             ),
             child: collapsed
@@ -862,18 +942,19 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                       GestureDetector(
                         onTap: _openProfile,
                         child: CircleAvatar(
-                          radius: 18,
+                          radius: 17 * scale,
                           backgroundColor: Colors.white.withValues(alpha: 0.18),
                           child: Text(
                             _initials(),
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
+                              fontSize: 12.5 * scale,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8 * scale),
                       IconButton(
                         tooltip: 'Deconnexion',
                         onPressed: _confirmLogout,
@@ -889,18 +970,19 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                       GestureDetector(
                         onTap: _openProfile,
                         child: CircleAvatar(
-                          radius: 18,
+                          radius: 17 * scale,
                           backgroundColor: Colors.white.withValues(alpha: 0.18),
                           child: Text(
                             _initials(),
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
+                              fontSize: 12.5 * scale,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      SizedBox(width: 10 * scale),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -908,8 +990,8 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                             Text(
                               '${widget.user.prenom} ${widget.user.nom}',
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 13,
+                              style: TextStyle(
+                                fontSize: 12.5 * scale,
                                 fontWeight: FontWeight.w700,
                                 color: Colors.white,
                               ),
@@ -917,8 +999,8 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                             Text(
                               _roleLabel(widget.user.role),
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 12,
+                              style: TextStyle(
+                                fontSize: 11.5 * scale,
                                 color: Color(0xFFD3DDEB),
                               ),
                             ),
@@ -939,24 +1021,36 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
         ],
       ),
     );
+
+    if (!mobile) return sidebar;
+
+    return SafeArea(child: sidebar);
   }
 
   /// Construit l'element de barre laterale.
   Widget _buildSidebarItem({
     required _SidebarItem item,
     required bool collapsed,
+    required bool mobile,
   }) {
     final isActive = _activePage == item.id;
+    final compact = mobile || MediaQuery.sizeOf(context).width < 600;
+    final scale = compact ? _phoneScale(context, min: 0.84) : 1.0;
 
     final itemWidget = Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(18 * scale),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: () => _setActivePage(item.id),
+        borderRadius: BorderRadius.circular(18 * scale),
+        onTap: () {
+          _setActivePage(item.id);
+          if (mobile && Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          }
+        },
         child: Container(
-          height: 48,
-          padding: EdgeInsets.symmetric(horizontal: collapsed ? 0 : 14),
+          height: (compact ? 44 : 48) * scale,
+          padding: EdgeInsets.symmetric(horizontal: collapsed ? 0 : 13 * scale),
           decoration: BoxDecoration(
             gradient: isActive
                 ? LinearGradient(
@@ -967,7 +1061,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
                   )
                 : null,
             color: isActive ? null : Colors.white.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(18 * scale),
             border: Border.all(
               color: isActive
                   ? Colors.white.withValues(alpha: 0.24)
@@ -981,16 +1075,16 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
             children: [
               Icon(
                 item.icon,
-                size: 20,
+                size: (compact ? 18 : 20) * scale,
                 color: isActive ? Colors.white : const Color(0xFFD7E1EF),
               ),
               if (!collapsed) ...[
-                const SizedBox(width: 10),
+                SizedBox(width: 9 * scale),
                 Expanded(
                   child: Text(
                     item.label,
                     style: TextStyle(
-                      fontSize: 13.5,
+                      fontSize: (compact ? 12.5 : 13.5) * scale,
                       fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                       color: isActive ? Colors.white : const Color(0xFFE2EAF5),
                     ),
@@ -1016,6 +1110,8 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.sizeOf(context).width < 960;
+    final isPhone = AdaptiveLayout.isPhone(context);
+    final phoneScale = _phoneScale(context, min: 0.84);
 
     final themedChild = isMobile
         ? Scaffold(
@@ -1023,17 +1119,31 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
             appBar: _buildMobileAppBar(),
             drawer: Drawer(
               backgroundColor: Colors.transparent,
-              width: AdaptiveLayout.drawerWidth(context, max: 304, ratio: 0.88),
+              width: AdaptiveLayout.drawerWidth(
+                context,
+                max: isPhone ? 280 : 304,
+                ratio: isPhone ? 0.80 : 0.88,
+              ),
               child: _buildSidebar(collapsed: false, mobile: true),
             ),
             body: SafeArea(
               top: false,
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
-                  AdaptiveLayout.horizontalPadding(context),
-                  16,
-                  AdaptiveLayout.horizontalPadding(context),
-                  16,
+                  AdaptiveLayout.horizontalPadding(
+                    context,
+                    phone: 10.5 * phoneScale,
+                    tablet: 16,
+                    desktop: 24,
+                  ),
+                  isPhone ? 10 * phoneScale : 16,
+                  AdaptiveLayout.horizontalPadding(
+                    context,
+                    phone: 10.5 * phoneScale,
+                    tablet: 16,
+                    desktop: 24,
+                  ),
+                  isPhone ? 10 * phoneScale : 16,
                 ),
                 child: Column(
                   children: [Expanded(child: _buildAnimatedPageContent())],
@@ -1387,11 +1497,14 @@ class _CommercialAnalyticsDashboardState
     required IconData icon,
     Widget? trailing,
   }) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    final scale = compact ? _phoneScale(context, min: 0.84) : 1.0;
+
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(compact ? 12 * scale : 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular((compact ? 14 : 16) * scale),
         border: Border.all(color: const Color(0xFFE6EAF2)),
         boxShadow: const [
           BoxShadow(
@@ -1407,32 +1520,36 @@ class _CommercialAnalyticsDashboardState
           Row(
             children: [
               Container(
-                width: 30,
-                height: 30,
+                width: (compact ? 28 : 30) * scale,
+                height: (compact ? 28 : 30) * scale,
                 decoration: BoxDecoration(
                   color: const Color(0xFF2D47C8).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(9),
+                  borderRadius: BorderRadius.circular(8 * scale),
                 ),
-                child: Icon(icon, color: const Color(0xFF2D47C8), size: 17),
+                child: Icon(
+                  icon,
+                  color: const Color(0xFF2D47C8),
+                  size: (compact ? 15.5 : 17) * scale,
+                ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8 * scale),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        fontSize: 14,
+                      style: TextStyle(
+                        fontSize: (compact ? 13.2 : 14) * scale,
                         fontWeight: FontWeight.w800,
                         color: Color(0xFF1F2A44),
                       ),
                     ),
                     Text(
                       subtitle,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Color(0xFF607089),
-                        fontSize: 11.5,
+                        fontSize: (compact ? 10.8 : 11.5) * scale,
                       ),
                     ),
                   ],
@@ -1441,7 +1558,7 @@ class _CommercialAnalyticsDashboardState
               if (trailing != null) trailing,
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 11 * scale),
           child,
         ],
       ),
@@ -1455,34 +1572,39 @@ class _CommercialAnalyticsDashboardState
     }
 
     if (_error != null && _clients.isEmpty && _commandes.isEmpty) {
+      final phoneScale = _phoneScale(context, min: 0.84);
+      final isPhone = MediaQuery.sizeOf(context).width < 560;
       return Center(
         child: Container(
           constraints: const BoxConstraints(maxWidth: 520),
-          padding: const EdgeInsets.all(24),
-          margin: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(isPhone ? 18 * phoneScale : 24),
+          margin: EdgeInsets.all(isPhone ? 14 * phoneScale : 24),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(isPhone ? 14 : 16),
             border: Border.all(color: const Color(0xFFE6EAF2)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Icons.error_outline,
                 color: Color(0xFFDC2626),
-                size: 40,
+                size: isPhone ? 34 * phoneScale : 40,
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12 * phoneScale),
               Text(
                 _error!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFFB42318)),
+                style: TextStyle(
+                  color: const Color(0xFFB42318),
+                  fontSize: isPhone ? 12.5 : 13,
+                ),
               ),
-              const SizedBox(height: 14),
+              SizedBox(height: 14 * phoneScale),
               ElevatedButton.icon(
                 onPressed: () => _loadDashboard(showLoader: true),
-                icon: const Icon(Icons.refresh),
+                icon: Icon(Icons.refresh, size: isPhone ? 17 : 18),
                 label: const Text('Reessayer'),
               ),
             ],
@@ -1499,15 +1621,19 @@ class _CommercialAnalyticsDashboardState
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isWide = screenWidth > 1240;
     final isPhone = screenWidth < 560;
+    final phoneScale = _phoneScale(context, min: 0.84);
     final showTypeDistribution = screenWidth >= 600;
     final horizontalPadding = screenWidth < 390
-        ? 12.0
-        : (screenWidth < 760 ? 16.0 : 24.0);
-    final verticalPadding = screenWidth < 760 ? 16.0 : 20.0;
+        ? 10.0 * phoneScale
+        : (screenWidth < 760 ? 14.0 : 24.0);
+    final verticalPadding = screenWidth < 760 ? (isPhone ? 12.0 : 16.0) : 20.0;
     final kpiColumns = screenWidth < 1100 ? 2 : 4;
     final kpiAspectRatio = screenWidth < 390
         ? 1.34
         : (screenWidth < 700 ? 1.55 : (screenWidth < 1100 ? 2.0 : 2.2));
+    final cardPadding = isPhone ? 12.0 * phoneScale : 14.0;
+    final inlineGap = isPhone ? 8.0 * phoneScale : 10.0;
+    final gridGap = isPhone ? 8.0 * phoneScale : 10.0;
     final topClientsPreview = (isPhone ? topClients.take(4) : topClients)
         .toList();
     final recentOrdersPreview =
@@ -1541,14 +1667,14 @@ class _CommercialAnalyticsDashboardState
           horizontalPadding,
           verticalPadding,
           horizontalPadding,
-          24,
+          isPhone ? 18 : 24,
         ),
         children: [
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: EdgeInsets.all(cardPadding),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(isPhone ? 14 : 16),
               border: Border.all(color: const Color(0xFFE6EAF2)),
               boxShadow: const [
                 BoxShadow(
@@ -1572,15 +1698,17 @@ class _CommercialAnalyticsDashboardState
                           style: TextStyle(
                             color: const Color(0xFF1F2A44),
                             fontWeight: FontWeight.w800,
-                            fontSize: compactHeader ? 16 : 18,
+                            fontSize: compactHeader
+                                ? (isPhone ? 15 : 16)
+                                : (isPhone ? 17 : 18),
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        const Text(
+                        SizedBox(height: 2 * phoneScale),
+                        Text(
                           'Vue compacte des indicateurs essentiels.',
                           style: TextStyle(
                             color: Color(0xFF607089),
-                            fontSize: 12,
+                            fontSize: isPhone ? 11.2 : 12,
                           ),
                         ),
                       ],
@@ -1591,12 +1719,12 @@ class _CommercialAnalyticsDashboardState
                           ? null
                           : () => _loadDashboard(showLoader: false),
                       icon: _refreshing
-                          ? const SizedBox(
-                              width: 14,
-                              height: 14,
+                          ? SizedBox(
+                              width: isPhone ? 12 : 14,
+                              height: isPhone ? 12 : 14,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Icon(Icons.refresh),
+                          : Icon(Icons.refresh, size: isPhone ? 17 : 18),
                       label: const Text('Actualiser'),
                     );
 
@@ -1605,7 +1733,7 @@ class _CommercialAnalyticsDashboardState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           titleBlock,
-                          const SizedBox(height: 10),
+                          SizedBox(height: inlineGap),
                           refreshButton,
                         ],
                       );
@@ -1619,10 +1747,10 @@ class _CommercialAnalyticsDashboardState
                     );
                   },
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: inlineGap),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: isPhone ? 6 * phoneScale : 8,
+                  runSpacing: isPhone ? 6 * phoneScale : 8,
                   children: [
                     _HeaderStatPill(
                       icon: Icons.people_alt_outlined,
@@ -1645,36 +1773,40 @@ class _CommercialAnalyticsDashboardState
             ),
           ),
           if (_error != null) ...[
-            const SizedBox(height: 10),
+            SizedBox(height: inlineGap),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.all(isPhone ? 10 * phoneScale : 12),
               decoration: BoxDecoration(
                 color: const Color(0xFFFEF2F2),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(isPhone ? 10 : 12),
                 border: Border.all(color: const Color(0xFFFECACA)),
               ),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.warning_amber_rounded,
                     color: Color(0xFFB42318),
+                    size: isPhone ? 19 : 22,
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: isPhone ? 8 * phoneScale : 10),
                   Expanded(
                     child: Text(
                       _error!,
-                      style: const TextStyle(color: Color(0xFFB42318)),
+                      style: TextStyle(
+                        color: const Color(0xFFB42318),
+                        fontSize: isPhone ? 12.2 : 13,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
           ],
-          const SizedBox(height: 10),
+          SizedBox(height: inlineGap),
           GridView.count(
             crossAxisCount: kpiColumns,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
+            crossAxisSpacing: gridGap,
+            mainAxisSpacing: gridGap,
             childAspectRatio: kpiAspectRatio,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -1705,7 +1837,7 @@ class _CommercialAnalyticsDashboardState
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: isPhone ? 10 * phoneScale : 12),
           if (isWide)
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1724,7 +1856,7 @@ class _CommercialAnalyticsDashboardState
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: isPhone ? 10 * phoneScale : 12),
                 Expanded(
                   child: _panelCard(
                     title: 'Statut des commandes',
@@ -1748,7 +1880,7 @@ class _CommercialAnalyticsDashboardState
                 labels: monthlySales.map((m) => _monthLabel(m.month)).toList(),
               ),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: inlineGap),
             _panelCard(
               title: 'Statut des commandes',
               subtitle: 'Repartition actuelle',
@@ -1759,7 +1891,7 @@ class _CommercialAnalyticsDashboardState
               ),
             ),
           ],
-          const SizedBox(height: 10),
+          SizedBox(height: inlineGap),
           if (isWide && showTypeDistribution)
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1772,7 +1904,7 @@ class _CommercialAnalyticsDashboardState
                     child: _TypeDistributionBars(data: typeData),
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: isPhone ? 10 * phoneScale : 12),
                 Expanded(
                   child: _panelCard(
                     title: 'Top clients',
@@ -1793,7 +1925,7 @@ class _CommercialAnalyticsDashboardState
               icon: Icons.pie_chart_outline,
               child: _TypeDistributionBars(data: typeData),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: inlineGap),
             _panelCard(
               title: 'Top clients',
               subtitle: 'Classement CA confirme',
@@ -1808,7 +1940,7 @@ class _CommercialAnalyticsDashboardState
               child: _TopClientsList(data: topClientsPreview, money: _money),
             ),
           ],
-          const SizedBox(height: 10),
+          SizedBox(height: inlineGap),
           _panelCard(
             title: 'Commandes recentes',
             subtitle: isPhone
@@ -1877,31 +2009,33 @@ class _HeaderStatPill extends StatelessWidget {
   /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
+    final scale = _phoneScale(context, min: 0.84);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: 9 * scale, vertical: 7 * scale),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFF),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(11 * scale),
         border: Border.all(color: const Color(0xFFDCE5F3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: const Color(0xFF2D47C8)),
-          const SizedBox(width: 6),
+          Icon(icon, size: 13.5 * scale, color: const Color(0xFF2D47C8)),
+          SizedBox(width: 6 * scale),
           Text(
             '$label: ',
-            style: const TextStyle(
+            style: TextStyle(
               color: Color(0xFF607089),
-              fontSize: 11.5,
+              fontSize: 11 * scale,
               fontWeight: FontWeight.w600,
             ),
           ),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               color: Color(0xFF1F2A44),
-              fontSize: 11.5,
+              fontSize: 11 * scale,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -1933,13 +2067,16 @@ class _KpiTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 170;
+        final phoneCompact = MediaQuery.sizeOf(context).width < 600;
+        final compact = phoneCompact || constraints.maxWidth < 170;
+        final scale = phoneCompact ? _phoneScale(context, min: 0.84) : 1.0;
+
         return Container(
           width: double.infinity,
-          padding: EdgeInsets.all(compact ? 12 : 13),
+          padding: EdgeInsets.all((compact ? 11.5 : 13) * scale),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular((compact ? 13 : 14) * scale),
             border: Border.all(color: const Color(0xFFE6EAF2)),
             boxShadow: const [
               BoxShadow(
@@ -1955,18 +2092,22 @@ class _KpiTile extends StatelessWidget {
               Row(
                 children: [
                   Container(
-                    width: compact ? 36 : 40,
-                    height: compact ? 36 : 40,
+                    width: (compact ? 34 : 40) * scale,
+                    height: (compact ? 34 : 40) * scale,
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(11),
+                      borderRadius: BorderRadius.circular(10 * scale),
                     ),
-                    child: Icon(icon, color: color, size: compact ? 18 : 20),
+                    child: Icon(
+                      icon,
+                      color: color,
+                      size: (compact ? 17 : 20) * scale,
+                    ),
                   ),
                   const Spacer(),
                   Container(
-                    width: 8,
-                    height: 8,
+                    width: (compact ? 7 : 8) * scale,
+                    height: (compact ? 7 : 8) * scale,
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(999),
@@ -1974,17 +2115,17 @@ class _KpiTile extends StatelessWidget {
                   ),
                 ],
               ),
-              SizedBox(height: compact ? 10 : 12),
+              SizedBox(height: (compact ? 9 : 12) * scale),
               Text(
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: const Color(0xFF607089),
-                  fontSize: compact ? 11.5 : 12.5,
+                  fontSize: (compact ? 11 : 12.5) * scale,
                 ),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4 * scale),
               Text(
                 value,
                 maxLines: 1,
@@ -1992,7 +2133,7 @@ class _KpiTile extends StatelessWidget {
                 style: TextStyle(
                   color: const Color(0xFF1F2A44),
                   fontWeight: FontWeight.w800,
-                  fontSize: compact ? 15.5 : 17,
+                  fontSize: (compact ? 14.4 : 17) * scale,
                   height: 1.1,
                 ),
               ),
@@ -2030,91 +2171,103 @@ class _SalesTrendChart extends StatelessWidget {
         ? 'Montants en DT. Pic ${labels[peakIndex]}: ${_compactAmount(peakValue, withUnit: true)}'
         : 'Montants en DT. Aucune vente confirmee sur la periode.';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          helperText,
-          style: const TextStyle(
-            color: Color(0xFF607089),
-            fontSize: 11.5,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 220,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(
-                width: 42,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    for (final tick in axisTicks)
-                      Text(
-                        _compactAmount(tick),
-                        textAlign: TextAlign.right,
-                        style: TextStyle(
-                          color: hasData
-                              ? const Color(0xFF607089)
-                              : const Color(0xFF94A3B8),
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: CustomPaint(
-                  painter: _SalesTrendPainter(
-                    values: values,
-                    maxValue: axisMax,
-                  ),
-                  child: const SizedBox.expand(),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = _phoneScale(context, min: 0.84);
+        final compact = constraints.maxWidth < 360;
+        final chartHeight = compact ? 186.0 * scale : 220.0;
+        final axisWidth = compact ? 34.0 * scale : 42.0;
+        final axisFont = compact ? 9.6 * scale : 10.5;
+        final labelFont = compact ? 10.0 * scale : 11.0;
+        final valueFont = compact ? 8.7 * scale : 9.5;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (var i = 0; i < labels.length; i++)
-              Expanded(
-                child: Column(
-                  children: [
-                    Text(
-                      labels[i],
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: hasData
-                            ? const Color(0xFF607089)
-                            : const Color(0xFF94A3B8),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _compactAmount(values[i]),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Color(0xFF94A3B8),
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
+            Text(
+              helperText,
+              style: TextStyle(
+                color: const Color(0xFF607089),
+                fontSize: (compact ? 10.6 : 11.5) * scale,
+                fontWeight: FontWeight.w600,
               ),
+            ),
+            SizedBox(height: 9 * scale),
+            SizedBox(
+              height: chartHeight,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    width: axisWidth,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        for (final tick in axisTicks)
+                          Text(
+                            _compactAmount(tick),
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              color: hasData
+                                  ? const Color(0xFF607089)
+                                  : const Color(0xFF94A3B8),
+                              fontSize: axisFont,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(width: 8 * scale),
+                  Expanded(
+                    child: CustomPaint(
+                      painter: _SalesTrendPainter(
+                        values: values,
+                        maxValue: axisMax,
+                      ),
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 8 * scale),
+            Row(
+              children: [
+                for (var i = 0; i < labels.length; i++)
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Text(
+                          labels[i],
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: hasData
+                                ? const Color(0xFF607089)
+                                : const Color(0xFF94A3B8),
+                            fontSize: labelFont,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        SizedBox(height: 2 * scale),
+                        Text(
+                          _compactAmount(values[i]),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: const Color(0xFF94A3B8),
+                            fontSize: valueFont,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -2132,6 +2285,9 @@ class _SalesTrendPainter extends CustomPainter {
   /// Methode utilitaire pour le dessin.
   @override
   void paint(Canvas canvas, Size size) {
+    final lineStroke = size.height < 200 ? 2.4 : 3.0;
+    final dotRadius = size.height < 200 ? 3.2 : 4.0;
+    final dotStrokeWidth = size.height < 200 ? 1.6 : 2.0;
     final gridPaint = Paint()
       ..color = const Color(0xFFE6EAF2)
       ..strokeWidth = 1;
@@ -2188,20 +2344,20 @@ class _SalesTrendPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = 3;
+      ..strokeWidth = lineStroke;
     canvas.drawPath(line, linePaint);
 
     final dotPaint = Paint()..color = const Color(0xFF2D47C8);
     final dotStroke = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
+      ..strokeWidth = dotStrokeWidth;
     for (var i = 0; i < values.length; i++) {
       final x = i * stepX;
       final normalized = (values[i] / safeMax).clamp(0, 1);
       final y = baseY - (chartHeight * normalized);
-      canvas.drawCircle(Offset(x, y), 4, dotPaint);
-      canvas.drawCircle(Offset(x, y), 4, dotStroke);
+      canvas.drawCircle(Offset(x, y), dotRadius, dotPaint);
+      canvas.drawCircle(Offset(x, y), dotRadius, dotStroke);
     }
   }
 
@@ -2248,9 +2404,11 @@ class _StatusDonutCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final scale = _phoneScale(context, min: 0.84);
+        final compact = constraints.maxWidth < 320;
         final chartSize = math.min(
-          172.0,
-          math.max(140.0, constraints.maxWidth - 24),
+          compact ? 154.0 * scale : 172.0,
+          math.max(compact ? 128.0 * scale : 140.0, constraints.maxWidth - 24),
         );
 
         return Column(
@@ -2268,19 +2426,19 @@ class _StatusDonutCard extends StatelessWidget {
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
+                      Text(
                         'Total',
                         style: TextStyle(
                           color: Color(0xFF607089),
-                          fontSize: 12,
+                          fontSize: (compact ? 11.0 : 12.0) * scale,
                         ),
                       ),
                       Text(
                         '$total',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Color(0xFF1F2A44),
                           fontWeight: FontWeight.w800,
-                          fontSize: 23,
+                          fontSize: (compact ? 19.5 : 23.0) * scale,
                         ),
                       ),
                     ],
@@ -2288,37 +2446,37 @@ class _StatusDonutCard extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8 * scale),
             for (final s in segments)
               Padding(
-                padding: const EdgeInsets.only(bottom: 6),
+                padding: EdgeInsets.only(bottom: 6 * scale),
                 child: Row(
                   children: [
                     Container(
-                      width: 9,
-                      height: 9,
+                      width: 8.5 * scale,
+                      height: 8.5 * scale,
                       decoration: BoxDecoration(
                         color: s.color,
-                        borderRadius: BorderRadius.circular(3),
+                        borderRadius: BorderRadius.circular(3 * scale),
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6 * scale),
                     Expanded(
                       child: Text(
                         s.label,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Color(0xFF334155),
                           fontWeight: FontWeight.w600,
-                          fontSize: 12.5,
+                          fontSize: (compact ? 11.5 : 12.5) * scale,
                         ),
                       ),
                     ),
                     Text(
                       '${s.value.toStringAsFixed(0)} (${total == 0 ? 0 : ((s.value / total) * 100).round()}%)',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Color(0xFF1F2A44),
                         fontWeight: FontWeight.w700,
-                        fontSize: 12.5,
+                        fontSize: (compact ? 11.5 : 12.5) * scale,
                       ),
                     ),
                   ],
@@ -2344,8 +2502,8 @@ class _DonutPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = math.min(size.width, size.height) / 2 - 10;
-    const stroke = 20.0;
+    final stroke = (size.shortestSide * 0.12).clamp(16.0, 20.0).toDouble();
+    final radius = math.min(size.width, size.height) / 2 - (stroke / 2) - 1;
 
     final basePaint = Paint()
       ..color = const Color(0xFFE8EDF7)
@@ -2486,6 +2644,9 @@ class _TopClientsList extends StatelessWidget {
       );
     }
 
+    final scale = _phoneScale(context, min: 0.84);
+    final compact = MediaQuery.sizeOf(context).width < 390;
+
     return Column(
       children: [
         for (var i = 0; i < data.length; i++) ...[
@@ -2493,8 +2654,8 @@ class _TopClientsList extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 24,
-                height: 24,
+                width: (compact ? 22 : 24) * scale,
+                height: (compact ? 22 : 24) * scale,
                 decoration: BoxDecoration(
                   color: const Color(0xFF2D47C8).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(999),
@@ -2502,14 +2663,14 @@ class _TopClientsList extends StatelessWidget {
                 alignment: Alignment.center,
                 child: Text(
                   '${i + 1}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Color(0xFF2D47C8),
                     fontWeight: FontWeight.w800,
-                    fontSize: 12,
+                    fontSize: (compact ? 10.8 : 12) * scale,
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: (compact ? 8 : 10) * scale),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -2518,33 +2679,35 @@ class _TopClientsList extends StatelessWidget {
                       data[i].label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Color(0xFF1F2A44),
                         fontWeight: FontWeight.w700,
+                        fontSize: (compact ? 12.2 : 13) * scale,
                       ),
                     ),
                     Text(
                       '${data[i].orders} commande(s)',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Color(0xFF607089),
-                        fontSize: 12,
+                        fontSize: (compact ? 11 : 12) * scale,
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8 * scale),
               Text(
                 money(data[i].value),
-                style: const TextStyle(
+                style: TextStyle(
                   color: Color(0xFF16A34A),
                   fontWeight: FontWeight.w800,
+                  fontSize: (compact ? 12.2 : 13) * scale,
                 ),
               ),
             ],
           ),
           if (i != data.length - 1)
-            const Divider(height: 18, color: Color(0xFFE6EAF2)),
+            Divider(height: 16 * scale, color: const Color(0xFFE6EAF2)),
         ],
       ],
     );
@@ -2582,8 +2745,13 @@ class _RecentOrdersList extends StatelessWidget {
           LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 560;
+              final ultraCompact = constraints.maxWidth < 380;
+              final scale = _phoneScale(context, min: 0.84);
               final statusPill = Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: EdgeInsets.symmetric(
+                  horizontal: (ultraCompact ? 7 : 8) * scale,
+                  vertical: (ultraCompact ? 3.5 : 4) * scale,
+                ),
                 decoration: BoxDecoration(
                   color: statusColor(orders[i].statut).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(999),
@@ -2592,7 +2760,7 @@ class _RecentOrdersList extends StatelessWidget {
                   orders[i].statutDisplay,
                   style: TextStyle(
                     color: statusColor(orders[i].statut),
-                    fontSize: 11.5,
+                    fontSize: (ultraCompact ? 10.6 : 11.5) * scale,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -2604,31 +2772,33 @@ class _RecentOrdersList extends StatelessWidget {
                   children: [
                     Text(
                       orders[i].referenceCommandeClient,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Color(0xFF1F2A44),
                         fontWeight: FontWeight.w700,
+                        fontSize: (ultraCompact ? 12.4 : 13) * scale,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2 * scale),
                     Text(
                       '${orders[i].client?.fullName ?? 'Client inconnu'} - ${orders[i].dateCommandeFormatted}',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Color(0xFF607089),
-                        fontSize: 12,
+                        fontSize: (ultraCompact ? 11 : 12) * scale,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8 * scale),
                     Row(
                       children: [
                         statusPill,
                         const Spacer(),
                         Text(
                           money(orders[i].total),
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: Color(0xFF1F2A44),
                             fontWeight: FontWeight.w800,
+                            fontSize: (ultraCompact ? 12.2 : 13) * scale,
                           ),
                         ),
                       ],
@@ -2645,32 +2815,34 @@ class _RecentOrdersList extends StatelessWidget {
                       children: [
                         Text(
                           orders[i].referenceCommandeClient,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: Color(0xFF1F2A44),
                             fontWeight: FontWeight.w700,
+                            fontSize: 13 * scale,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        SizedBox(height: 2 * scale),
                         Text(
                           '${orders[i].client?.fullName ?? 'Client inconnu'} - ${orders[i].dateCommandeFormatted}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: Color(0xFF607089),
-                            fontSize: 12,
+                            fontSize: 12 * scale,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10 * scale),
                   statusPill,
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10 * scale),
                   Text(
                     money(orders[i].total),
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Color(0xFF1F2A44),
                       fontWeight: FontWeight.w800,
+                      fontSize: 13 * scale,
                     ),
                   ),
                 ],
@@ -2678,7 +2850,10 @@ class _RecentOrdersList extends StatelessWidget {
             },
           ),
           if (i != orders.length - 1)
-            const Divider(height: 18, color: Color(0xFFE6EAF2)),
+            Divider(
+              height: 16 * _phoneScale(context),
+              color: const Color(0xFFE6EAF2),
+            ),
         ],
       ],
     );

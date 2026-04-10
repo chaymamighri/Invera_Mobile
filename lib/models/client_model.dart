@@ -74,6 +74,7 @@ class ClientType {
 class ClientModel {
   final int id;
   final String nom;
+  final String? prenom;
   final String telephone;
   final String? email;
   final String? adresse;
@@ -83,12 +84,18 @@ class ClientModel {
   ClientModel({
     required this.id,
     required this.nom,
+    this.prenom,
     required this.telephone,
     this.email,
     this.adresse,
     this.typeClient,
     this.remise,
   });
+
+  String get fullName {
+    final value = '${prenom ?? ''} $nom'.trim();
+    return value.isEmpty ? nom : value;
+  }
 
   factory ClientModel.fromJson(Map<String, dynamic> json) {
     String readString(List<String> keys) {
@@ -126,6 +133,7 @@ class ClientModel {
     }
 
     final nom = readString(['nom', 'name', 'raisonSociale', 'nomClient']);
+    final prenom = readString(['prenom', 'firstName', 'givenName']);
     final telephone = readString(['telephone', 'phone', 'numeroTelephone']);
     final email = readString(['email']);
     final adresse = readString(['adresse', 'address']);
@@ -166,6 +174,7 @@ class ClientModel {
     return ClientModel(
       id: readInt(['id', 'clientId', 'idClient', 'id_client']),
       nom: nom,
+      prenom: prenom.isEmpty ? null : prenom,
       telephone: telephone,
       email: email.isEmpty ? null : email,
       adresse: adresse.isEmpty ? null : adresse,
@@ -177,6 +186,7 @@ class ClientModel {
 
 class NouveauClientPayload {
   final String nom;
+  final String? prenom;
   final String telephone;
   final String? email;
   final String? adresse;
@@ -184,6 +194,7 @@ class NouveauClientPayload {
 
   NouveauClientPayload({
     required this.nom,
+    this.prenom,
     required this.telephone,
     this.email,
     this.adresse,
@@ -200,6 +211,7 @@ class NouveauClientPayload {
 
     return {
       'nom': nom.trim(),
+      if (prenom != null && prenom!.trim().isNotEmpty) 'prenom': prenom!.trim(),
       'telephone': normalizedPhone,
       if (normalizedEmail != null && normalizedEmail.isNotEmpty) 'email': normalizedEmail,
       if (adresse != null && adresse!.trim().isNotEmpty) 'adresse': adresse!.trim(),

@@ -6,7 +6,6 @@ import 'package:invera_mobile/models/commande_model.dart';
 import 'package:invera_mobile/services/client_service.dart';
 import 'package:invera_mobile/services/commande_service.dart';
 
-// ---------- CONSTANTES DU THEME (reprises depuis la section clients) ----------
 const Color _primary = Color(0xFF2D47C8);
 const Color _primaryDark = Color(0xFF2037A7);
 const Color _accent = Color(0xFF0CAE4A);
@@ -19,21 +18,17 @@ const Color _success = Color(0xFF0CAE4A);
 const Color _error = Color(0xFFB42318);
 const double _baseUnit = 8.0;
 
-// ---------- WIDGETS REUTILISABLES ----------
 class _StatusChip extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
   final String status;
   final bool compact;
 
   const _StatusChip({required this.status, this.compact = false});
 
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     final normalized = status.trim().toUpperCase();
-    late Color bg, fg;
+    late Color bg;
+    late Color fg;
 
     if (normalized == 'CONFIRMEE') {
       bg = const Color(0xFFE9F8EF);
@@ -54,7 +49,7 @@ class _StatusChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(compact ? 16 : 20),
-        border: Border.all(color: fg.withValues(alpha: 0.3)),
+        border: Border.all(color: fg.withOpacity(0.3)),
       ),
       child: Text(
         _displayStatus(status),
@@ -67,9 +62,6 @@ class _StatusChip extends StatelessWidget {
     );
   }
 
-  // Valeurs calculees et methodes utilitaires.
-
-  /// Retourne un libelle d'affichage pour le statut.
   String _displayStatus(String raw) {
     final norm = raw.trim().toUpperCase();
     if (norm == 'EN_ATTENTE') return 'En attente';
@@ -79,9 +71,7 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-/// Widget qui affiche le badge d'information.
 class _InfoBadge extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
   final String label;
   final String value;
   final bool compact;
@@ -92,9 +82,6 @@ class _InfoBadge extends StatelessWidget {
     this.compact = false,
   });
 
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -131,22 +118,19 @@ class _InfoBadge extends StatelessWidget {
   }
 }
 
-// ---------- SECTION PRINCIPALE ----------
 class CommercialCommandesSection extends StatefulWidget {
   const CommercialCommandesSection({super.key});
 
-  // Cycle de vie du widget.
-
-  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<CommercialCommandesSection> createState() =>
       _CommercialCommandesSectionState();
 }
 
-/// Objet d'etat qui stocke les donnees temporaires de l'interface pour la section des commandes commerciales.
 class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     with TickerProviderStateMixin {
   static const Set<String> _factureStatuses = {'CONFIRMEE', 'VALIDEE'};
+  static const List<String> _statuses = ['TOUS', 'EN_ATTENTE', 'ANNULEE'];
+
   final CommandeService _commandeService = CommandeService();
   final ClientService _clientService = ClientService();
 
@@ -156,14 +140,10 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
 
   bool _isLoading = true;
   bool _isBusy = false;
+  bool _useGrid = false;
   String? _errorMessage;
-
   String _statusFilter = 'TOUS';
   int _draftLineSeed = 0;
-
-  static const List<String> _statuses = ['TOUS', 'EN_ATTENTE', 'ANNULEE'];
-
-  bool _useGrid = false;
 
   @override
   void initState() {
@@ -178,11 +158,12 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     });
 
     try {
-      final results = await Future.wait([
+      final results = await Future.wait<dynamic>([
         _commandeService.getCommandes(),
         _clientService.getClients(),
         _commandeService.getProduits(),
       ]);
+
       if (!mounted) return;
 
       setState(() {
@@ -203,19 +184,30 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
   }
 
   Future<void> _reloadCommandes({bool showBusy = false}) async {
-    if (showBusy && mounted) setState(() => _isBusy = true);
+    if (showBusy && mounted) {
+      setState(() => _isBusy = true);
+    }
 
     try {
       final statut = _statusFilter == 'TOUS' ? null : _statusFilter;
       final data = await _commandeService.getCommandes(statut: statut);
+
       if (!mounted) return;
-      setState(
-        () => _commandes = _sortCommandesByCreation(_visibleCommandes(data)),
-      );
+
+      setState(() {
+        _commandes = _sortCommandesByCreation(_visibleCommandes(data));
+      });
     } catch (e) {
-      if (mounted) _showMessage(e.toString(), isError: true);
+      if (mounted) {
+        _showMessage(
+          e.toString().replaceFirst('Exception: ', ''),
+          isError: true,
+        );
+      }
     } finally {
-      if (showBusy && mounted) setState(() => _isBusy = false);
+      if (showBusy && mounted) {
+        setState(() => _isBusy = false);
+      }
     }
   }
 
@@ -282,6 +274,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
   Future<void> _onCreate() async {
     final result = await _openCommandeForm();
     if (result == null) return;
+
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
 
@@ -299,7 +292,12 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
       if (!mounted) return;
       _showMessage('Commande créée');
     } catch (e) {
-      if (mounted) _showMessage(e.toString(), isError: true);
+      if (mounted) {
+        _showMessage(
+          e.toString().replaceFirst('Exception: ', ''),
+          isError: true,
+        );
+      }
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
@@ -316,6 +314,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
 
     final result = await _openCommandeForm(initialCommande: cmd);
     if (result == null) return;
+
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
 
@@ -336,7 +335,12 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
       if (!mounted) return;
       _showMessage('Commande modifiée');
     } catch (e) {
-      if (mounted) _showMessage(e.toString(), isError: true);
+      if (mounted) {
+        _showMessage(
+          e.toString().replaceFirst('Exception: ', ''),
+          isError: true,
+        );
+      }
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
@@ -373,6 +377,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     );
 
     if (ok != true) return;
+
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
 
@@ -382,9 +387,14 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
       if (!mounted) return;
       await _reloadCommandes();
       if (!mounted) return;
-      _showMessage('Commande confirmee. Retrouvez-la dans Factures.');
+      _showMessage('Commande confirmée. Retrouvez-la dans Factures.');
     } catch (e) {
-      if (mounted) _showMessage(e.toString(), isError: true);
+      if (mounted) {
+        _showMessage(
+          e.toString().replaceFirst('Exception: ', ''),
+          isError: true,
+        );
+      }
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
@@ -419,6 +429,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     );
 
     if (ok != true) return;
+
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
 
@@ -430,7 +441,12 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
       if (!mounted) return;
       _showMessage('Commande annulée');
     } catch (e) {
-      if (mounted) _showMessage(e.toString(), isError: true);
+      if (mounted) {
+        _showMessage(
+          e.toString().replaceFirst('Exception: ', ''),
+          isError: true,
+        );
+      }
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
@@ -442,10 +458,10 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
       barrierDismissible: true,
       builder: (ctx) {
         final client = cmd.client;
-        final compact = _isPhoneWidth(ctx, breakpoint: 700);
+        final compactDialog = _isPhoneWidth(ctx, breakpoint: 700);
 
         return Dialog(
-          insetPadding: EdgeInsets.all(compact ? 10 : 24),
+          insetPadding: EdgeInsets.all(compactDialog ? 10 : 24),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
@@ -453,34 +469,38 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
             width: AdaptiveLayout.dialogWidth(
               ctx,
               max: 1000,
-              sideMargin: compact ? 8 : 12,
+              sideMargin: compactDialog ? 8 : 12,
             ),
             constraints: BoxConstraints(
               maxHeight: AdaptiveLayout.dialogHeight(
                 ctx,
-                ratio: compact ? 0.94 : 0.9,
+                ratio: compactDialog ? 0.94 : 0.9,
               ),
             ),
-            padding: EdgeInsets.all(compact ? _baseUnit * 2 : _baseUnit * 3),
+            padding: EdgeInsets.all(
+              compactDialog ? _baseUnit * 2 : _baseUnit * 3,
+            ),
             child: Column(
               children: [
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      width: compact ? 42 : 52,
-                      height: compact ? 42 : 52,
+                      width: compactDialog ? 42 : 52,
+                      height: compactDialog ? 42 : 52,
                       decoration: BoxDecoration(
-                        color: _primary.withValues(alpha: 0.12),
+                        color: _primary.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Icon(
                         Icons.receipt_long_outlined,
                         color: _primary,
-                        size: compact ? 22 : 26,
+                        size: compactDialog ? 22 : 26,
                       ),
                     ),
-                    SizedBox(width: compact ? _baseUnit : _baseUnit * 1.5),
+                    SizedBox(
+                      width: compactDialog ? _baseUnit : _baseUnit * 1.5,
+                    ),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -488,7 +508,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                           Text(
                             'Détails de la commande',
                             style: TextStyle(
-                              fontSize: compact ? 17 : 20,
+                              fontSize: compactDialog ? 17 : 20,
                               fontWeight: FontWeight.w800,
                               color: _textPrimary,
                             ),
@@ -496,10 +516,10 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                           const SizedBox(height: 4),
                           Text(
                             cmd.referenceCommandeClient,
-                            maxLines: compact ? 2 : 1,
+                            maxLines: compactDialog ? 2 : 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: compact ? 12 : 13,
+                              fontSize: compactDialog ? 12 : 13,
                               color: _textSecondary,
                               fontWeight: FontWeight.w600,
                             ),
@@ -507,8 +527,8 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                         ],
                       ),
                     ),
-                    _StatusChip(status: cmd.statut, compact: compact),
-                    SizedBox(width: compact ? 4 : _baseUnit),
+                    _StatusChip(status: cmd.statut, compact: compactDialog),
+                    SizedBox(width: compactDialog ? 4 : _baseUnit),
                     IconButton(
                       tooltip: 'Fermer',
                       visualDensity: VisualDensity.compact,
@@ -517,7 +537,9 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                     ),
                   ],
                 ),
-                SizedBox(height: compact ? _baseUnit * 1.25 : _baseUnit * 2),
+                SizedBox(
+                  height: compactDialog ? _baseUnit * 1.25 : _baseUnit * 2,
+                ),
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
@@ -548,6 +570,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                     icon: Icons.local_offer_outlined,
                                     label: 'Référence',
                                     value: cmd.referenceCommandeClient,
+                                    compact: compact,
                                   ),
                                   _buildDetailInfoCard(
                                     icon: Icons.percent_outlined,
@@ -574,6 +597,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                     icon: Icons.phone_outlined,
                                     label: 'Téléphone',
                                     value: client?.telephone ?? '-',
+                                    compact: compact,
                                   ),
                                   _buildDetailRow(
                                     icon: Icons.email_outlined,
@@ -599,7 +623,9 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                   if (cmd.produits.isEmpty)
                                     Container(
                                       width: double.infinity,
-                                      padding: EdgeInsets.all(_baseUnit * 2),
+                                      padding: const EdgeInsets.all(
+                                        _baseUnit * 2,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: _background,
                                         borderRadius: BorderRadius.circular(16),
@@ -652,6 +678,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                     label: 'Remise appliquée',
                                     value:
                                         '${cmd.tauxRemise.toStringAsFixed(2)}%',
+                                    compact: compact,
                                   ),
                                   const SizedBox(height: _baseUnit * 1.5),
                                   const Divider(color: _borderLight),
@@ -659,6 +686,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                   _buildAmountRow(
                                     'Sous-total estimé',
                                     _buildCommandeSubtotal(cmd),
+                                    compact: compact,
                                   ),
                                   const SizedBox(height: _baseUnit),
                                   _buildAmountRow(
@@ -693,10 +721,10 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                   else
                                     ...cmd.produits.map((p) {
                                       return Container(
-                                        margin: EdgeInsets.only(
+                                        margin: const EdgeInsets.only(
                                           bottom: _baseUnit,
                                         ),
-                                        padding: EdgeInsets.all(
+                                        padding: const EdgeInsets.all(
                                           _baseUnit * 1.25,
                                         ),
                                         decoration: BoxDecoration(
@@ -760,7 +788,9 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                     },
                   ),
                 ),
-                SizedBox(height: compact ? _baseUnit * 1.25 : _baseUnit * 2),
+                SizedBox(
+                  height: compactDialog ? _baseUnit * 1.25 : _baseUnit * 2,
+                ),
                 Wrap(
                   alignment: WrapAlignment.end,
                   spacing: _baseUnit,
@@ -804,10 +834,1577 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
   Future<_CommandeFormResult?> _openCommandeForm({
     CommandeModel? initialCommande,
   }) async {
+    return _openMultiStepCommandeForm(initialCommande: initialCommande);
+  }
+
+  Future<_CommandeFormResult?> _openMultiStepCommandeForm({
+    CommandeModel? initialCommande,
+  }) async {
+    final isEdit = initialCommande != null;
+    int currentStep = 0;
+    int? selectedClientId = initialCommande?.client?.idClient;
+    String clientSearchTerm = '';
+    String productSearchTerm = '';
+    ClientModel? findClientById(int? clientId) {
+      if (clientId == null) return null;
+      try {
+        return _clients.firstWhere((c) => c.id == clientId);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    double clientRemisePercent(ClientModel? client) {
+      final value = client?.remise ?? 0;
+      if (!value.isFinite) return 0;
+      return value.clamp(0, 100).toDouble();
+    }
+
+    final clientSearchCtrl = TextEditingController();
+    final productSearchCtrl = TextEditingController();
+    final remiseCtrl = TextEditingController(
+      text:
+          (isEdit
+                  ? initialCommande.tauxRemise
+                  : clientRemisePercent(findClientById(selectedClientId)))
+              .toStringAsFixed(2),
+    );
+    final lines = <_DraftLine>[
+      if (isEdit && initialCommande.produits.isNotEmpty)
+        ...initialCommande.produits.map(
+          (p) => _newDraftLine(
+            produitId: p.produitId,
+            quantite: p.quantite,
+            fallbackPrix: p.prixUnitaire,
+          ),
+        )
+      else
+        _newDraftLine(produitId: _firstAvailableProduitId([])),
+    ];
+    final removedLines = <_DraftLine>[];
+
+    final result = await showDialog<_CommandeFormResult>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (ctx, setModal) {
+            ClientModel? selectedClient() {
+              return findClientById(selectedClientId);
+            }
+
+            void syncSelectedClient(int? clientId) {
+              selectedClientId = clientId;
+              remiseCtrl.text = clientRemisePercent(
+                findClientById(clientId),
+              ).toStringAsFixed(2);
+            }
+
+            int lineQuantity(_DraftLine line) {
+              return int.tryParse(line.quantiteController.text) ?? 0;
+            }
+
+            double lineUnitPrice(_DraftLine line) {
+              final prod = _findProduitById(line.produitId);
+              return prod?.prixVente ?? line.fallbackPrix ?? 0;
+            }
+
+            double lineTotal(_DraftLine line) {
+              return lineQuantity(line) * lineUnitPrice(line);
+            }
+
+            double subTotal() {
+              return lines.fold<double>(
+                0,
+                (sum, line) => sum + lineTotal(line),
+              );
+            }
+
+            double remiseValue() {
+              return double.tryParse(remiseCtrl.text) ?? 0;
+            }
+
+            double remiseAmount() {
+              final rate = remiseValue().clamp(0, 100).toDouble();
+              return subTotal() * (rate / 100);
+            }
+
+            double totalAfterRemise() {
+              return subTotal() - remiseAmount();
+            }
+
+            bool hasValidLines() {
+              return lines.any(
+                (line) => line.produitId != null && lineQuantity(line) > 0,
+              );
+            }
+
+            bool hasIncompleteLines() {
+              return lines.any(
+                (line) => line.produitId == null || lineQuantity(line) <= 0,
+              );
+            }
+
+            bool lineHasStockIssue(_DraftLine line) {
+              final prod = _findProduitById(line.produitId);
+              final qty = lineQuantity(line);
+              return prod != null && qty > prod.quantiteStock;
+            }
+
+            int stockIssueCount() {
+              return lines.where(lineHasStockIssue).length;
+            }
+
+            void adjustQuantity(_DraftLine line, int delta) {
+              final current = int.tryParse(line.quantiteController.text) ?? 1;
+              final prod = _findProduitById(line.produitId);
+              var next = current + delta;
+              if (next < 1) next = 1;
+              if (delta > 0) {
+                if (prod == null) {
+                  next = current;
+                } else if (prod.quantiteStock <= 0) {
+                  next = current;
+                } else if (next > prod.quantiteStock) {
+                  next = prod.quantiteStock;
+                }
+              }
+              line.quantiteController.text = '$next';
+            }
+
+            String selectedClientName() {
+              final client = selectedClient();
+              if (client != null) return client.fullName;
+              final fallback = initialCommande?.client?.fullName ?? '';
+              return fallback.trim().isEmpty ? '-' : fallback;
+            }
+
+            String selectedClientPhone() {
+              final value =
+                  selectedClient()?.telephone ??
+                  initialCommande?.client?.telephone ??
+                  '';
+              return value.trim().isEmpty ? '-' : value;
+            }
+
+            String selectedClientType() {
+              final raw =
+                  selectedClient()?.typeClient ??
+                  initialCommande?.client?.typeClient;
+              return _clientTypeLabel(raw);
+            }
+
+            Color clientTypeColor(String? raw) {
+              switch (_normalizeClientType(raw)) {
+                case 'vip':
+                  return const Color(0xFF7C3AED);
+                case 'fidele':
+                  return _accent;
+                case 'entreprise':
+                  return const Color(0xFFEA580C);
+                case 'particulier':
+                default:
+                  return _primary;
+              }
+            }
+
+            List<ClientModel> filteredClients() {
+              final search = clientSearchTerm.trim().toLowerCase();
+              if (search.isEmpty) return _clients;
+              final terms = search
+                  .split(RegExp(r'\s+'))
+                  .where((term) => term.isNotEmpty);
+              return _clients.where((client) {
+                final haystack = [
+                  client.fullName,
+                  client.telephone,
+                  client.email ?? '',
+                  client.adresse ?? '',
+                  _clientTypeLabel(client.typeClient),
+                ].join(' ').toLowerCase();
+                return terms.every(haystack.contains);
+              }).toList();
+            }
+
+            _DraftLine? findLineByProductId(int productId) {
+              for (final line in lines) {
+                if (line.produitId == productId) return line;
+              }
+              return null;
+            }
+
+            int quantityForProduct(ProduitOption product) {
+              final line = findLineByProductId(product.idProduit);
+              return line == null ? 0 : lineQuantity(line);
+            }
+
+            bool isProductSelected(ProduitOption product) {
+              return findLineByProductId(product.idProduit) != null;
+            }
+
+            List<ProduitOption> filteredProducts() {
+              final search = productSearchTerm.trim().toLowerCase();
+              final selectedIds = lines
+                  .map((line) => line.produitId)
+                  .whereType<int>()
+                  .toSet();
+              final products = List<ProduitOption>.from(_produits)
+                ..sort((a, b) {
+                  final aSelected = selectedIds.contains(a.idProduit);
+                  final bSelected = selectedIds.contains(b.idProduit);
+                  if (aSelected != bSelected) return aSelected ? -1 : 1;
+                  return a.libelle.toLowerCase().compareTo(
+                    b.libelle.toLowerCase(),
+                  );
+                });
+              if (search.isEmpty) return products;
+              final terms = search
+                  .split(RegExp(r'\s+'))
+                  .where((term) => term.isNotEmpty);
+              return products.where((product) {
+                final haystack = [
+                  product.libelle,
+                  product.uniteMesure,
+                  product.status,
+                  '${product.prixVente}',
+                  '${product.quantiteStock}',
+                ].join(' ').toLowerCase();
+                return terms.every(haystack.contains);
+              }).toList();
+            }
+
+            void removeLine(_DraftLine line) {
+              lines.remove(line);
+              removedLines.add(line);
+            }
+
+            void addOrIncrementProduct(ProduitOption product) {
+              final existing = findLineByProductId(product.idProduit);
+              if (existing != null) {
+                adjustQuantity(existing, 1);
+                return;
+              }
+              lines.add(
+                _newDraftLine(
+                  produitId: product.idProduit,
+                  quantite: product.quantiteStock > 0 ? 1 : 0,
+                  fallbackPrix: product.prixVente,
+                ),
+              );
+            }
+
+            void decrementOrRemoveProduct(ProduitOption product) {
+              final existing = findLineByProductId(product.idProduit);
+              if (existing == null) return;
+              final qty = lineQuantity(existing);
+              if (qty <= 1) {
+                removeLine(existing);
+              } else {
+                adjustQuantity(existing, -1);
+              }
+            }
+
+            void clearCart() {
+              for (final line in List<_DraftLine>.from(lines)) {
+                removeLine(line);
+              }
+            }
+
+            String stepSubtitle() {
+              if (currentStep == 0) return 'Etape 1 : Selectionnez un client';
+              if (currentStep == 1) {
+                return 'Client : ${selectedClientName()} • ${lines.length} produit${lines.length > 1 ? 's' : ''}';
+              }
+              return 'Etape 3 : Validation';
+            }
+
+            Widget buildClientStep() {
+              return _buildFormSection(
+                title: 'Client',
+                compact: true,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextFormField(
+                      controller: clientSearchCtrl,
+                      readOnly: isEdit,
+                      onChanged: (value) =>
+                          setModal(() => clientSearchTerm = value),
+                      decoration: InputDecoration(
+                        hintText: 'Rechercher un client...',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: clientSearchTerm.trim().isEmpty || isEdit
+                            ? null
+                            : IconButton(
+                                onPressed: () {
+                                  clientSearchCtrl.clear();
+                                  setModal(() => clientSearchTerm = '');
+                                },
+                                icon: const Icon(Icons.close),
+                              ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: _baseUnit * 1.5),
+                    if (selectedClient() != null)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(_baseUnit * 1.5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF4FF),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: _primary.withValues(alpha: 0.24),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    selectedClientName(),
+                                    style: const TextStyle(
+                                      color: _textPrimary,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    selectedClientPhone(),
+                                    style: const TextStyle(
+                                      color: _textSecondary,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  const SizedBox(height: _baseUnit),
+                                  Wrap(
+                                    spacing: _baseUnit,
+                                    runSpacing: _baseUnit,
+                                    children: [
+                                      _InfoBadge(
+                                        label: 'Type',
+                                        value: selectedClientType(),
+                                        compact: true,
+                                      ),
+                                      _InfoBadge(
+                                        label: 'Remise',
+                                        value:
+                                            '${remiseValue().toStringAsFixed(2)}%',
+                                        compact: true,
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(
+                              Icons.check_circle_rounded,
+                              color: _success,
+                              size: 22,
+                            ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: _baseUnit * 1.5),
+                    if (isEdit)
+                      const Text(
+                        'Le client reste verrouille pendant la modification.',
+                        style: TextStyle(
+                          color: _textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      )
+                    else
+                      SizedBox(
+                        height: 340,
+                        child: filteredClients().isEmpty
+                            ? Container(
+                                width: double.infinity,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: _background,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: _borderLight),
+                                ),
+                                child: const Text(
+                                  'Aucun client trouve.',
+                                  style: TextStyle(color: _textSecondary),
+                                ),
+                              )
+                            : ListView.separated(
+                                itemCount: filteredClients().length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: _baseUnit),
+                                itemBuilder: (_, index) {
+                                  final client = filteredClients()[index];
+                                  final selected =
+                                      client.id == selectedClientId;
+                                  final typeColor = clientTypeColor(
+                                    client.typeClient,
+                                  );
+
+                                  return InkWell(
+                                    borderRadius: BorderRadius.circular(16),
+                                    onTap: () => setModal(
+                                      () => syncSelectedClient(client.id),
+                                    ),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(
+                                        _baseUnit * 1.5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: selected
+                                            ? const Color(0xFFEFF4FF)
+                                            : _background,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: selected
+                                              ? _primary.withValues(alpha: 0.24)
+                                              : _borderLight,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  client.fullName,
+                                                  style: const TextStyle(
+                                                    color: _textPrimary,
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 15,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  client.telephone,
+                                                  style: const TextStyle(
+                                                    color: _textSecondary,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                                if ((client.email ?? '')
+                                                    .trim()
+                                                    .isNotEmpty)
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                          top: 4,
+                                                        ),
+                                                    child: Text(
+                                                      client.email!,
+                                                      style: const TextStyle(
+                                                        color: _textSecondary,
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                          Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.end,
+                                            children: [
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal:
+                                                          _baseUnit * 1.15,
+                                                      vertical: _baseUnit * 0.7,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: typeColor.withValues(
+                                                    alpha: 0.1,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        999,
+                                                      ),
+                                                ),
+                                                child: Text(
+                                                  ClientType.label(
+                                                    client.typeClient,
+                                                    fallbackToDefault: true,
+                                                  ),
+                                                  style: TextStyle(
+                                                    color: typeColor,
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 11,
+                                                  ),
+                                                ),
+                                              ),
+                                              if (selected) ...[
+                                                const SizedBox(height: 10),
+                                                const Icon(
+                                                  Icons.check_circle_rounded,
+                                                  color: _success,
+                                                  size: 20,
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                  ],
+                ),
+              );
+            }
+
+            Widget buildProductCard(ProduitOption product) {
+              final selected = isProductSelected(product);
+              final qty = quantityForProduct(product);
+              final stockColor = product.quantiteStock > 0 ? _success : _error;
+
+              return Container(
+                padding: const EdgeInsets.all(_baseUnit * 1.5),
+                decoration: BoxDecoration(
+                  color: selected ? const Color(0xFFF2F7FF) : _surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: selected
+                        ? _primary.withValues(alpha: 0.24)
+                        : _borderLight,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                product.libelle,
+                                style: const TextStyle(
+                                  color: _textPrimary,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Stock: ${product.quantiteStock} ${product.uniteMesure}',
+                                style: TextStyle(
+                                  color: stockColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '${product.prixVente.toStringAsFixed(2)} DT',
+                              style: const TextStyle(
+                                color: _primary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            if (!selected)
+                              ElevatedButton.icon(
+                                onPressed: product.quantiteStock <= 0
+                                    ? null
+                                    : () => setModal(
+                                        () => addOrIncrementProduct(product),
+                                      ),
+                                style: _compactFilledButtonStyle(
+                                  backgroundColor: _primary,
+                                ),
+                                icon: const Icon(Icons.add, size: 14),
+                                label: const Text('Ajouter'),
+                              )
+                            else
+                              ElevatedButton.icon(
+                                onPressed: qty >= product.quantiteStock
+                                    ? null
+                                    : () => setModal(
+                                        () => addOrIncrementProduct(product),
+                                      ),
+                                style: _compactFilledButtonStyle(
+                                  backgroundColor: _primary,
+                                ),
+                                icon: const Icon(Icons.add, size: 14),
+                                label: const Text('+1'),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    if (selected) ...[
+                      const SizedBox(height: _baseUnit),
+                      const Divider(color: _borderLight),
+                      Row(
+                        children: [
+                          IconButton(
+                            onPressed: () => setModal(
+                              () => decrementOrRemoveProduct(product),
+                            ),
+                            visualDensity: VisualDensity.compact,
+                            icon: const Icon(Icons.remove, size: 18),
+                          ),
+                          Container(
+                            width: 36,
+                            alignment: Alignment.center,
+                            child: Text(
+                              '$qty',
+                              style: const TextStyle(
+                                color: _textPrimary,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: qty >= product.quantiteStock
+                                ? null
+                                : () => setModal(
+                                    () => addOrIncrementProduct(product),
+                                  ),
+                            visualDensity: VisualDensity.compact,
+                            icon: const Icon(Icons.add, size: 18),
+                          ),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: () => setModal(() {
+                              final line = findLineByProductId(
+                                product.idProduit,
+                              );
+                              if (line != null) removeLine(line);
+                            }),
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              size: 16,
+                              color: _error,
+                            ),
+                            label: const Text(
+                              'Retirer',
+                              style: TextStyle(color: _error),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }
+
+            Widget buildCartLine(_DraftLine line) {
+              final prod = _findProduitById(line.produitId);
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: _baseUnit),
+                padding: const EdgeInsets.all(_baseUnit * 1.25),
+                decoration: BoxDecoration(
+                  color: _background,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _borderLight),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            prod?.libelle ?? 'Produit',
+                            style: const TextStyle(
+                              color: _textPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${lineQuantity(line)} x ${lineUnitPrice(line).toStringAsFixed(2)} DT',
+                            style: const TextStyle(
+                              color: _textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${lineTotal(line).toStringAsFixed(2)} DT',
+                          style: const TextStyle(
+                            color: _primary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => setModal(() => removeLine(line)),
+                          child: const Text(
+                            'Retirer',
+                            style: TextStyle(color: _error),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            Widget buildProductsStep() {
+              final products = filteredProducts();
+              final selectedTypeColor = clientTypeColor(
+                selectedClient()?.typeClient,
+              );
+
+              return Column(
+                children: [
+                  _buildFormSection(
+                    title: 'Produits',
+                    compact: true,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Catalogue produits',
+                                style: TextStyle(
+                                  color: _textPrimary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            if (!isEdit)
+                              TextButton(
+                                onPressed: () =>
+                                    setModal(() => currentStep = 0),
+                                child: const Text('Changer client'),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: _baseUnit),
+                        TextFormField(
+                          controller: productSearchCtrl,
+                          onChanged: (value) =>
+                              setModal(() => productSearchTerm = value),
+                          decoration: InputDecoration(
+                            hintText: 'Rechercher un produit...',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: productSearchTerm.trim().isEmpty
+                                ? null
+                                : IconButton(
+                                    onPressed: () {
+                                      productSearchCtrl.clear();
+                                      setModal(() => productSearchTerm = '');
+                                    },
+                                    icon: const Icon(Icons.close),
+                                  ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: _baseUnit * 1.5),
+                        SizedBox(
+                          height: 300,
+                          child: products.isEmpty
+                              ? Container(
+                                  width: double.infinity,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: _background,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: _borderLight),
+                                  ),
+                                  child: const Text(
+                                    'Aucun produit trouve.',
+                                    style: TextStyle(color: _textSecondary),
+                                  ),
+                                )
+                              : ListView.separated(
+                                  itemCount: products.length,
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: _baseUnit),
+                                  itemBuilder: (_, index) =>
+                                      buildProductCard(products[index]),
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: _baseUnit * 1.5),
+                  _buildFormSection(
+                    title: 'Panier',
+                    compact: true,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(_baseUnit * 1.25),
+                          decoration: BoxDecoration(
+                            color: _background,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: _borderLight),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      selectedClientName(),
+                                      style: const TextStyle(
+                                        color: _textPrimary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      selectedClientPhone(),
+                                      style: const TextStyle(
+                                        color: _textSecondary,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: _baseUnit * 1.15,
+                                  vertical: _baseUnit * 0.7,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: selectedTypeColor.withValues(
+                                    alpha: 0.1,
+                                  ),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  selectedClientType(),
+                                  style: TextStyle(
+                                    color: selectedTypeColor,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: _baseUnit * 1.25),
+                        if (lines.isEmpty)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(_baseUnit * 1.5),
+                            decoration: BoxDecoration(
+                              color: _background,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: _borderLight),
+                            ),
+                            child: const Text(
+                              'Aucun produit dans le panier.',
+                              style: TextStyle(color: _textSecondary),
+                            ),
+                          )
+                        else
+                          ...lines.map(buildCartLine),
+                        if (lines.isNotEmpty) ...[
+                          const SizedBox(height: _baseUnit * 0.5),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: () => setModal(clearCart),
+                              style: _compactOutlinedButtonStyle(
+                                foregroundColor: _error,
+                              ),
+                              icon: const Icon(Icons.delete_outline, size: 16),
+                              label: const Text('Vider le panier'),
+                            ),
+                          ),
+                          const SizedBox(height: _baseUnit * 1.5),
+                        ],
+                        _buildAmountRow(
+                          'Sous-total',
+                          '${subTotal().toStringAsFixed(2)} DT',
+                          compact: true,
+                        ),
+                        if (remiseValue() > 0) ...[
+                          const SizedBox(height: _baseUnit),
+                          _buildAmountRow(
+                            'Remise (${remiseValue().toStringAsFixed(0)}%)',
+                            '-${remiseAmount().toStringAsFixed(2)} DT',
+                            compact: true,
+                          ),
+                        ],
+                        const SizedBox(height: _baseUnit),
+                        _buildAmountRow(
+                          'Total',
+                          '${totalAfterRemise().toStringAsFixed(2)} DT',
+                          compact: true,
+                          isPrimary: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            Widget buildValidationStep() {
+              final stockIssues = stockIssueCount();
+              final ready =
+                  selectedClientId != null &&
+                  hasValidLines() &&
+                  !hasIncompleteLines() &&
+                  stockIssues == 0;
+
+              return Column(
+                children: [
+                  _buildAvailabilityBanner(
+                    available: ready,
+                    title: ready
+                        ? 'Tous les produits sont disponibles'
+                        : 'Validation incomplete',
+                    subtitle: ready
+                        ? 'La commande peut etre creee immediatement.'
+                        : stockIssues > 0
+                        ? '$stockIssues ligne(s) depassent le stock.'
+                        : 'Verifiez le client et les produits avant creation.',
+                    compact: true,
+                  ),
+                  const SizedBox(height: _baseUnit * 1.5),
+                  _buildFormSection(
+                    title: 'Validation',
+                    compact: true,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Client',
+                                style: TextStyle(
+                                  color: _textPrimary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: isEdit
+                                  ? null
+                                  : () => setModal(() => currentStep = 0),
+                              child: const Text('Changer'),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(_baseUnit * 1.25),
+                          decoration: BoxDecoration(
+                            color: _background,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: _borderLight),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      selectedClientName(),
+                                      style: const TextStyle(
+                                        color: _textPrimary,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      selectedClientPhone(),
+                                      style: const TextStyle(
+                                        color: _textSecondary,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: _baseUnit * 1.15,
+                                  vertical: _baseUnit * 0.7,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: clientTypeColor(
+                                    selectedClient()?.typeClient,
+                                  ).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  selectedClientType(),
+                                  style: TextStyle(
+                                    color: clientTypeColor(
+                                      selectedClient()?.typeClient,
+                                    ),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: _baseUnit * 1.5),
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Produits',
+                                style: TextStyle(
+                                  color: _textPrimary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: _baseUnit * 1.15,
+                                vertical: _baseUnit * 0.7,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEFF4FF),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${lines.length} article${lines.length > 1 ? 's' : ''}',
+                                style: const TextStyle(
+                                  color: _primary,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: _baseUnit),
+                        Container(
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: _surface,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: _borderLight),
+                          ),
+                          child: Column(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: _baseUnit * 1.25,
+                                  vertical: _baseUnit,
+                                ),
+                                decoration: const BoxDecoration(
+                                  color: _background,
+                                  borderRadius: BorderRadius.vertical(
+                                    top: Radius.circular(14),
+                                  ),
+                                ),
+                                child: const Row(
+                                  children: [
+                                    Expanded(
+                                      flex: 4,
+                                      child: Text(
+                                        'Produit',
+                                        style: TextStyle(
+                                          color: _textSecondary,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        'Qte',
+                                        style: TextStyle(
+                                          color: _textSecondary,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        'Total',
+                                        textAlign: TextAlign.right,
+                                        style: TextStyle(
+                                          color: _textSecondary,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              ...lines.map((line) {
+                                final prod = _findProduitById(line.produitId);
+                                final issue = lineHasStockIssue(line);
+
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: _baseUnit * 1.25,
+                                    vertical: _baseUnit * 1.1,
+                                  ),
+                                  decoration: const BoxDecoration(
+                                    border: Border(
+                                      top: BorderSide(color: _borderLight),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        flex: 4,
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              prod?.libelle ?? 'Produit',
+                                              style: const TextStyle(
+                                                color: _textPrimary,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                            if (issue)
+                                              const Padding(
+                                                padding: EdgeInsets.only(
+                                                  top: 4,
+                                                ),
+                                                child: Text(
+                                                  'Stock insuffisant',
+                                                  style: TextStyle(
+                                                    color: _error,
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: Text(
+                                          '${lineQuantity(line)}',
+                                          style: const TextStyle(
+                                            color: _textPrimary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        flex: 2,
+                                        child: Text(
+                                          '${lineTotal(line).toStringAsFixed(2)} DT',
+                                          textAlign: TextAlign.right,
+                                          style: const TextStyle(
+                                            color: _primary,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: _baseUnit),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: () => setModal(() => currentStep = 1),
+                            icon: const Icon(Icons.arrow_back, size: 16),
+                            label: const Text('Modifier'),
+                          ),
+                        ),
+                        const SizedBox(height: _baseUnit),
+                        _buildAmountRow(
+                          'Sous-total',
+                          '${subTotal().toStringAsFixed(2)} DT',
+                          compact: true,
+                        ),
+                        if (remiseValue() > 0) ...[
+                          const SizedBox(height: _baseUnit),
+                          _buildAmountRow(
+                            'Remise',
+                            '-${remiseAmount().toStringAsFixed(2)} DT',
+                            compact: true,
+                          ),
+                        ],
+                        const SizedBox(height: _baseUnit),
+                        _buildAmountRow(
+                          'Total final',
+                          '${totalAfterRemise().toStringAsFixed(2)} DT',
+                          compact: true,
+                          isPrimary: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            Future<void> save() async {
+              if (selectedClientId == null) {
+                _showMessage('Veuillez selectionner un client', isError: true);
+                setModal(() => currentStep = 0);
+                return;
+              }
+              if (!hasValidLines()) {
+                _showMessage(
+                  'Ajoutez au moins un produit valide',
+                  isError: true,
+                );
+                setModal(() => currentStep = 1);
+                return;
+              }
+              if (hasIncompleteLines()) {
+                _showMessage(
+                  'Chaque ligne doit contenir un produit et une quantite valide',
+                  isError: true,
+                );
+                setModal(() => currentStep = 1);
+                return;
+              }
+              if (stockIssueCount() > 0) {
+                _showMessage(
+                  'Certaines quantites depassent le stock disponible',
+                  isError: true,
+                );
+                setModal(() => currentStep = 2);
+                return;
+              }
+
+              final selectedClientModel = selectedClient();
+              final produits = _buildProduitPayload(lines);
+              Navigator.of(dialogContext, rootNavigator: true).pop(
+                _CommandeFormResult(
+                  clientId: selectedClientId!,
+                  produits: produits,
+                  remiseTotale: remiseValue(),
+                  clientAdresse:
+                      selectedClientModel?.adresse ??
+                      initialCommande?.client?.adresse,
+                  clientTelephone:
+                      selectedClientModel?.telephone ??
+                      initialCommande?.client?.telephone,
+                  clientEmail:
+                      selectedClientModel?.email ??
+                      initialCommande?.client?.email,
+                ),
+              );
+            }
+
+            void nextStep() {
+              if (currentStep == 0) {
+                if (selectedClientId == null) {
+                  _showMessage(
+                    'Veuillez selectionner un client',
+                    isError: true,
+                  );
+                  return;
+                }
+                setModal(() => currentStep = 1);
+                return;
+              }
+
+              if (!hasValidLines()) {
+                _showMessage(
+                  'Ajoutez au moins un produit valide',
+                  isError: true,
+                );
+                return;
+              }
+              if (hasIncompleteLines()) {
+                _showMessage(
+                  'Chaque ligne doit contenir un produit et une quantite valide',
+                  isError: true,
+                );
+                return;
+              }
+              setModal(() => currentStep = 2);
+            }
+
+            return Dialog(
+              insetPadding: const EdgeInsets.all(10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Container(
+                  width: AdaptiveLayout.dialogWidth(
+                    dialogContext,
+                    max: 560,
+                    sideMargin: 8,
+                  ),
+                  constraints: BoxConstraints(
+                    maxHeight: AdaptiveLayout.dialogHeight(
+                      dialogContext,
+                      ratio: 0.94,
+                    ),
+                  ),
+                  color: _surface,
+                  child: Column(
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.fromLTRB(
+                          _baseUnit * 2,
+                          _baseUnit * 2,
+                          _baseUnit * 2,
+                          _baseUnit * 1.5,
+                        ),
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [_primary, Color(0xFF3A69E8)],
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    isEdit
+                                        ? 'Modifier la commande'
+                                        : 'Nouvelle commande',
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    stepSubtitle(),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (currentStep > 0)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: _baseUnit * 1.25,
+                                  vertical: _baseUnit,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.14),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  'Total\n${totalAfterRemise().toStringAsFixed(2)} DT',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            IconButton(
+                              onPressed: () => Navigator.of(
+                                dialogContext,
+                                rootNavigator: true,
+                              ).pop(),
+                              visualDensity: VisualDensity.compact,
+                              icon: const Icon(
+                                Icons.close,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(_baseUnit * 2),
+                          child: Column(
+                            children: [
+                              Wrap(
+                                spacing: _baseUnit,
+                                runSpacing: _baseUnit,
+                                children: [
+                                  _buildWizardStepChip(
+                                    index: 0,
+                                    label: 'Client',
+                                    active: currentStep == 0,
+                                    complete: currentStep > 0,
+                                  ),
+                                  _buildWizardStepChip(
+                                    index: 1,
+                                    label: 'Produits',
+                                    active: currentStep == 1,
+                                    complete: currentStep > 1,
+                                  ),
+                                  _buildWizardStepChip(
+                                    index: 2,
+                                    label: 'Validation',
+                                    active: currentStep == 2,
+                                    complete: false,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: _baseUnit * 1.5),
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  child: Column(
+                                    children: [
+                                      if (currentStep == 0) buildClientStep(),
+                                      if (currentStep == 1) buildProductsStep(),
+                                      if (currentStep == 2)
+                                        buildValidationStep(),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: _baseUnit * 2),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: currentStep == 0
+                                          ? () => Navigator.of(
+                                              dialogContext,
+                                              rootNavigator: true,
+                                            ).pop()
+                                          : () => setModal(
+                                              () => currentStep -= 1,
+                                            ),
+                                      style: _compactOutlinedButtonStyle(),
+                                      icon: Icon(
+                                        currentStep == 0
+                                            ? Icons.close_rounded
+                                            : Icons.arrow_back_rounded,
+                                        size: 16,
+                                      ),
+                                      label: Text(
+                                        currentStep == 0 ? 'Annuler' : 'Retour',
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: _baseUnit),
+                                  Expanded(
+                                    child: currentStep < 2
+                                        ? ElevatedButton.icon(
+                                            onPressed: nextStep,
+                                            style: _compactFilledButtonStyle(),
+                                            icon: const Icon(
+                                              Icons.arrow_forward_rounded,
+                                              size: 16,
+                                            ),
+                                            label: Text(
+                                              currentStep == 0
+                                                  ? 'Produits'
+                                                  : 'Validation',
+                                            ),
+                                          )
+                                        : ElevatedButton.icon(
+                                            onPressed:
+                                                selectedClientId != null &&
+                                                    hasValidLines() &&
+                                                    !hasIncompleteLines() &&
+                                                    stockIssueCount() == 0
+                                                ? save
+                                                : null,
+                                            style: _compactFilledButtonStyle(),
+                                            icon: const Icon(
+                                              Icons.save_outlined,
+                                              size: 16,
+                                            ),
+                                            label: Text(
+                                              isEdit ? 'Enregistrer' : 'Creer',
+                                            ),
+                                          ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    await WidgetsBinding.instance.endOfFrame;
+
+    for (final line in lines) {
+      line.dispose();
+    }
+    for (final line in removedLines) {
+      line.dispose();
+    }
+    clientSearchCtrl.dispose();
+    productSearchCtrl.dispose();
+    remiseCtrl.dispose();
+
+    return result;
+  }
+
+  Future<_CommandeFormResult?> _openCommandeFormLegacy({
+    CommandeModel? initialCommande,
+  }) async {
     final isEdit = initialCommande != null;
     final formKey = GlobalKey<FormState>();
 
     int? selectedClientId = initialCommande?.client?.idClient;
+
     ClientModel? findClientById(int? clientId) {
       if (clientId == null) return null;
       try {
@@ -899,19 +2496,18 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                 return;
               }
 
-              if (!(formKey.currentState?.validate() ?? false)) {
-                return;
-              }
+              if (!(formKey.currentState?.validate() ?? false)) return;
 
+              final selectedClientModel = selectedClient();
               final produits = _buildProduitPayload(lines);
               Navigator.of(dialogContext, rootNavigator: true).pop(
                 _CommandeFormResult(
                   clientId: selectedClientId!,
                   produits: produits,
                   remiseTotale: remiseValue(),
-                  clientAdresse: null,
-                  clientTelephone: null,
-                  clientEmail: null,
+                  clientAdresse: selectedClientModel?.adresse,
+                  clientTelephone: selectedClientModel?.telephone,
+                  clientEmail: selectedClientModel?.email,
                 ),
               );
             }
@@ -958,7 +2554,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                           ),
                           if (!compactViewport) ...[
                             Container(
-                              padding: EdgeInsets.symmetric(
+                              padding: const EdgeInsets.symmetric(
                                 horizontal: _baseUnit * 1.5,
                                 vertical: _baseUnit,
                               ),
@@ -968,7 +2564,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                 border: Border.all(color: _borderLight),
                               ),
                               child: Text(
-                                'Interface unique',
+                                'Interface stable',
                                 style: TextStyle(
                                   color: _primaryDark,
                                   fontWeight: FontWeight.w700,
@@ -1006,10 +2602,11 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                     children: [
                                       _buildFormSection(
                                         title: 'Informations générales',
+                                        compact: compact,
                                         child: Column(
                                           children: [
                                             DropdownButtonFormField<int>(
-                                              initialValue: selectedClientId,
+                                              value: selectedClientId,
                                               isExpanded: true,
                                               decoration: InputDecoration(
                                                 labelText: 'Client',
@@ -1022,7 +2619,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                                 ),
                                               ),
                                               items: _clients.map((c) {
-                                                return DropdownMenuItem(
+                                                return DropdownMenuItem<int>(
                                                   value: c.id,
                                                   child: Text(
                                                     '${c.nom} (${c.telephone})',
@@ -1031,13 +2628,17 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                               }).toList(),
                                               onChanged: isEdit
                                                   ? null
-                                                  : (v) => setModal(() {
-                                                      selectedClientId = v;
-                                                      remiseCtrl.text =
-                                                          clientRemisePercent(
-                                                            findClientById(v),
-                                                          ).toStringAsFixed(2);
-                                                    }),
+                                                  : (v) {
+                                                      setModal(() {
+                                                        selectedClientId = v;
+                                                        remiseCtrl.text =
+                                                            clientRemisePercent(
+                                                              findClientById(v),
+                                                            ).toStringAsFixed(
+                                                              2,
+                                                            );
+                                                      });
+                                                    },
                                               validator: (v) =>
                                                   v == null ? 'Requis' : null,
                                             ),
@@ -1068,12 +2669,10 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                                 final value = double.tryParse(
                                                   v ?? '',
                                                 );
-                                                if (value == null) {
+                                                if (value == null)
                                                   return 'Valeur invalide';
-                                                }
-                                                if (value < 0 || value > 100) {
+                                                if (value < 0 || value > 100)
                                                   return 'Entre 0 et 100';
-                                                }
                                                 return null;
                                               },
                                             ),
@@ -1083,6 +2682,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                       const SizedBox(height: _baseUnit * 2),
                                       _buildFormSection(
                                         title: 'Produits',
+                                        compact: compact,
                                         child: Column(
                                           children: [
                                             ...List.generate(lines.length, (
@@ -1178,7 +2778,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                                       key: ValueKey(
                                                         'product_${line.rowKey}',
                                                       ),
-                                                      initialValue:
+                                                      value:
                                                           available.any(
                                                             (p) =>
                                                                 p.idProduit ==
@@ -1197,7 +2797,9 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                                         ),
                                                       ),
                                                       items: available.map((p) {
-                                                        return DropdownMenuItem(
+                                                        return DropdownMenuItem<
+                                                          int
+                                                        >(
                                                           value: p.idProduit,
                                                           child: Text(
                                                             '${p.libelle} (stock: ${p.quantiteStock})',
@@ -1414,6 +3016,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
 
                                   final rightPanel = _buildFormSection(
                                     title: 'Résumé de la commande',
+                                    compact: compact,
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
@@ -1421,6 +3024,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                         _buildSummaryTile(
                                           label: 'Client',
                                           value: selectedClient()?.nom ?? '-',
+                                          compact: compact,
                                         ),
                                         const SizedBox(height: _baseUnit),
                                         _buildSummaryTile(
@@ -1428,17 +3032,20 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                           value:
                                               selectedClient()?.telephone ??
                                               '-',
+                                          compact: compact,
                                         ),
                                         const SizedBox(height: _baseUnit),
                                         _buildSummaryTile(
                                           label: 'Nombre de lignes',
                                           value: '${lines.length}',
+                                          compact: compact,
                                         ),
                                         const SizedBox(height: _baseUnit),
                                         _buildSummaryTile(
                                           label: 'Remise',
                                           value:
                                               '${remiseValue().toStringAsFixed(2)}%',
+                                          compact: compact,
                                         ),
                                         const SizedBox(height: _baseUnit * 1.5),
                                         const Divider(color: _borderLight),
@@ -1446,12 +3053,14 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                         _buildAmountRow(
                                           'Sous-total',
                                           '${subTotal().toStringAsFixed(2)} DT',
+                                          compact: compact,
                                         ),
                                         const SizedBox(height: _baseUnit),
                                         _buildAmountRow(
                                           'Total final',
                                           '${totalAfterRemise().toStringAsFixed(2)} DT',
                                           isPrimary: true,
+                                          compact: compact,
                                         ),
                                         const SizedBox(height: _baseUnit * 2),
                                         const Text(
@@ -1487,10 +3096,10 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                                     0);
 
                                             return Container(
-                                              margin: EdgeInsets.only(
+                                              margin: const EdgeInsets.only(
                                                 bottom: _baseUnit,
                                               ),
-                                              padding: EdgeInsets.all(
+                                              padding: const EdgeInsets.all(
                                                 _baseUnit * 1.25,
                                               ),
                                               decoration: BoxDecoration(
@@ -1589,9 +3198,6 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
       },
     );
 
-    // Correction importante :
-    // attendre que le dialogue soit completement retire de l'arbre des widgets
-    // avant de liberer les controleurs utilises par TextFormField.
     await WidgetsBinding.instance.endOfFrame;
 
     for (final l in lines) {
@@ -1603,6 +3209,28 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     remiseCtrl.dispose();
 
     return result;
+  }
+
+  String _normalizeClientType(String? raw) {
+    final value = (raw ?? '').trim().toLowerCase();
+    if (value.contains('vip')) return 'vip';
+    if (value.contains('fidel')) return 'fidele';
+    if (value.contains('entreprise')) return 'entreprise';
+    if (value.contains('particulier')) return 'particulier';
+    return 'particulier';
+  }
+
+  String _clientTypeLabel(String? raw) {
+    switch (_normalizeClientType(raw)) {
+      case 'vip':
+        return 'VIP';
+      case 'fidele':
+        return 'FIDELE';
+      case 'entreprise':
+        return 'ENTREPRISE';
+      default:
+        return 'PARTICULIER';
+    }
   }
 
   Widget _buildFormSection({
@@ -1619,7 +3247,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
         border: Border.all(color: _borderLight),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withOpacity(0.03),
             blurRadius: 14,
             offset: const Offset(0, 6),
           ),
@@ -1657,7 +3285,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
         border: Border.all(color: _borderLight),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withOpacity(0.03),
             blurRadius: 14,
             offset: const Offset(0, 6),
           ),
@@ -1846,7 +3474,11 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
             spacing: _baseUnit,
             runSpacing: _baseUnit,
             children: [
-              _InfoBadge(label: 'Quantité', value: '${produit.quantite}'),
+              _InfoBadge(
+                label: 'Quantité',
+                value: '${produit.quantite}',
+                compact: compact,
+              ),
               _InfoBadge(
                 label: 'Prix unitaire',
                 value: '${produit.prixUnitaire.toStringAsFixed(2)} DT',
@@ -1934,6 +3566,136 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     );
   }
 
+  Widget _buildWizardStepChip({
+    required int index,
+    required String label,
+    required bool active,
+    required bool complete,
+  }) {
+    final background = active
+        ? _primary
+        : complete
+        ? const Color(0xFFE9F8EF)
+        : _background;
+    final foreground = active
+        ? Colors.white
+        : complete
+        ? _success
+        : _textSecondary;
+    final border = active
+        ? _primary
+        : complete
+        ? const Color(0xFFB7E4C7)
+        : _borderLight;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: _baseUnit * 1.25,
+        vertical: _baseUnit,
+      ),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 20,
+            height: 20,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: active
+                  ? Colors.white.withValues(alpha: 0.18)
+                  : Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: complete
+                ? Icon(Icons.check, size: 12, color: foreground)
+                : Text(
+                    '${index + 1}',
+                    style: TextStyle(
+                      color: foreground,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+          ),
+          const SizedBox(width: _baseUnit),
+          Text(
+            label,
+            style: TextStyle(
+              color: foreground,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvailabilityBanner({
+    required bool available,
+    required String title,
+    required String subtitle,
+    bool compact = false,
+  }) {
+    final background = available
+        ? const Color(0xFFE9F8EF)
+        : const Color(0xFFFFF4F2);
+    final border = available
+        ? const Color(0xFFB7E4C7)
+        : const Color(0xFFF7C2BA);
+    final foreground = available ? const Color(0xFF11853F) : _error;
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(compact ? _baseUnit * 1.5 : _baseUnit * 2),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(compact ? 16 : 18),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            available ? Icons.check_circle_outline : Icons.error_outline,
+            color: foreground,
+            size: compact ? 20 : 22,
+          ),
+          const SizedBox(width: _baseUnit),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: foreground,
+                    fontWeight: FontWeight.w800,
+                    fontSize: compact ? 13 : 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: foreground,
+                    fontSize: compact ? 11 : 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _buildCommandeSubtotal(CommandeModel cmd) {
     final subtotal = cmd.produits.fold<double>(
       0,
@@ -1969,13 +3731,11 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
       if (l.rowKey == currentLine.rowKey) continue;
       if (l.produitId != null) selected.add(l.produitId!);
     }
-    return _produits
-        .where(
-          (p) =>
-              p.idProduit == currentLine.produitId ||
-              !selected.contains(p.idProduit),
-        )
-        .toList();
+
+    return _produits.where((p) {
+      return p.idProduit == currentLine.produitId ||
+          !selected.contains(p.idProduit);
+    }).toList();
   }
 
   int? _firstAvailableProduitId(List<_DraftLine> lines) {
@@ -1997,12 +3757,15 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
 
   List<CommandeProduitPayload> _buildProduitPayload(List<_DraftLine> lines) {
     final map = <int, CommandeProduitPayload>{};
+
     for (final l in lines) {
       final pid = l.produitId;
       final qty = int.tryParse(l.quantiteController.text) ?? 0;
       if (pid == null || qty <= 0) continue;
+
       final prod = _findProduitById(pid);
       final prix = prod?.prixVente ?? l.fallbackPrix;
+
       if (map.containsKey(pid)) {
         final existing = map[pid]!;
         map[pid] = CommandeProduitPayload(
@@ -2018,6 +3781,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
         );
       }
     }
+
     return map.values.toList();
   }
 
@@ -2052,7 +3816,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, color: _error, size: 48),
+            const Icon(Icons.error_outline, color: _error, size: 48),
             const SizedBox(height: _baseUnit * 2),
             Text(_errorMessage!, style: const TextStyle(color: _error)),
             const SizedBox(height: _baseUnit * 2),
@@ -2091,7 +3855,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
 
   Widget _buildHeader() {
     return Padding(
-      padding: EdgeInsets.fromLTRB(
+      padding: const EdgeInsets.fromLTRB(
         _baseUnit * 2,
         _baseUnit * 2,
         _baseUnit * 2,
@@ -2185,7 +3949,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
               border: Border.all(color: _borderLight),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
+                  color: Colors.black.withOpacity(0.03),
                   blurRadius: 16,
                   offset: const Offset(0, 8),
                 ),
@@ -2322,7 +4086,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
       visualDensity: VisualDensity.compact,
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       minimumSize: const Size(0, 36),
-      padding: EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: _baseUnit * 1.25,
         vertical: _baseUnit,
       ),
@@ -2338,7 +4102,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
       visualDensity: VisualDensity.compact,
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       minimumSize: const Size(0, 38),
-      padding: EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: _baseUnit * 1.5,
         vertical: _baseUnit * 1.1,
       ),
@@ -2359,13 +4123,13 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
       ),
       decoration: BoxDecoration(
         color: onDark
-            ? Colors.white.withValues(alpha: 0.18)
-            : _primary.withValues(alpha: 0.1),
+            ? Colors.white.withOpacity(0.18)
+            : _primary.withOpacity(0.1),
         borderRadius: BorderRadius.circular(compact ? 18 : 30),
         border: Border.all(
           color: onDark
-              ? Colors.white.withValues(alpha: 0.28)
-              : _primary.withValues(alpha: 0.3),
+              ? Colors.white.withOpacity(0.28)
+              : _primary.withOpacity(0.3),
         ),
       ),
       child: Text(
@@ -2402,7 +4166,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
           ],
         ),
         selected: selected,
-        selectedColor: _primary.withValues(alpha: 0.16),
+        selectedColor: _primary.withOpacity(0.16),
         backgroundColor: _surface,
         side: BorderSide(color: selected ? _primary : _borderLight),
         labelStyle: TextStyle(
@@ -2435,9 +4199,10 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
   }
 
   String _displayStatus(String raw) {
-    if (raw == 'EN_ATTENTE') return 'En attente';
-    if (raw == 'CONFIRMEE') return 'Confirmée';
-    if (raw == 'ANNULEE') return 'Annulée';
+    final norm = raw.trim().toUpperCase();
+    if (norm == 'EN_ATTENTE') return 'En attente';
+    if (norm == 'CONFIRMEE') return 'Confirmée';
+    if (norm == 'ANNULEE') return 'Annulée';
     return raw;
   }
 
@@ -2471,8 +4236,8 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
             const SizedBox(height: _baseUnit),
             Text(
               _statusFilter == 'TOUS'
-                  ? 'Les commandes confirmees sont transferees vers Factures. Creez une nouvelle commande pour continuer.'
-                  : 'Ajustez les filtres ou creez une nouvelle commande.',
+                  ? 'Les commandes confirmées sont transférées vers Factures. Créez une nouvelle commande pour continuer.'
+                  : 'Ajustez les filtres ou créez une nouvelle commande.',
               style: TextStyle(
                 color: _textSecondary,
                 fontSize: compact ? 12 : 13,
@@ -2509,9 +4274,11 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
               mainAxisSpacing: compact ? _baseUnit * 1.5 : _baseUnit * 2,
               mainAxisExtent: compact ? 252 : 300,
             ),
-            delegate: SliverChildBuilderDelegate((context, index) {
-              return _buildOrderCard(_commandes[index], grid: true);
-            }, childCount: _commandes.length),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) =>
+                  _buildOrderCard(_commandes[index], grid: true),
+              childCount: _commandes.length,
+            ),
           ),
         ),
       ];
@@ -2595,6 +4362,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     final canEdit = !_isBusy && cmd.canEdit;
     final canCancel = !_isBusy && cmd.canCancel;
     final canConfirm = _canConfirm(cmd);
+    final isPhone = _isPhoneWidth(context, breakpoint: 480);
 
     return Container(
       decoration: BoxDecoration(
@@ -2603,7 +4371,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
         border: Border.all(color: _borderLight),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withOpacity(0.03),
             blurRadius: 14,
             offset: const Offset(0, 6),
           ),
@@ -2616,11 +4384,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
           borderRadius: BorderRadius.circular(20),
           onTap: () => _onDetails(cmd),
           child: Padding(
-            padding: EdgeInsets.all(
-              _isPhoneWidth(context, breakpoint: 480)
-                  ? _baseUnit * 1.5
-                  : _baseUnit * 2,
-            ),
+            padding: EdgeInsets.all(isPhone ? _baseUnit * 1.5 : _baseUnit * 2),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -2628,16 +4392,16 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      width: _isPhoneWidth(context, breakpoint: 480) ? 34 : 40,
-                      height: _isPhoneWidth(context, breakpoint: 480) ? 34 : 40,
+                      width: isPhone ? 34 : 40,
+                      height: isPhone ? 34 : 40,
                       decoration: BoxDecoration(
-                        color: _primary.withValues(alpha: 0.12),
+                        color: _primary.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
                         Icons.receipt_long_outlined,
                         color: _primary,
-                        size: _isPhoneWidth(context, breakpoint: 480) ? 20 : 24,
+                        size: isPhone ? 20 : 24,
                       ),
                     ),
                     const SizedBox(width: _baseUnit * 1.25),
@@ -2647,14 +4411,10 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                         children: [
                           Text(
                             cmd.referenceCommandeClient,
-                            maxLines: _isPhoneWidth(context, breakpoint: 480)
-                                ? 2
-                                : 1,
+                            maxLines: isPhone ? 2 : 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: _isPhoneWidth(context, breakpoint: 480)
-                                  ? 14
-                                  : 15,
+                              fontSize: isPhone ? 14 : 15,
                               fontWeight: FontWeight.w800,
                               color: _textPrimary,
                             ),
@@ -2664,96 +4424,69 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                             cmd.dateCommandeFormatted,
                             style: TextStyle(
                               color: _textSecondary,
-                              fontSize: _isPhoneWidth(context, breakpoint: 480)
-                                  ? 11
-                                  : 12,
+                              fontSize: isPhone ? 11 : 12,
                             ),
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(width: _baseUnit),
-                    _StatusChip(
-                      status: cmd.statut,
-                      compact: _isPhoneWidth(context, breakpoint: 480),
-                    ),
+                    _StatusChip(status: cmd.statut, compact: isPhone),
                   ],
                 ),
-                SizedBox(
-                  height: _isPhoneWidth(context, breakpoint: 480)
-                      ? _baseUnit
-                      : _baseUnit * 1.5,
-                ),
+                SizedBox(height: isPhone ? _baseUnit : _baseUnit * 1.5),
                 Wrap(
-                  spacing: _isPhoneWidth(context, breakpoint: 480)
-                      ? _baseUnit * 0.75
-                      : _baseUnit,
-                  runSpacing: _isPhoneWidth(context, breakpoint: 480)
-                      ? _baseUnit * 0.75
-                      : _baseUnit,
+                  spacing: isPhone ? _baseUnit * 0.75 : _baseUnit,
+                  runSpacing: isPhone ? _baseUnit * 0.75 : _baseUnit,
                   children: [
                     _buildMetaTile(
                       icon: Icons.person_outline,
                       label: 'Client',
                       value: cmd.client?.fullName ?? '-',
-                      compact: _isPhoneWidth(context, breakpoint: 480),
+                      compact: isPhone,
                     ),
                     _buildMetaTile(
                       icon: Icons.payments_outlined,
                       label: 'Total',
                       value: '${cmd.total.toStringAsFixed(2)} DT',
-                      compact: _isPhoneWidth(context, breakpoint: 480),
+                      compact: isPhone,
                     ),
                     _buildMetaTile(
                       icon: Icons.shopping_bag_outlined,
                       label: 'Lignes',
                       value: '${cmd.produits.length}',
-                      compact: _isPhoneWidth(context, breakpoint: 480),
+                      compact: isPhone,
                     ),
                   ],
                 ),
-                SizedBox(
-                  height: _isPhoneWidth(context, breakpoint: 480)
-                      ? _baseUnit
-                      : _baseUnit * 1.5,
-                ),
+                SizedBox(height: isPhone ? _baseUnit : _baseUnit * 1.5),
                 Container(
                   width: double.infinity,
                   padding: EdgeInsets.symmetric(
-                    horizontal: _isPhoneWidth(context, breakpoint: 480)
-                        ? _baseUnit
-                        : _baseUnit * 1.25,
-                    vertical: _isPhoneWidth(context, breakpoint: 480)
-                        ? _baseUnit * 0.8
-                        : _baseUnit,
+                    horizontal: isPhone ? _baseUnit : _baseUnit * 1.25,
+                    vertical: isPhone ? _baseUnit * 0.8 : _baseUnit,
                   ),
                   decoration: BoxDecoration(
                     color: _background,
-                    borderRadius: BorderRadius.circular(
-                      _isPhoneWidth(context, breakpoint: 480) ? 10 : 12,
-                    ),
+                    borderRadius: BorderRadius.circular(isPhone ? 10 : 12),
                     border: Border.all(color: _borderLight),
                   ),
                   child: Row(
                     children: [
                       Icon(
                         Icons.inventory_2_outlined,
-                        size: _isPhoneWidth(context, breakpoint: 480) ? 14 : 16,
+                        size: isPhone ? 14 : 16,
                         color: _textSecondary,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           _productsPreview(cmd),
-                          maxLines: _isPhoneWidth(context, breakpoint: 480)
-                              ? 3
-                              : 2,
+                          maxLines: isPhone ? 3 : 2,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: _textSecondary,
-                            fontSize: _isPhoneWidth(context, breakpoint: 480)
-                                ? 11
-                                : 12,
+                            fontSize: isPhone ? 11 : 12,
                           ),
                         ),
                       ),
@@ -2761,24 +4494,17 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                   ),
                 ),
                 if (!grid) ...[
-                  SizedBox(
-                    height: _isPhoneWidth(context, breakpoint: 480)
-                        ? _baseUnit
-                        : _baseUnit * 1.5,
-                  ),
+                  SizedBox(height: isPhone ? _baseUnit : _baseUnit * 1.5),
                   Wrap(
                     alignment: WrapAlignment.end,
-                    spacing: _isPhoneWidth(context, breakpoint: 480)
-                        ? _baseUnit * 0.75
-                        : _baseUnit,
-                    runSpacing: _isPhoneWidth(context, breakpoint: 480)
-                        ? _baseUnit * 0.75
-                        : _baseUnit,
+                    spacing: isPhone ? _baseUnit * 0.75 : _baseUnit,
+                    runSpacing: isPhone ? _baseUnit * 0.75 : _baseUnit,
                     children: [
                       OutlinedButton.icon(
                         onPressed: () => _onDetails(cmd),
                         icon: const Icon(Icons.visibility_outlined, size: 16),
                         label: const Text('Détails'),
+                        style: _compactOutlinedButtonStyle(),
                       ),
                       OutlinedButton.icon(
                         onPressed: canEdit ? () => _onEdit(cmd) : null,
@@ -2851,9 +4577,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
   }
 }
 
-// Classes utilitaires
 class _DraftLine {
-  // Configuration, dependances et etat local de l'interface.
   final String rowKey;
   int? produitId;
   final TextEditingController quantiteController;
@@ -2866,15 +4590,10 @@ class _DraftLine {
     this.fallbackPrix,
   }) : quantiteController = TextEditingController(text: '$quantite');
 
-  // Cycle de vie du widget.
-
-  /// Libere les controleurs et les ecouteurs avant la destruction du widget.
   void dispose() => quantiteController.dispose();
 }
 
-/// Petit modele utilitaire qui stocke les donnees du resultat du formulaire de commande.
 class _CommandeFormResult {
-  // Configuration, dependances et etat local de l'interface.
   final int clientId;
   final List<CommandeProduitPayload> produits;
   final double remiseTotale;
