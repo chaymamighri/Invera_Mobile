@@ -1,37 +1,238 @@
 import 'package:flutter/material.dart';
-import 'package:invera_mobile/config/api_config.dart';
 import 'package:invera_mobile/models/procurement_models.dart';
+import 'package:invera_mobile/widgets/approvisionnement/procurement_user_role.dart';
 
-// Valeurs globales partagees utilisees par l'interface.
-const Color _procurementPrimary = Color(0xFF2553D4);
-const Color _procurementInk = Color(0xFF13233D);
-const Color _procurementMuted = Color(0xFF607089);
-const Color _procurementLine = Color(0xFFE4EBF7);
-const Color _procurementMist = Color(0xFFF4F8FF);
-const Color _procurementSurface = Colors.white;
+const Color procurementPrimary = Color(0xFF2563EB);
+const Color procurementPrimaryDark = Color(0xFF1D4ED8);
+const Color procurementAccent = Color(0xFF16A34A);
+const Color procurementWarning = Color(0xFFEA580C);
+const Color procurementDanger = Color(0xFFDC2626);
+const Color procurementPurple = Color(0xFF7C3AED);
+const Color procurementInk = Color(0xFF13233D);
+const Color procurementMuted = Color(0xFF607089);
+const Color procurementLine = Color(0xFFE4EBF7);
+const Color procurementMist = Color(0xFFF4F8FF);
+const Color procurementSurface = Colors.white;
+const Color procurementSoftBackground = Color(0xFFF8FAFC);
 
-const List<BoxShadow> _procurementCardShadow = [
+const List<BoxShadow> procurementCardShadow = [
   BoxShadow(color: Color(0x120D1B2A), blurRadius: 28, offset: Offset(0, 14)),
   BoxShadow(color: Color(0x0A0D1B2A), blurRadius: 10, offset: Offset(0, 4)),
 ];
 
-/// Methode utilitaire pour le repere de section.
-String _sectionMarker(String title) {
-  final trimmed = title.trim();
-  if (trimmed.isEmpty) return 'A';
-  return trimmed.characters.first.toUpperCase();
+abstract final class ProcurementOrderStatus {
+  static const String brouillon = 'BROUILLON';
+  static const String validee = 'VALIDEE';
+  static const String envoyee = 'ENVOYEE';
+  static const String recue = 'RECUE';
+  static const String facturee = 'FACTUREE';
+  static const String annulee = 'ANNULEE';
+  static const String rejetee = 'REJETEE';
+
+  static const List<String> all = <String>[
+    brouillon,
+    validee,
+    envoyee,
+    recue,
+    facturee,
+    annulee,
+    rejetee,
+  ];
 }
 
-/// Widget qui affiche le panneau de chargement.
+String formatDate(DateTime? date, {bool withTime = false}) {
+  if (date == null) return 'N/A';
+  final day = date.day.toString().padLeft(2, '0');
+  final month = date.month.toString().padLeft(2, '0');
+  final year = date.year.toString();
+  if (!withTime) return '$day/$month/$year';
+  final hour = date.hour.toString().padLeft(2, '0');
+  final minute = date.minute.toString().padLeft(2, '0');
+  return '$day/$month/$year $hour:$minute';
+}
+
+String formatPrice(num? value) {
+  if (value == null) return 'N/A';
+  return '${value.toStringAsFixed(3)} TND';
+}
+
+String formatMoney(double value) {
+  return '${value.toStringAsFixed(3)} TND';
+}
+
+String formatVatRate(num? rate) {
+  final safeRate = (rate ?? 19).toDouble();
+  if (safeRate == safeRate.roundToDouble()) {
+    return '${safeRate.toStringAsFixed(0)}%';
+  }
+  return '${safeRate.toStringAsFixed(2)}%';
+}
+
+Color orderStatusColor(String? status) {
+  switch ((status ?? '').toUpperCase()) {
+    case ProcurementOrderStatus.brouillon:
+      return const Color(0xFF64748B);
+    case ProcurementOrderStatus.validee:
+      return const Color(0xFF2563EB);
+    case ProcurementOrderStatus.envoyee:
+      return const Color(0xFFCA8A04);
+    case ProcurementOrderStatus.recue:
+      return const Color(0xFF16A34A);
+    case ProcurementOrderStatus.facturee:
+      return const Color(0xFF7C3AED);
+    case ProcurementOrderStatus.annulee:
+      return const Color(0xFFDC2626);
+    case ProcurementOrderStatus.rejetee:
+      return const Color(0xFFEA580C);
+    default:
+      return const Color(0xFF64748B);
+  }
+}
+
+Color productStatusColor(String? status) {
+  switch ((status ?? '').toUpperCase()) {
+    case 'EN_STOCK':
+      return const Color(0xFF16A34A);
+    case 'FAIBLE':
+      return const Color(0xFFCA8A04);
+    case 'CRITIQUE':
+      return const Color(0xFFEA580C);
+    case 'RUPTURE':
+      return const Color(0xFFDC2626);
+    default:
+      return const Color(0xFF64748B);
+  }
+}
+
+String orderStatusLabel(String? status) {
+  switch ((status ?? '').toUpperCase()) {
+    case ProcurementOrderStatus.brouillon:
+      return 'BROUILLON';
+    case ProcurementOrderStatus.validee:
+      return 'VALIDEE';
+    case ProcurementOrderStatus.envoyee:
+      return 'ENVOYEE';
+    case ProcurementOrderStatus.recue:
+      return 'RECUE';
+    case ProcurementOrderStatus.facturee:
+      return 'FACTUREE';
+    case ProcurementOrderStatus.annulee:
+      return 'ANNULEE';
+    case ProcurementOrderStatus.rejetee:
+      return 'REJETEE';
+    default:
+      return status?.toUpperCase() ?? 'INCONNU';
+  }
+}
+
+String productDisplayStock(ProcurementProduct product) {
+  return '${product.quantiteStock} ${product.unitLabel}';
+}
+
+String supplierOptionLabel(ProcurementSupplier supplier) {
+  final phone = supplier.telephone.trim();
+  final email = supplier.email.trim();
+  if (phone.isNotEmpty) return '${supplier.displayName} - $phone';
+  if (email.isNotEmpty) return '${supplier.displayName} - $email';
+  return supplier.displayName;
+}
+
+class ProcurementOrderActionPolicy {
+  static bool canDelete(
+    ProcurementOrder order,
+    ProcurementUserRole role, {
+    required bool showArchives,
+  }) {
+    if (showArchives) return false;
+    return (role == ProcurementUserRole.responsableAchat &&
+            order.normalizedStatus == ProcurementOrderStatus.brouillon) ||
+        (role == ProcurementUserRole.responsableAchat &&
+            order.normalizedStatus == ProcurementOrderStatus.rejetee);
+  }
+
+  static bool canEdit(
+    ProcurementOrder order,
+    ProcurementUserRole role, {
+    required bool showArchives,
+  }) {
+    if (showArchives) return false;
+    return role == ProcurementUserRole.responsableAchat &&
+        order.normalizedStatus == ProcurementOrderStatus.rejetee;
+  }
+
+  static bool canValidate(
+    ProcurementOrder order,
+    ProcurementUserRole role, {
+    required bool showArchives,
+  }) {
+    if (showArchives) return false;
+    return role == ProcurementUserRole.admin &&
+        order.normalizedStatus == ProcurementOrderStatus.brouillon;
+  }
+
+  static bool canReject(
+    ProcurementOrder order,
+    ProcurementUserRole role, {
+    required bool showArchives,
+  }) {
+    if (showArchives) return false;
+    return role == ProcurementUserRole.admin &&
+        order.normalizedStatus == ProcurementOrderStatus.brouillon;
+  }
+
+  static bool canResendAfterRejection(
+    ProcurementOrder order,
+    ProcurementUserRole role, {
+    required bool showArchives,
+  }) {
+    if (showArchives) return false;
+    return role == ProcurementUserRole.responsableAchat &&
+        order.normalizedStatus == ProcurementOrderStatus.rejetee;
+  }
+
+  static bool canSend(
+    ProcurementOrder order,
+    ProcurementUserRole role, {
+    required bool showArchives,
+  }) {
+    if (showArchives) return false;
+    return role == ProcurementUserRole.responsableAchat &&
+        order.normalizedStatus == ProcurementOrderStatus.validee;
+  }
+
+  static bool canReceive(
+    ProcurementOrder order,
+    ProcurementUserRole role, {
+    required bool showArchives,
+  }) {
+    if (showArchives) return false;
+    return role == ProcurementUserRole.responsableAchat &&
+        order.normalizedStatus == ProcurementOrderStatus.envoyee;
+  }
+
+  static bool canInvoice(
+    ProcurementOrder order,
+    ProcurementUserRole role, {
+    required bool showArchives,
+  }) {
+    if (showArchives) return false;
+    return role == ProcurementUserRole.responsableAchat &&
+        (order.normalizedStatus == ProcurementOrderStatus.recue ||
+            order.normalizedStatus == ProcurementOrderStatus.facturee);
+  }
+
+  static bool canRestore({
+    required bool showArchives,
+  }) {
+    return showArchives;
+  }
+}
+
 class LoadingPanel extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
   final String message;
 
   const LoadingPanel({super.key, required this.message});
 
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -39,10 +240,10 @@ class LoadingPanel extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 340),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
         decoration: BoxDecoration(
-          color: _procurementSurface.withValues(alpha: 0.96),
+          color: procurementSurface.withValues(alpha: 0.96),
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: _procurementLine),
-          boxShadow: _procurementCardShadow,
+          border: Border.all(color: procurementLine),
+          boxShadow: procurementCardShadow,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -53,7 +254,7 @@ class LoadingPanel extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    _procurementPrimary.withValues(alpha: 0.18),
+                    procurementPrimary.withValues(alpha: 0.18),
                     const Color(0xFF14B8A6).withValues(alpha: 0.12),
                   ],
                 ),
@@ -70,7 +271,7 @@ class LoadingPanel extends StatelessWidget {
             const Text(
               'Chargement en cours',
               style: TextStyle(
-                color: _procurementInk,
+                color: procurementInk,
                 fontWeight: FontWeight.w800,
                 fontSize: 16,
               ),
@@ -79,7 +280,7 @@ class LoadingPanel extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: _procurementMuted),
+              style: const TextStyle(color: procurementMuted),
             ),
           ],
         ),
@@ -88,9 +289,7 @@ class LoadingPanel extends StatelessWidget {
   }
 }
 
-/// Widget qui affiche la carte d'erreur asynchrone.
 class AsyncErrorCard extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
   final String title;
   final String message;
   final Future<void> Function() onRetry;
@@ -102,9 +301,6 @@ class AsyncErrorCard extends StatelessWidget {
     required this.onRetry,
   });
 
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return SectionSurface(
@@ -161,9 +357,7 @@ class AsyncErrorCard extends StatelessWidget {
   }
 }
 
-/// Widget qui affiche la surface de section.
 class SectionSurface extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
   final String title;
   final String subtitle;
   final Widget child;
@@ -175,9 +369,12 @@ class SectionSurface extends StatelessWidget {
     required this.child,
   });
 
-  // Construction de l'interface.
+  String _sectionMarker(String rawTitle) {
+    final trimmed = rawTitle.trim();
+    if (trimmed.isEmpty) return 'A';
+    return trimmed.characters.first.toUpperCase();
+  }
 
-  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     final marker = _sectionMarker(title);
@@ -192,8 +389,8 @@ class SectionSurface extends StatelessWidget {
           colors: [Color(0xFFFFFFFF), Color(0xFFF9FBFF)],
         ),
         borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: _procurementLine),
-        boxShadow: _procurementCardShadow,
+        border: Border.all(color: procurementLine),
+        boxShadow: procurementCardShadow,
       ),
       child: Stack(
         children: [
@@ -207,7 +404,7 @@ class SectionSurface extends StatelessWidget {
                 shape: BoxShape.circle,
                 gradient: LinearGradient(
                   colors: [
-                    _procurementPrimary.withValues(alpha: 0.12),
+                    procurementPrimary.withValues(alpha: 0.12),
                     const Color(0xFF14B8A6).withValues(alpha: 0.05),
                   ],
                 ),
@@ -241,7 +438,7 @@ class SectionSurface extends StatelessWidget {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            _procurementPrimary.withValues(alpha: 0.16),
+                            procurementPrimary.withValues(alpha: 0.16),
                             const Color(0xFF14B8A6).withValues(alpha: 0.12),
                           ],
                         ),
@@ -250,7 +447,7 @@ class SectionSurface extends StatelessWidget {
                       child: Text(
                         marker,
                         style: const TextStyle(
-                          color: _procurementPrimary,
+                          color: procurementPrimary,
                           fontWeight: FontWeight.w900,
                           fontSize: 18,
                         ),
@@ -264,7 +461,7 @@ class SectionSurface extends StatelessWidget {
                           Text(
                             title,
                             style: const TextStyle(
-                              color: _procurementInk,
+                              color: procurementInk,
                               fontWeight: FontWeight.w800,
                               fontSize: 18,
                             ),
@@ -273,7 +470,7 @@ class SectionSurface extends StatelessWidget {
                           Text(
                             subtitle,
                             style: const TextStyle(
-                              color: _procurementMuted,
+                              color: procurementMuted,
                               fontSize: 13,
                               height: 1.35,
                             ),
@@ -294,278 +491,22 @@ class SectionSurface extends StatelessWidget {
   }
 }
 
-/// Widget qui affiche la carte de statistique d'information.
-class InfoStatCard extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
-  final String label;
-  final String value;
-  final String helper;
-  final IconData icon;
-  final Color color;
-
-  const InfoStatCard({
-    super.key,
-    required this.label,
-    required this.value,
-    required this.helper,
-    required this.icon,
-    required this.color,
-  });
-
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
-  @override
-  Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 220, maxWidth: 320),
-      child: Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.white, color.withValues(alpha: 0.08)],
-          ),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: color.withValues(alpha: 0.16)),
-          boxShadow: _procurementCardShadow,
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              top: -16,
-              right: -18,
-              child: Container(
-                width: 86,
-                height: 86,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: color.withValues(alpha: 0.08),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 54,
-                        height: 54,
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Icon(icon, color: color),
-                      ),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.74),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                            color: color.withValues(alpha: 0.16),
-                          ),
-                        ),
-                        child: Text(
-                          'LIVE',
-                          style: TextStyle(
-                            color: color,
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.7,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      color: _procurementMuted,
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _procurementInk,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 26,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.66),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Text(
-                      helper,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF7A8798),
-                        fontSize: 11.5,
-                        height: 1.35,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Widget qui affiche la mini metrique.
-class MiniMetric extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
-  final String label;
-  final String value;
-  final Color color;
-
-  const MiniMetric({
-    super.key,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colors.white, color.withValues(alpha: 0.10)],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.12)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(color: Color(0xFF607089), fontSize: 12),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w800,
-              fontSize: 18,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Widget qui affiche la carte de repartition des statuts.
-class StatusBreakdownCard extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
-  final String label;
-  final int value;
-  final Color color;
-
-  const StatusBreakdownCard({
-    super.key,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minWidth: 150),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colors.white, color.withValues(alpha: 0.10)],
-        ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withValues(alpha: 0.14)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFF1F2A44),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '$value',
-            style: TextStyle(
-              color: color,
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Widget qui affiche le panneau vide.
 class EmptyPanel extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
   final String title;
   final String message;
 
   const EmptyPanel({super.key, required this.title, required this.message});
 
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 360),
+        constraints: const BoxConstraints(maxWidth: 380),
         padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          color: _procurementMist,
+          color: procurementMist,
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: _procurementLine),
+          border: Border.all(color: procurementLine),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -576,16 +517,16 @@ class EmptyPanel extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    _procurementPrimary.withValues(alpha: 0.14),
+                    procurementPrimary.withValues(alpha: 0.14),
                     const Color(0xFF14B8A6).withValues(alpha: 0.10),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: const Icon(
-                Icons.auto_awesome_mosaic_outlined,
+                Icons.inventory_2_outlined,
                 size: 30,
-                color: _procurementPrimary,
+                color: procurementPrimary,
               ),
             ),
             const SizedBox(height: 14),
@@ -593,7 +534,7 @@ class EmptyPanel extends StatelessWidget {
               title,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                color: _procurementInk,
+                color: procurementInk,
                 fontWeight: FontWeight.w800,
                 fontSize: 16,
               ),
@@ -603,7 +544,7 @@ class EmptyPanel extends StatelessWidget {
               message,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                color: _procurementMuted,
+                color: procurementMuted,
                 fontSize: 13,
                 height: 1.4,
               ),
@@ -615,133 +556,7 @@ class EmptyPanel extends StatelessWidget {
   }
 }
 
-/// Widget qui affiche la tuile de stock faible.
-class LowStockTile extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
-  final ProcurementProduct product;
-
-  const LowStockTile({super.key, required this.product});
-
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: productStatusColor(product.status).withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.warning_amber_rounded,
-              color: productStatusColor(product.status),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  product.displayName,
-                  style: const TextStyle(
-                    color: Color(0xFF1F2A44),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${product.quantiteStock} ${product.unitLabel} • seuil ${product.seuilMinimum}',
-                  style: const TextStyle(
-                    color: Color(0xFF607089),
-                    fontSize: 12.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          StatusPill(
-            label: product.stockStatusLabel,
-            color: productStatusColor(product.status),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Widget qui affiche la tuile recapitulative de commande.
-class OrderSummaryTile extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
-  final ProcurementOrder order;
-
-  const OrderSummaryTile({super.key, required this.order});
-
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  order.referenceCommande,
-                  style: const TextStyle(
-                    color: Color(0xFF1F2A44),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${order.partenaireNom} | ${order.dateCommandeFormatted}',
-                  style: const TextStyle(
-                    color: Color(0xFF607089),
-                    fontSize: 12.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              StatusPill(
-                label: order.statutDisplay,
-                color: orderStatusColor(order.statut),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                formatMoney(order.total),
-                style: const TextStyle(
-                  color: Color(0xFF1F2A44),
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Widget qui affiche le badge de detail.
 class DetailBadge extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
   final String label;
   final String value;
   final Color color;
@@ -755,9 +570,6 @@ class DetailBadge extends StatelessWidget {
     this.dense = false,
   });
 
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -780,7 +592,7 @@ class DetailBadge extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: const Color(0xFF607089),
+              color: procurementMuted,
               fontSize: dense ? 10.8 : 11.5,
             ),
           ),
@@ -799,30 +611,37 @@ class DetailBadge extends StatelessWidget {
   }
 }
 
-/// Widget qui affiche la pastille de statut.
 class StatusPill extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
   final String label;
   final Color color;
 
-  const StatusPill({super.key, required this.label, required this.color});
+  const StatusPill({
+    super.key,
+    required this.label,
+    required this.color,
+  });
 
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
+    final textColor = color == Colors.white ? procurementInk : color;
+    final bgColor = color == Colors.white
+        ? Colors.white
+        : color.withValues(alpha: 0.10);
+    final borderColor = color == Colors.white
+        ? Colors.white
+        : color.withValues(alpha: 0.18);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
+        color: bgColor,
+        border: Border.all(color: borderColor),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
         style: TextStyle(
-          color: color,
+          color: textColor,
           fontWeight: FontWeight.w700,
           fontSize: 12,
         ),
@@ -831,9 +650,101 @@ class StatusPill extends StatelessWidget {
   }
 }
 
-/// Widget qui affiche la carte produit.
+class ProcurementStatusBadge extends StatelessWidget {
+  final String status;
+
+  const ProcurementStatusBadge({
+    super.key,
+    required this.status,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return StatusPill(
+      label: orderStatusLabel(status),
+      color: orderStatusColor(status),
+    );
+  }
+}
+
+class ProcurementRoleSwitchCard extends StatelessWidget {
+  final ProcurementUserRole currentRole;
+  final ValueChanged<ProcurementUserRole> onChanged;
+
+  const ProcurementRoleSwitchCard({
+    super.key,
+    required this.currentRole,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SectionSurface(
+      title: 'Vue utilisateur',
+      subtitle: 'Simulation temporaire du role comme sur le web',
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          ChoiceChip(
+            label: const Text('Responsable achat'),
+            selected: currentRole == ProcurementUserRole.responsableAchat,
+            onSelected: (_) =>
+                onChanged(ProcurementUserRole.responsableAchat),
+          ),
+          ChoiceChip(
+            label: const Text('Admin'),
+            selected: currentRole == ProcurementUserRole.admin,
+            onSelected: (_) => onChanged(ProcurementUserRole.admin),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ProductAvatar extends StatelessWidget {
+  final String? imageUrl;
+  final dynamic product;
+  final double size;
+
+  const ProductAvatar({
+    super.key,
+    required this.imageUrl,
+    required this.product,
+    this.size = 60,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasImage = imageUrl != null && imageUrl!.trim().isNotEmpty;
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: const Color(0xFFF1F5F9),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: hasImage
+          ? Image.network(
+              imageUrl!,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _fallback(),
+            )
+          : _fallback(),
+    );
+  }
+
+  Widget _fallback() {
+    return const Center(
+      child: Icon(Icons.inventory_2_outlined, color: Colors.grey),
+    );
+  }
+}
+
 class ProductCard extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
   final ProcurementProduct product;
   final VoidCallback onEdit;
   final VoidCallback onAdjustStock;
@@ -847,752 +758,152 @@ class ProductCard extends StatelessWidget {
     required this.onToggleActive,
   });
 
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
-    final activeColor = product.active
-        ? const Color(0xFF3F7A51)
-        : const Color(0xFF6B7280);
     final stockColor = productStatusColor(product.status);
-    final imageUrl = ApiConfig.resolveMediaUrl(product.imageUrl);
-    final toggleLabel = product.active ? 'Desactiver' : 'Reactiver';
-    final priceRows = <({String label, String value, Color? color})>[
-      (
-        label: 'Prix achat',
-        value: formatMoney(product.prixAchat),
-        color: const Color(0xFF1E3A5F),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: procurementCardShadow,
       ),
-      (
-        label: 'Prix vente',
-        value: formatMoney(product.prixVente),
-        color: const Color(0xFF1E3A5F),
-      ),
-      if (product.categorie != null)
-        (label: 'TVA', value: product.categorie!.vatLabel, color: null),
-      if (product.remiseTemporaire != null)
-        (
-          label: 'Remise active',
-          value: '${product.remiseTemporaire!.toStringAsFixed(1)}%',
-          color: const Color(0xFF8A5A20),
-        ),
-    ];
-    final stockRows = <({String label, String value, Color? color})>[
-      (
-        label: 'Stock disponible',
-        value: '${product.quantiteStock} ${product.unitLabel}',
-        color: null,
-      ),
-      (
-        label: 'Seuil minimum',
-        value: '${product.seuilMinimum} ${product.unitLabel}',
-        color: null,
-      ),
-      (
-        label: 'Etat du stock',
-        value: product.stockStatusLabel,
-        color: stockColor.withValues(alpha: 0.95),
-      ),
-      (
-        label: 'Catalogue',
-        value: product.active ? 'Actif' : 'Inactif',
-        color: activeColor,
-      ),
-    ];
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 760;
-        final avatarSize = compact ? 92.0 : 110.0;
-
-        return Container(
-          width: double.infinity,
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x0F0F172A),
-                blurRadius: 24,
-                offset: Offset(0, 10),
-              ),
-            ],
+      child: Row(
+        children: [
+          ProductAvatar(
+            imageUrl: product.imageUrl,
+            product: product,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(compact ? 16 : 20),
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFFF4F8FF), Color(0xFFFFFFFF)],
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  product.displayName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: procurementInk,
                   ),
                 ),
-                child: compact
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              ProductAvatar(
-                                imageUrl: imageUrl,
-                                product: product,
-                                size: avatarSize,
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      product.displayName,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: _procurementInk,
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 18,
-                                        height: 1.2,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 5),
-                                    Text(
-                                      product.categorieLabel,
-                                      style: const TextStyle(
-                                        color: Color(0xFF526071),
-                                        fontSize: 13.5,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      'Produit #${product.idProduit}',
-                                      style: const TextStyle(
-                                        color: Color(0xFF6B7280),
-                                        fontSize: 12.5,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              _ProductSoftTag(
-                                label: product.stockStatusLabel,
-                                color: stockColor,
-                              ),
-                              _ProductSoftTag(
-                                label: product.active ? 'Actif' : 'Inactif',
-                                color: activeColor,
-                              ),
-                              _ProductSoftTag(
-                                label: product.unitLabel,
-                                color: const Color(0xFF506074),
-                              ),
-                              if (product.remiseTemporaire != null)
-                                _ProductSoftTag(
-                                  label:
-                                      'Remise ${product.remiseTemporaire!.toStringAsFixed(1)}%',
-                                  color: const Color(0xFF8A5A20),
-                                ),
-                            ],
-                          ),
-                        ],
-                      )
-                    : Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          ProductAvatar(
-                            imageUrl: imageUrl,
-                            product: product,
-                            size: avatarSize,
-                          ),
-                          const SizedBox(width: 18),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  product.displayName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: _procurementInk,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 22,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  '${product.categorieLabel} | Produit #${product.idProduit}',
-                                  style: const TextStyle(
-                                    color: Color(0xFF5B6776),
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const SizedBox(height: 14),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: [
-                                    _ProductSoftTag(
-                                      label: product.stockStatusLabel,
-                                      color: stockColor,
-                                    ),
-                                    _ProductSoftTag(
-                                      label: product.active
-                                          ? 'Catalogue actif'
-                                          : 'Catalogue inactif',
-                                      color: activeColor,
-                                    ),
-                                    _ProductSoftTag(
-                                      label:
-                                          '${product.quantiteStock} ${product.unitLabel}',
-                                      color: const Color(0xFF506074),
-                                    ),
-                                    if (product.remiseTemporaire != null)
-                                      _ProductSoftTag(
-                                        label:
-                                            'Remise ${product.remiseTemporaire!.toStringAsFixed(1)}%',
-                                        color: const Color(0xFF8A5A20),
-                                      ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-              ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  compact ? 16 : 20,
-                  compact ? 16 : 18,
-                  compact ? 16 : 20,
-                  compact ? 14 : 16,
+                const SizedBox(height: 4),
+                Text(
+                  product.categorieLabel,
+                  style: const TextStyle(color: procurementMuted),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
-                    if (compact) ...[
-                      _ProductSpecPanel(
-                        title: 'Tarification',
-                        tint: const Color(0xFFF7FAFE),
-                        rows: priceRows,
-                      ),
-                      const SizedBox(height: 12),
-                      _ProductSpecPanel(
-                        title: 'Inventaire',
-                        tint: const Color(0xFFF9FAFB),
-                        rows: stockRows,
-                      ),
-                    ] else ...[
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: _ProductSpecPanel(
-                              title: 'Tarification',
-                              tint: const Color(0xFFF7FAFE),
-                              rows: priceRows,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: _ProductSpecPanel(
-                              title: 'Inventaire',
-                              tint: const Color(0xFFF9FAFB),
-                              rows: stockRows,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                    const SizedBox(height: 14),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.only(top: 10),
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          top: BorderSide(color: Color(0xFFE5E7EB)),
-                        ),
-                      ),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          _ProductActionButton(
-                            label: 'Ajuster stock',
-                            icon: Icons.inventory_2_outlined,
-                            onPressed: onAdjustStock,
-                          ),
-                          _ProductActionButton(
-                            label: 'Modifier',
-                            icon: Icons.edit_outlined,
-                            onPressed: onEdit,
-                          ),
-                          _ProductActionButton(
-                            label: toggleLabel,
-                            icon: product.active
-                                ? Icons.pause_circle_outline
-                                : Icons.play_circle_outline,
-                            onPressed: onToggleActive,
-                            foregroundColor: activeColor,
-                          ),
-                        ],
-                      ),
+                    StatusPill(
+                      label: product.stockStatusLabel,
+                      color: stockColor,
+                    ),
+                    StatusPill(
+                      label: product.active ? 'Actif' : 'Inactif',
+                      color: product.active
+                          ? procurementAccent
+                          : procurementMuted,
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Widget qui affiche l'etiquette legere du produit.
-class _ProductSoftTag extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
-  final String label;
-  final Color color;
-
-  const _ProductSoftTag({required this.label, required this.color});
-
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.12)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
-/// Widget qui affiche le panneau de specifications du produit.
-class _ProductSpecPanel extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
-  final String title;
-  final Color tint;
-  final List<({String label, String value, Color? color})> rows;
-
-  const _ProductSpecPanel({
-    required this.title,
-    required this.tint,
-    required this.rows,
-  });
-
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: tint,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: Color(0xFF1F2937),
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
+                const SizedBox(height: 6),
+                Text(
+                  formatMoney(product.prixVente),
+                  style: const TextStyle(
+                    color: procurementPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 10),
-          for (var i = 0; i < rows.length; i++) ...[
-            _ProductSpecRow(
-              label: rows[i].label,
-              value: rows[i].value,
-              valueColor: rows[i].color,
+          IconButton(
+            onPressed: onEdit,
+            icon: const Icon(Icons.edit),
+          ),
+          IconButton(
+            onPressed: onAdjustStock,
+            icon: const Icon(Icons.inventory_2_outlined),
+          ),
+          IconButton(
+            onPressed: onToggleActive,
+            icon: Icon(
+              product.active ? Icons.visibility : Icons.visibility_off,
             ),
-            if (i != rows.length - 1)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Divider(color: Color(0xFFE5E7EB), height: 1),
-              ),
-          ],
+          ),
         ],
       ),
     );
   }
 }
 
-/// Widget qui affiche la ligne de specifications du produit.
-class _ProductSpecRow extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
+class InfoStatCard extends StatelessWidget {
   final String label;
   final String value;
-  final Color? valueColor;
+  final String helper;
+  final IconData icon;
+  final Color color;
 
-  const _ProductSpecRow({
+  const InfoStatCard({
+    super.key,
     required this.label,
     required this.value,
-    this.valueColor,
-  });
-
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFF6B7280),
-              fontSize: 12.5,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Flexible(
-          child: Text(
-            value,
-            textAlign: TextAlign.end,
-            style: TextStyle(
-              color: valueColor ?? const Color(0xFF1F2937),
-              fontSize: 13.5,
-              fontWeight: FontWeight.w700,
-              height: 1.3,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Widget qui affiche le bouton d'action produit.
-class _ProductActionButton extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
-  final String label;
-  final IconData icon;
-  final VoidCallback onPressed;
-  final Color? foregroundColor;
-
-  const _ProductActionButton({
-    required this.label,
+    required this.helper,
     required this.icon,
-    required this.onPressed,
-    this.foregroundColor,
+    required this.color,
   });
 
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      style: OutlinedButton.styleFrom(
-        side: BorderSide(
-          color: (foregroundColor ?? const Color(0xFF334155)).withValues(
-            alpha: 0.14,
-          ),
-        ),
-        backgroundColor: (foregroundColor ?? const Color(0xFF334155))
-            .withValues(alpha: 0.04),
-        foregroundColor: foregroundColor ?? const Color(0xFF334155),
-        visualDensity: VisualDensity.compact,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        minimumSize: const Size(0, 36),
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
-        iconSize: 16,
-      ),
-      icon: Icon(icon),
-      label: Text(label),
-    );
-  }
-}
-
-/// Widget qui affiche l'avatar du produit.
-class ProductAvatar extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
-  final String? imageUrl;
-  final ProcurementProduct product;
-  final double size;
-
-  const ProductAvatar({
-    super.key,
-    required this.imageUrl,
-    required this.product,
-    this.size = 68,
-  });
-
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
-  @override
-  Widget build(BuildContext context) {
-    final radius = size <= 70 ? 18.0 : 20.0;
-    final fallback = Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFE8F1FF), Color(0xFFF8FBFF)],
-        ),
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A0F172A),
-            blurRadius: 16,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        product.displayName.substring(0, 1).toUpperCase(),
-        style: TextStyle(
-          color: const Color(0xFF39567A),
-          fontWeight: FontWeight.w800,
-          fontSize: size <= 70 ? 28 : 32,
-        ),
-      ),
-    );
-
-    if (imageUrl == null) return fallback;
-
     return Container(
-      width: size,
-      height: size,
+      width: 250,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A0F172A),
-            blurRadius: 16,
-            offset: Offset(0, 8),
-          ),
-        ],
+        color: procurementSurface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: procurementLine),
+        boxShadow: procurementCardShadow,
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: Image.network(
-          imageUrl!,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => fallback,
-        ),
-      ),
-    );
-  }
-}
-
-/// Widget qui affiche la carte de commande.
-class OrderCard extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
-  final ProcurementOrder order;
-  final bool receptionMode;
-  final bool showArchived;
-  final VoidCallback onView;
-  final VoidCallback? onEdit;
-  final VoidCallback? onDelete;
-  final VoidCallback? onRestore;
-  final VoidCallback? onValidate;
-  final VoidCallback? onSend;
-  final VoidCallback? onReceive;
-  final VoidCallback? onInvoice;
-  final VoidCallback? onCancel;
-
-  const OrderCard({
-    super.key,
-    required this.order,
-    required this.receptionMode,
-    required this.showArchived,
-    required this.onView,
-    this.onEdit,
-    this.onDelete,
-    this.onRestore,
-    this.onValidate,
-    this.onSend,
-    this.onReceive,
-    this.onInvoice,
-    this.onCancel,
-  });
-
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
-  @override
-  Widget build(BuildContext context) {
-    final headerColor = orderStatusColor(order.statut);
-    final invoiceButtonLabel = order.statut.toUpperCase() == 'FACTUREE'
-        ? 'PDF facture'
-        : 'Facturer';
-    final invoiceButtonIcon = order.statut.toUpperCase() == 'FACTUREE'
-        ? Icons.picture_as_pdf_outlined
-        : Icons.receipt_long_outlined;
-
-    return SectionSurface(
-      title: order.referenceCommande,
-      subtitle: '${order.partenaireNom} | ${order.itemCount} article(s)',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
+          Row(
             children: [
-              DetailBadge(
-                label: 'Date commande',
-                value: order.dateCommandeFormatted,
-                color: const Color(0xFF2D47C8),
-              ),
-              DetailBadge(
-                label: 'Livraison prevue',
-                value: order.dateLivraisonPrevueFormatted,
-                color: const Color(0xFF0F766E),
-              ),
-              DetailBadge(
-                label: 'Total TTC',
-                value: formatMoney(order.total),
-                color: const Color(0xFF7C3AED),
-              ),
-              DetailBadge(
-                label: 'TVA',
-                value: '${order.tauxTVA.toStringAsFixed(0)}%',
-                color: const Color(0xFFEA580C),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              StatusPill(label: order.statutDisplay, color: headerColor),
-              if (order.dateLivraisonReelle != null)
-                StatusPill(
-                  label: 'Recue le ${order.dateLivraisonReelleFormatted}',
-                  color: const Color(0xFF16A34A),
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-              if (showArchived)
-                const StatusPill(label: 'Archivee', color: Color(0xFF64748B)),
+                child: Icon(icon, color: color),
+              ),
+              const Spacer(),
+              Text(
+                value,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 22,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
-            order.adresseLivraison.trim().isEmpty
-                ? 'Aucune adresse de livraison renseignee'
-                : order.adresseLivraison,
-            style: const TextStyle(color: Color(0xFF607089), fontSize: 13),
+            label,
+            style: const TextStyle(
+              color: procurementInk,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              OutlinedButton.icon(
-                onPressed: onView,
-                icon: const Icon(Icons.visibility_outlined),
-                label: const Text('Details'),
-              ),
-              if (onEdit != null)
-                OutlinedButton.icon(
-                  onPressed: onEdit,
-                  icon: const Icon(Icons.edit_outlined),
-                  label: const Text('Modifier'),
-                ),
-              if (onValidate != null)
-                FilledButton.tonalIcon(
-                  onPressed: onValidate,
-                  icon: const Icon(Icons.verified_outlined),
-                  label: const Text('Valider'),
-                ),
-              if (onSend != null)
-                FilledButton.tonalIcon(
-                  onPressed: onSend,
-                  icon: const Icon(Icons.send_outlined),
-                  label: const Text('Envoyer'),
-                ),
-              if (onReceive != null)
-                FilledButton.icon(
-                  onPressed: onReceive,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF16A34A),
-                    foregroundColor: Colors.white,
-                  ),
-                  icon: const Icon(Icons.local_shipping_outlined),
-                  label: Text(receptionMode ? 'Receptionner' : 'Recevoir'),
-                ),
-              if (onInvoice != null)
-                FilledButton.tonalIcon(
-                  onPressed: onInvoice,
-                  icon: Icon(invoiceButtonIcon),
-                  label: Text(invoiceButtonLabel),
-                ),
-              if (onCancel != null)
-                OutlinedButton.icon(
-                  onPressed: onCancel,
-                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                  icon: const Icon(Icons.cancel_outlined),
-                  label: const Text('Annuler'),
-                ),
-              if (onDelete != null)
-                OutlinedButton.icon(
-                  onPressed: onDelete,
-                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('Supprimer'),
-                ),
-              if (onRestore != null)
-                FilledButton.tonalIcon(
-                  onPressed: onRestore,
-                  icon: const Icon(Icons.restore_outlined),
-                  label: const Text('Restaurer'),
-                ),
-            ],
+          const SizedBox(height: 4),
+          Text(
+            helper,
+            style: const TextStyle(color: procurementMuted, fontSize: 12.5),
           ),
         ],
       ),
@@ -1600,7 +911,267 @@ class OrderCard extends StatelessWidget {
   }
 }
 
-/// Affiche le dialogue de confirmation.
+class LowStockTile extends StatelessWidget {
+  final ProcurementProduct product;
+
+  const LowStockTile({super.key, required this.product});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = productStatusColor(product.status);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: procurementMist,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: procurementLine),
+      ),
+      child: Row(
+        children: [
+          ProductAvatar(
+            imageUrl: product.imageUrl,
+            product: product,
+            size: 52,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  product.displayName,
+                  style: const TextStyle(
+                    color: procurementInk,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  product.categorieLabel,
+                  style: const TextStyle(
+                    color: procurementMuted,
+                    fontSize: 12.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    StatusPill(
+                      label: product.stockStatusLabel,
+                      color: color,
+                    ),
+                    StatusPill(
+                      label:
+                          'Stock ${product.quantiteStock}/${product.seuilMinimum}',
+                      color: procurementWarning,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class OrderSummaryTile extends StatelessWidget {
+  final ProcurementOrder order;
+
+  const OrderSummaryTile({super.key, required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: procurementMist,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: procurementLine),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: orderStatusColor(order.statut).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              Icons.receipt_long_outlined,
+              color: orderStatusColor(order.statut),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  order.referenceCommande,
+                  style: const TextStyle(
+                    color: procurementInk,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  order.partenaireNom,
+                  style: const TextStyle(
+                    color: procurementMuted,
+                    fontSize: 12.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ProcurementStatusBadge(status: order.statut),
+                    StatusPill(
+                      label: formatDate(order.dateCommande),
+                      color: procurementPrimary,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            formatMoney(order.totalTTC),
+            style: const TextStyle(
+              color: procurementPrimary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class MiniMetric extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const MiniMetric({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(color: procurementMuted, fontSize: 12)),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class StatusBucket {
+  final String label;
+  final int count;
+  final Color color;
+
+  const StatusBucket({
+    required this.label,
+    required this.count,
+    required this.color,
+  });
+}
+
+List<StatusBucket> orderStatusBuckets(List<ProcurementOrder> orders) {
+  final counts = <String, int>{
+    for (final status in ProcurementOrderStatus.all) status: 0,
+  };
+
+  for (final order in orders) {
+    final normalized = order.normalizedStatus;
+    counts[normalized] = (counts[normalized] ?? 0) + 1;
+  }
+
+  return ProcurementOrderStatus.all
+      .map(
+        (status) => StatusBucket(
+          label: orderStatusLabel(status),
+          count: counts[status] ?? 0,
+          color: orderStatusColor(status),
+        ),
+      )
+      .toList();
+}
+
+class StatusBreakdownCard extends StatelessWidget {
+  final String label;
+  final int value;
+  final Color color;
+
+  const StatusBreakdownCard({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 150,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(color: procurementMuted, fontSize: 12)),
+          const SizedBox(height: 8),
+          Text(
+            '$value',
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w800,
+              fontSize: 22,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 Future<bool?> showConfirmationDialog(
   BuildContext context, {
   required String title,
@@ -1630,7 +1201,6 @@ Future<bool?> showConfirmationDialog(
   );
 }
 
-/// Affiche le message.
 void showMessage(BuildContext context, String message, {bool error = false}) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
@@ -1640,116 +1210,4 @@ void showMessage(BuildContext context, String message, {bool error = false}) {
           : const Color(0xFF1F7A3E),
     ),
   );
-}
-
-/// Formate date pour l'affichage.
-String formatDate(DateTime? date, {bool withTime = false}) {
-  if (date == null) return '-';
-  final day = date.day.toString().padLeft(2, '0');
-  final month = date.month.toString().padLeft(2, '0');
-  final year = date.year.toString();
-  if (!withTime) return '$day/$month/$year';
-  final hour = date.hour.toString().padLeft(2, '0');
-  final minute = date.minute.toString().padLeft(2, '0');
-  return '$day/$month/$year $hour:$minute';
-}
-
-/// Formate money pour l'affichage.
-String formatMoney(num value) => '${value.toStringAsFixed(3)} DT';
-
-Color productStatusColor(String status) {
-  switch (status.toUpperCase()) {
-    case 'EN_STOCK':
-      return const Color(0xFF16A34A);
-    case 'FAIBLE':
-      return const Color(0xFFCA8A04);
-    case 'CRITIQUE':
-      return const Color(0xFFEA580C);
-    case 'RUPTURE':
-      return const Color(0xFFDC2626);
-    default:
-      return const Color(0xFF64748B);
-  }
-}
-
-Color orderStatusColor(String status) {
-  switch (status.toUpperCase()) {
-    case 'BROUILLON':
-      return const Color(0xFF64748B);
-    case 'VALIDEE':
-      return const Color(0xFF2563EB);
-    case 'ENVOYEE':
-      return const Color(0xFFEA580C);
-    case 'RECUE':
-      return const Color(0xFF16A34A);
-    case 'FACTUREE':
-      return const Color(0xFF7C3AED);
-    case 'ANNULEE':
-      return const Color(0xFFDC2626);
-    default:
-      return const Color(0xFF64748B);
-  }
-}
-
-List<OrderStatusBucket> orderStatusBuckets(List<ProcurementOrder> orders) {
-  final data = <OrderStatusBucket>[
-    OrderStatusBucket(
-      label: 'Brouillon',
-      count: orders
-          .where((order) => order.statut.toUpperCase() == 'BROUILLON')
-          .length,
-      color: orderStatusColor('BROUILLON'),
-    ),
-    OrderStatusBucket(
-      label: 'Validee',
-      count: orders
-          .where((order) => order.statut.toUpperCase() == 'VALIDEE')
-          .length,
-      color: orderStatusColor('VALIDEE'),
-    ),
-    OrderStatusBucket(
-      label: 'Envoyee',
-      count: orders
-          .where((order) => order.statut.toUpperCase() == 'ENVOYEE')
-          .length,
-      color: orderStatusColor('ENVOYEE'),
-    ),
-    OrderStatusBucket(
-      label: 'Recue',
-      count: orders
-          .where((order) => order.statut.toUpperCase() == 'RECUE')
-          .length,
-      color: orderStatusColor('RECUE'),
-    ),
-    OrderStatusBucket(
-      label: 'Facturee',
-      count: orders
-          .where((order) => order.statut.toUpperCase() == 'FACTUREE')
-          .length,
-      color: orderStatusColor('FACTUREE'),
-    ),
-    OrderStatusBucket(
-      label: 'Annulee',
-      count: orders
-          .where((order) => order.statut.toUpperCase() == 'ANNULEE')
-          .length,
-      color: orderStatusColor('ANNULEE'),
-    ),
-  ];
-
-  return data.where((bucket) => bucket.count > 0).toList();
-}
-
-/// Classe utilitaire pour le groupe de statuts de commande.
-class OrderStatusBucket {
-  // Configuration, dependances et etat local de l'interface.
-  final String label;
-  final int count;
-  final Color color;
-
-  const OrderStatusBucket({
-    required this.label,
-    required this.count,
-    required this.color,
-  });
 }

@@ -32,6 +32,15 @@ class ProcurementCategory {
       tauxTVA: _readDouble(json, ['tauxTVA', 'tauxTva'], fallback: 0),
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'idCategorie': idCategorie,
+      'nomCategorie': nomCategorie,
+      'description': description,
+      'tauxTVA': tauxTVA,
+    };
+  }
 }
 
 class ProcurementSupplier {
@@ -55,9 +64,8 @@ class ProcurementSupplier {
     required this.actif,
   });
 
-  String get displayName => nomFournisseur.trim().isEmpty
-      ? 'Fournisseur #$idFournisseur'
-      : nomFournisseur;
+  String get displayName =>
+      nomFournisseur.trim().isEmpty ? 'Fournisseur #$idFournisseur' : nomFournisseur;
 
   String get fullName => displayName;
 
@@ -81,6 +89,19 @@ class ProcurementSupplier {
       pays: _readString(json, ['pays']),
       actif: _readBool(json, ['actif', 'active'], fallback: true),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'idFournisseur': idFournisseur,
+      'nomFournisseur': nomFournisseur,
+      'email': email,
+      'adresse': adresse,
+      'telephone': telephone,
+      'ville': ville,
+      'pays': pays,
+      'actif': actif,
+    };
   }
 }
 
@@ -200,10 +221,11 @@ class ProcurementProduct {
           : null,
       quantiteStock: _readInt(json, ['quantiteStock', 'stock']),
       status: _readString(json, ['status', 'statut'], fallback: 'EN_STOCK'),
-      uniteMesure: _readString(json, [
-        'uniteMesure',
-        'unite',
-      ], fallback: 'PIECE'),
+      uniteMesure: _readString(
+        json,
+        ['uniteMesure', 'unite'],
+        fallback: 'PIECE',
+      ),
       active: _readBool(json, ['active', 'actif'], fallback: true),
       seuilMinimum: _readInt(json, ['seuilMinimum'], fallback: 0),
       imageUrl: _readString(json, ['imageUrl']),
@@ -212,6 +234,23 @@ class ProcurementProduct {
         'remise',
       ]),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'idProduit': idProduit,
+      'libelle': libelle,
+      'prixVente': prixVente,
+      'prixAchat': prixAchat,
+      'categorie': categorie?.toJson(),
+      'quantiteStock': quantiteStock,
+      'status': status,
+      'uniteMesure': uniteMesure,
+      'active': active,
+      'seuilMinimum': seuilMinimum,
+      'imageUrl': imageUrl,
+      'remiseTemporaire': remiseTemporaire,
+    };
   }
 }
 
@@ -229,6 +268,10 @@ class ProcurementOrderLine {
   final String notes;
   final String categorieNom;
 
+  /// Nouveau pour coller au web.
+  final bool estInactif;
+  final double tauxTVA;
+
   const ProcurementOrderLine({
     required this.idLigneCommandeFournisseur,
     required this.produitId,
@@ -242,6 +285,8 @@ class ProcurementOrderLine {
     required this.quantiteRecue,
     required this.notes,
     required this.categorieNom,
+    required this.estInactif,
+    required this.tauxTVA,
   });
 
   String get displayName =>
@@ -250,8 +295,29 @@ class ProcurementOrderLine {
   String get libelle => displayName;
   double get sousTotal => sousTotalHT;
   double get total => sousTotalTTC;
+  String get categorie => categorieNom;
 
   factory ProcurementOrderLine.fromJson(Map<String, dynamic> json) {
+    final quantite = _readInt(json, ['quantite']);
+    final prixUnitaire = _readDouble(json, ['prixUnitaire']);
+    final tauxTVA = _readDouble(json, ['tauxTVA'], fallback: 19);
+
+    final sousTotalHT = _readDouble(
+      json,
+      ['sousTotalHT'],
+      fallback: quantite * prixUnitaire,
+    );
+    final montantTVA = _readDouble(
+      json,
+      ['montantTVA'],
+      fallback: sousTotalHT * (tauxTVA / 100),
+    );
+    final sousTotalTTC = _readDouble(
+      json,
+      ['sousTotalTTC'],
+      fallback: sousTotalHT + montantTVA,
+    );
+
     return ProcurementOrderLine(
       idLigneCommandeFournisseur: _readNullableInt(json, [
         'idLigneCommandeFournisseur',
@@ -259,22 +325,74 @@ class ProcurementOrderLine {
       ]),
       produitId: _readInt(json, ['produitId', 'idProduit']),
       produitLibelle: _readString(json, ['produitLibelle', 'libelle']),
-      produitReference: _readString(json, [
-        'produitReference',
-        'reference',
-      ], fallback: '-'),
-      quantite: _readInt(json, ['quantite']),
-      prixUnitaire: _readDouble(json, ['prixUnitaire']),
-      sousTotalHT: _readDouble(json, ['sousTotalHT']),
-      montantTVA: _readDouble(json, ['montantTVA']),
-      sousTotalTTC: _readDouble(json, ['sousTotalTTC']),
+      produitReference: _readString(
+        json,
+        ['produitReference', 'reference'],
+        fallback: '-',
+      ),
+      quantite: quantite,
+      prixUnitaire: prixUnitaire,
+      sousTotalHT: sousTotalHT,
+      montantTVA: montantTVA,
+      sousTotalTTC: sousTotalTTC,
       quantiteRecue: _readInt(json, ['quantiteRecue'], fallback: 0),
       notes: _readString(json, ['notes']),
-      categorieNom: _readString(json, [
-        'categorieNom',
-        'categorie',
-      ], fallback: '-'),
+      categorieNom: _readString(
+        json,
+        ['categorieNom', 'categorie'],
+        fallback: '-',
+      ),
+      estInactif: _readBool(json, ['estInactif'], fallback: false),
+      tauxTVA: tauxTVA,
     );
+  }
+
+  ProcurementOrderLine copyWith({
+    int? quantite,
+    int? quantiteRecue,
+    double? prixUnitaire,
+    double? sousTotalHT,
+    double? montantTVA,
+    double? sousTotalTTC,
+    String? notes,
+    bool? estInactif,
+    double? tauxTVA,
+  }) {
+    return ProcurementOrderLine(
+      idLigneCommandeFournisseur: idLigneCommandeFournisseur,
+      produitId: produitId,
+      produitLibelle: produitLibelle,
+      produitReference: produitReference,
+      quantite: quantite ?? this.quantite,
+      prixUnitaire: prixUnitaire ?? this.prixUnitaire,
+      sousTotalHT: sousTotalHT ?? this.sousTotalHT,
+      montantTVA: montantTVA ?? this.montantTVA,
+      sousTotalTTC: sousTotalTTC ?? this.sousTotalTTC,
+      quantiteRecue: quantiteRecue ?? this.quantiteRecue,
+      notes: notes ?? this.notes,
+      categorieNom: categorieNom,
+      estInactif: estInactif ?? this.estInactif,
+      tauxTVA: tauxTVA ?? this.tauxTVA,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'idLigneCommandeFournisseur': idLigneCommandeFournisseur,
+      'produitId': produitId,
+      'produitLibelle': produitLibelle,
+      'produitReference': produitReference,
+      'quantite': quantite,
+      'prixUnitaire': prixUnitaire,
+      'sousTotalHT': sousTotalHT,
+      'montantTVA': montantTVA,
+      'sousTotalTTC': sousTotalTTC,
+      'quantiteRecue': quantiteRecue,
+      'notes': notes,
+      'categorieNom': categorieNom,
+      'estInactif': estInactif,
+      'tauxTVA': tauxTVA,
+    };
   }
 }
 
@@ -294,6 +412,10 @@ class ProcurementOrder {
   final bool actif;
   final List<ProcurementOrderLine> lignesCommande;
 
+  /// Nouveaux champs pour workflow web.
+  final String? motifRejet;
+  final String? numeroBL;
+
   const ProcurementOrder({
     required this.idCommandeFournisseur,
     required this.numeroCommande,
@@ -309,6 +431,8 @@ class ProcurementOrder {
     required this.tauxTVA,
     required this.actif,
     required this.lignesCommande,
+    required this.motifRejet,
+    required this.numeroBL,
   });
 
   String get displayNumber => numeroCommande.trim().isEmpty
@@ -329,6 +453,7 @@ class ProcurementOrder {
   double get tauxRemise => 0;
   List<ProcurementOrderLine> get produits => lignesCommande;
   int get produitsCount => produits.length;
+  String get normalizedStatus => statut.toUpperCase();
 
   int get itemCount =>
       lignesCommande.fold<int>(0, (sum, line) => sum + line.quantite);
@@ -347,11 +472,14 @@ class ProcurementOrder {
         return 'Facturee';
       case 'ANNULEE':
         return 'Annulee';
+      case 'REJETEE':
+        return 'Rejetee';
       default:
         return statut;
     }
   }
 
+  /// Anciens getters conserves pour compatibilite temporaire.
   bool get canEdit => statut.toUpperCase() == 'BROUILLON' && actif;
   bool get canDelete =>
       (statut.toUpperCase() == 'BROUILLON' ||
@@ -389,11 +517,75 @@ class ProcurementOrder {
       actif: _readBool(json, ['actif', 'active'], fallback: true),
       lignesCommande: rawLines is List
           ? rawLines
-                .whereType<Map<String, dynamic>>()
-                .map(ProcurementOrderLine.fromJson)
-                .toList()
+              .whereType<Map<String, dynamic>>()
+              .map(ProcurementOrderLine.fromJson)
+              .toList()
           : <ProcurementOrderLine>[],
+      motifRejet: _readNullableString(json, ['motifRejet']),
+      numeroBL: _readNullableString(json, ['numeroBL']),
     );
+  }
+
+  ProcurementOrder copyWith({
+    int? idCommandeFournisseur,
+    String? numeroCommande,
+    DateTime? dateCommande,
+    DateTime? dateLivraisonPrevue,
+    DateTime? dateLivraisonReelle,
+    String? adresseLivraison,
+    ProcurementSupplier? fournisseur,
+    String? statut,
+    double? totalHT,
+    double? totalTVA,
+    double? totalTTC,
+    double? tauxTVA,
+    bool? actif,
+    List<ProcurementOrderLine>? lignesCommande,
+    String? motifRejet,
+    String? numeroBL,
+    bool clearMotifRejet = false,
+    bool clearNumeroBL = false,
+  }) {
+    return ProcurementOrder(
+      idCommandeFournisseur:
+          idCommandeFournisseur ?? this.idCommandeFournisseur,
+      numeroCommande: numeroCommande ?? this.numeroCommande,
+      dateCommande: dateCommande ?? this.dateCommande,
+      dateLivraisonPrevue: dateLivraisonPrevue ?? this.dateLivraisonPrevue,
+      dateLivraisonReelle: dateLivraisonReelle ?? this.dateLivraisonReelle,
+      adresseLivraison: adresseLivraison ?? this.adresseLivraison,
+      fournisseur: fournisseur ?? this.fournisseur,
+      statut: statut ?? this.statut,
+      totalHT: totalHT ?? this.totalHT,
+      totalTVA: totalTVA ?? this.totalTVA,
+      totalTTC: totalTTC ?? this.totalTTC,
+      tauxTVA: tauxTVA ?? this.tauxTVA,
+      actif: actif ?? this.actif,
+      lignesCommande: lignesCommande ?? this.lignesCommande,
+      motifRejet: clearMotifRejet ? null : (motifRejet ?? this.motifRejet),
+      numeroBL: clearNumeroBL ? null : (numeroBL ?? this.numeroBL),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'idCommandeFournisseur': idCommandeFournisseur,
+      'numeroCommande': numeroCommande,
+      'dateCommande': dateCommande?.toIso8601String(),
+      'dateLivraisonPrevue': dateLivraisonPrevue?.toIso8601String(),
+      'dateLivraisonReelle': dateLivraisonReelle?.toIso8601String(),
+      'adresseLivraison': adresseLivraison,
+      'fournisseur': fournisseur?.toJson(),
+      'statut': statut,
+      'totalHT': totalHT,
+      'totalTVA': totalTVA,
+      'totalTTC': totalTTC,
+      'tauxTVA': tauxTVA,
+      'actif': actif,
+      'lignesCommande': lignesCommande.map((e) => e.toJson()).toList(),
+      'motifRejet': motifRejet,
+      'numeroBL': numeroBL,
+    };
   }
 }
 
@@ -480,11 +672,13 @@ class ProcurementOrderLinePayload {
   final int produitId;
   final int quantite;
   final double prixUnitaire;
+  final double? tauxTVA;
 
   const ProcurementOrderLinePayload({
     required this.produitId,
     required this.quantite,
     required this.prixUnitaire,
+    this.tauxTVA,
   });
 
   Map<String, dynamic> toJson() {
@@ -492,6 +686,7 @@ class ProcurementOrderLinePayload {
       'produitId': produitId,
       'quantite': quantite,
       'prixUnitaire': prixUnitaire,
+      if (tauxTVA != null) 'tauxTVA': tauxTVA,
     };
   }
 }
@@ -548,6 +743,16 @@ String _readString(
     }
   }
   return fallback;
+}
+
+String? _readNullableString(Map<String, dynamic> json, List<String> keys) {
+  for (final key in keys) {
+    final value = json[key];
+    if (value is String && value.trim().isNotEmpty) {
+      return value.trim();
+    }
+  }
+  return null;
 }
 
 int _readInt(Map<String, dynamic> json, List<String> keys, {int fallback = 0}) {

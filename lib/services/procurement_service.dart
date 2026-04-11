@@ -436,9 +436,41 @@ class ProcurementService {
     );
   }
 
-  Future<ProcurementOrder> receiveOrder(int id) {
-    return _orderAction(
-      '${ApiConfig.commandesFournisseursPrefix}/$id/recevoir',
+  Future<ProcurementOrder> receiveOrder(
+    int id, {
+    Map<int, int>? quantitesRecues,
+    String? numeroBL,
+    Map<int, bool>? produitsAReactiver,
+  }) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.commandesFournisseursPrefix}/$id/recevoir',
+    );
+
+    final bodyPayload = <String, dynamic>{
+      if (numeroBL != null && numeroBL.trim().isNotEmpty)
+        'numeroBL': numeroBL.trim(),
+      if (quantitesRecues != null)
+        'quantitesRecues': {
+          for (final entry in quantitesRecues.entries)
+            '${entry.key}': entry.value,
+        },
+      if (produitsAReactiver != null)
+        'produitsAReactiver': {
+          for (final entry in produitsAReactiver.entries)
+            '${entry.key}': entry.value,
+        },
+    };
+
+    final response = await http
+        .put(
+          uri,
+          headers: await _buildHeaders(),
+          body: json.encode(bodyPayload),
+        )
+        .timeout(const Duration(milliseconds: ApiConfig.connectionTimeout));
+
+    return _parseOrderResponse(
+      response,
       'Erreur lors de la reception de la commande',
     );
   }
@@ -447,6 +479,40 @@ class ProcurementService {
     return _orderAction(
       '${ApiConfig.commandesFournisseursPrefix}/$id/facturer',
       'Erreur lors de la facturation de la commande',
+    );
+  }
+
+  Future<ProcurementOrder> rejectOrder(int id, String motif) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.commandesFournisseursPrefix}/$id/rejeter',
+    );
+
+    final response = await http
+        .put(
+          uri,
+          headers: await _buildHeaders(),
+          body: json.encode({'motifRejet': motif.trim()}),
+        )
+        .timeout(const Duration(milliseconds: ApiConfig.connectionTimeout));
+
+    return _parseOrderResponse(
+      response,
+      'Erreur lors du rejet de la commande',
+    );
+  }
+
+  Future<ProcurementOrder> resendOrderAfterRejection(int id) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.commandesFournisseursPrefix}/$id/renvoyer_attente',
+    );
+
+    final response = await http
+        .put(uri, headers: await _buildHeaders())
+        .timeout(const Duration(milliseconds: ApiConfig.connectionTimeout));
+
+    return _parseOrderResponse(
+      response,
+      'Erreur lors du renvoi de la commande apres rejet',
     );
   }
 
