@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:invera_mobile/core/ui/adaptive_layout.dart';
 import 'package:invera_mobile/models/procurement_models.dart';
+import 'package:invera_mobile/services/procurement_service.dart';
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procurement_shared.dart';
 
 const double _purchaseBaseUnit = 8.0;
@@ -73,40 +74,333 @@ class _PurchaseDraftLine {
   }
 }
 
+class _SupplierProductPickerDialog extends StatefulWidget {
+  final List<ProcurementProduct> products;
+  final ProcurementSupplier? supplier;
+  final Set<int> selectedProductIds;
+
+  const _SupplierProductPickerDialog({
+    required this.products,
+    required this.supplier,
+    required this.selectedProductIds,
+  });
+
+  @override
+  State<_SupplierProductPickerDialog> createState() =>
+      _SupplierProductPickerDialogState();
+}
+
+class _SupplierProductPickerDialogState
+    extends State<_SupplierProductPickerDialog> {
+  ProcurementProduct? _selectedProduct;
+  int _quantity = 1;
+  final TextEditingController _quantityController = TextEditingController(
+    text: '1',
+  );
+
+  @override
+  void dispose() {
+    _quantityController.dispose();
+    super.dispose();
+  }
+
+  void _changeQuantity(int value) {
+    final nextQuantity = value < 1 ? 1 : value;
+    setState(() {
+      _quantity = nextQuantity;
+      _quantityController.text = '$nextQuantity';
+      _quantityController.selection = TextSelection.fromPosition(
+        TextPosition(offset: _quantityController.text.length),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Container(
+        width: AdaptiveLayout.dialogWidth(context, max: 680, sideMargin: 16),
+        constraints: BoxConstraints(
+          maxHeight: AdaptiveLayout.dialogHeight(context, ratio: 0.82),
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: EdgeInsets.all(_purchaseBaseUnit * 2),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [_purchasePrimary, _purchasePrimaryDark],
+                ),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+              ),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Ajouter un produit',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(_purchaseBaseUnit * 2),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Fournisseur : ${widget.supplier?.displayName ?? '-'}',
+                      style: const TextStyle(
+                        color: _purchaseTextSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: _purchaseBaseUnit * 1.5),
+                    if (widget.products.isEmpty)
+                      const EmptyPanel(
+                        title: 'Aucun produit disponible',
+                        message:
+                            'Ce fournisseur n a aucun produit a commander.',
+                      )
+                    else
+                      ...widget.products.map(_buildProductOption),
+                    if (_selectedProduct != null) ...[
+                      const SizedBox(height: _purchaseBaseUnit * 1.5),
+                      Container(
+                        padding: EdgeInsets.all(_purchaseBaseUnit * 1.5),
+                        decoration: BoxDecoration(
+                          color: _purchaseBackground,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: _purchaseBorderLight),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Quantite (minimum 1)',
+                              style: TextStyle(
+                                color: _purchaseTextPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: _purchaseBaseUnit),
+                            Row(
+                              children: [
+                                IconButton.outlined(
+                                  onPressed: _quantity <= 1
+                                      ? null
+                                      : () => _changeQuantity(_quantity - 1),
+                                  icon: const Icon(Icons.remove),
+                                ),
+                                SizedBox(
+                                  width: 92,
+                                  child: TextFormField(
+                                    controller: _quantityController,
+                                    textAlign: TextAlign.center,
+                                    keyboardType: TextInputType.number,
+                                    decoration: InputDecoration(
+                                      isDense: true,
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                    onChanged: (value) {
+                                      final parsed = int.tryParse(value);
+                                      if (parsed != null) {
+                                        _changeQuantity(parsed);
+                                      }
+                                    },
+                                  ),
+                                ),
+                                IconButton.outlined(
+                                  onPressed: () =>
+                                      _changeQuantity(_quantity + 1),
+                                  icon: const Icon(Icons.add),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            Container(
+              padding: EdgeInsets.all(_purchaseBaseUnit * 2),
+              decoration: const BoxDecoration(
+                color: _purchaseBackground,
+                border: Border(top: BorderSide(color: _purchaseBorderLight)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Annuler'),
+                  ),
+                  const SizedBox(width: _purchaseBaseUnit),
+                  ElevatedButton(
+                    onPressed: _selectedProduct == null
+                        ? null
+                        : () => Navigator.pop(context, (
+                            product: _selectedProduct!,
+                            quantity: _quantity,
+                          )),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _purchasePrimary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Ajouter a la commande'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProductOption(ProcurementProduct product) {
+    final alreadyAdded = widget.selectedProductIds.contains(product.idProduit);
+    final disabled = alreadyAdded || !product.active;
+    final selected = _selectedProduct?.idProduit == product.idProduit;
+
+    return InkWell(
+      onTap: disabled
+          ? null
+          : () {
+              setState(() {
+                _selectedProduct = product;
+              });
+              _changeQuantity(1);
+            },
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: _purchaseBaseUnit),
+        padding: EdgeInsets.all(_purchaseBaseUnit * 1.5),
+        decoration: BoxDecoration(
+          color: selected
+              ? _purchasePrimary.withValues(alpha: 0.08)
+              : disabled
+              ? _purchaseBackground
+              : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected
+                ? _purchasePrimary
+                : disabled
+                ? _purchaseBorderLight
+                : _purchaseBorderLight,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        product.displayName,
+                        style: TextStyle(
+                          color: disabled
+                              ? _purchaseTextSecondary
+                              : _purchaseTextPrimary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      if (!product.active)
+                        const StatusPill(
+                          label: 'Inactif',
+                          color: _purchaseWarning,
+                        ),
+                      if (alreadyAdded)
+                        const StatusPill(
+                          label: 'Deja dans la commande',
+                          color: _purchaseAccent,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 14,
+                    runSpacing: 4,
+                    children: [
+                      Text(
+                        'Prix: ${formatPrice(product.prixAchat)}',
+                        style: const TextStyle(
+                          color: _purchaseTextSecondary,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                      Text(
+                        'Stock: ${product.quantiteStock}',
+                        style: const TextStyle(
+                          color: _purchaseTextSecondary,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                      Text(
+                        'TVA: ${formatVatRate(product.tauxTVA ?? product.categorie?.tauxTVA ?? _purchaseDefaultVatRate)}',
+                        style: const TextStyle(
+                          color: _purchaseTextSecondary,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (selected)
+              const Icon(Icons.check_circle, color: _purchasePrimary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ProcurementOrderFormDialogState
     extends State<ProcurementOrderFormDialog> {
   final _formKey = GlobalKey<FormState>();
+  final ProcurementService _service = ProcurementService();
 
   late final TextEditingController _addressController;
   late DateTime _deliveryDate;
 
   int? _supplierId;
-  bool _showInactiveProducts = false;
+  bool _loadingSupplierProducts = false;
+  String? _supplierProductsError;
+  List<ProcurementProduct> _supplierProducts = const [];
 
   final List<_PurchaseDraftLine> _lines = <_PurchaseDraftLine>[];
   int _draftLineSeed = 0;
 
-  int? _selectedCategoryId;
-  int? _selectedProductId;
-  final TextEditingController _quantityController = TextEditingController(
-    text: '1',
-  );
-  final TextEditingController _priceController = TextEditingController();
-
   bool get _isEditing => widget.initialOrder != null;
-
-  List<ProcurementCategory> get _categoryOptions {
-    final categories = <int, ProcurementCategory>{};
-    for (final product in widget.products) {
-      final category = product.categorie;
-      if (category != null) {
-        categories[category.idCategorie] = category;
-      }
-    }
-    final list = categories.values.toList()
-      ..sort((a, b) => a.displayName.compareTo(b.displayName));
-    return list;
-  }
 
   List<ProcurementSupplier> get _supplierOptions {
     final map = <int, ProcurementSupplier>{
@@ -121,17 +415,9 @@ class _ProcurementOrderFormDialogState
     return list;
   }
 
-  List<ProcurementProduct> get _visibleProducts {
-    final products = widget.products.where((product) {
-      if (!_showInactiveProducts && !product.active) return false;
-      if (_selectedCategoryId != null &&
-          product.categorie?.idCategorie != _selectedCategoryId) {
-        return false;
-      }
-      return true;
-    }).toList()..sort((a, b) => a.displayName.compareTo(b.displayName));
-    return products;
-  }
+  List<ProcurementProduct> get _availableProducts =>
+      _supplierProducts.toList()
+        ..sort((a, b) => a.displayName.compareTo(b.displayName));
 
   ProcurementSupplier? _findSupplierById(int? supplierId) {
     if (supplierId == null) return null;
@@ -147,14 +433,17 @@ class _ProcurementOrderFormDialogState
   ProcurementProduct? _findProductById(int? productId) {
     if (productId == null) return null;
     try {
-      return widget.products.firstWhere((p) => p.idProduit == productId);
+      return [
+        ..._supplierProducts,
+        ...widget.products,
+      ].firstWhere((p) => p.idProduit == productId);
     } catch (_) {
       return null;
     }
   }
 
   double _getVatRateForProduct(ProcurementProduct? product) {
-    final raw = product?.categorie?.tauxTVA;
+    final raw = product?.tauxTVA ?? product?.categorie?.tauxTVA;
     if (raw == null || raw <= 0) return _purchaseDefaultVatRate;
     return raw;
   }
@@ -167,7 +456,7 @@ class _ProcurementOrderFormDialogState
     return '${supplier.displayName} ($contact)';
   }
 
-  void _onSupplierChanged(int? supplierId) {
+  Future<void> _onSupplierChanged(int? supplierId) async {
     final previousSupplier = _findSupplierById(_supplierId);
     final nextSupplier = _findSupplierById(supplierId);
     final currentAddress = _addressController.text.trim();
@@ -178,6 +467,12 @@ class _ProcurementOrderFormDialogState
 
     setState(() {
       _supplierId = supplierId;
+      for (final line in _lines) {
+        line.dispose();
+      }
+      _lines.clear();
+      _supplierProducts = const [];
+      _supplierProductsError = null;
       if (!_isEditing &&
           nextSupplier != null &&
           shouldPrefillAddress &&
@@ -185,38 +480,10 @@ class _ProcurementOrderFormDialogState
         _addressController.text = nextSupplier.adresse.trim();
       }
     });
-  }
 
-  void _onCategoryChanged(int? categoryId) {
-    final nextVisibleProducts = widget.products.where((product) {
-      if (!_showInactiveProducts && !product.active) return false;
-      if (categoryId != null &&
-          product.categorie?.idCategorie != categoryId) {
-        return false;
-      }
-      return true;
-    }).toList();
-
-    final stillValid = _selectedProductId != null &&
-        nextVisibleProducts.any((p) => p.idProduit == _selectedProductId);
-
-    setState(() {
-      _selectedCategoryId = categoryId;
-      if (!stillValid) {
-        _selectedProductId = null;
-        _priceController.clear();
-      }
-    });
-  }
-
-  void _onProductChanged(int? productId) {
-    final product = _findProductById(productId);
-    setState(() {
-      _selectedProductId = productId;
-      _priceController.text = product == null
-          ? ''
-          : product.prixAchat.toStringAsFixed(3);
-    });
+    if (supplierId != null) {
+      await _loadProductsForSupplier(supplierId);
+    }
   }
 
   _PurchaseDraftLine _newDraftLine({
@@ -240,7 +507,8 @@ class _ProcurementOrderFormDialogState
     );
   }
 
-  double _lineSubTotal(_PurchaseDraftLine line) => line.quantity * line.unitPrice;
+  double _lineSubTotal(_PurchaseDraftLine line) =>
+      line.quantity * line.unitPrice;
 
   double _lineVatRate(_PurchaseDraftLine line) {
     final product = _findProductById(line.produitId);
@@ -276,9 +544,7 @@ class _ProcurementOrderFormDialogState
     }
 
     final sortedKeys = data.keys.toList()..sort();
-    return {
-      for (final key in sortedKeys) key: data[key]!,
-    };
+    return {for (final key in sortedKeys) key: data[key]!};
   }
 
   String get _vatSummaryLabel {
@@ -300,6 +566,7 @@ class _ProcurementOrderFormDialogState
     _supplierId = order?.fournisseur?.idFournisseur;
 
     if (order != null) {
+      _supplierProducts = widget.products;
       for (final line in order.lignesCommande) {
         final product = _findProductById(line.produitId);
         _lines.add(
@@ -319,8 +586,6 @@ class _ProcurementOrderFormDialogState
   @override
   void dispose() {
     _addressController.dispose();
-    _quantityController.dispose();
-    _priceController.dispose();
     for (final line in _lines) {
       line.dispose();
     }
@@ -342,20 +607,36 @@ class _ProcurementOrderFormDialogState
     });
   }
 
-  void _resetProductSelection() {
+  Future<void> _loadProductsForSupplier(int supplierId) async {
     setState(() {
-      _selectedProductId = null;
-      _quantityController.text = '1';
-      _priceController.clear();
+      _loadingSupplierProducts = true;
+      _supplierProductsError = null;
     });
+
+    try {
+      final products = await _service.getProductsBySupplier(supplierId);
+      if (!mounted) return;
+      setState(() {
+        _supplierProducts = products;
+        _loadingSupplierProducts = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      final fallbackProducts = widget.products
+          .where((product) => product.fournisseurId == supplierId)
+          .toList();
+      setState(() {
+        _supplierProducts = fallbackProducts;
+        _supplierProductsError = fallbackProducts.isEmpty
+            ? error.toString().replaceFirst('Exception: ', '')
+            : null;
+        _loadingSupplierProducts = false;
+      });
+    }
   }
 
-  void _addProduct() {
+  void _addProductToOrder(ProcurementProduct product, int quantity) {
     if (_isEditing) return;
-
-    final product = _findProductById(_selectedProductId);
-    final quantity = int.tryParse(_quantityController.text);
-    final unitPrice = double.tryParse(_priceController.text.replaceAll(',', '.'));
 
     if (_supplierId == null) {
       showMessage(
@@ -366,12 +647,7 @@ class _ProcurementOrderFormDialogState
       return;
     }
 
-    if (product == null) {
-      showMessage(context, 'Veuillez selectionner un produit.', error: true);
-      return;
-    }
-
-    if (quantity == null || quantity <= 0) {
+    if (quantity <= 0) {
       showMessage(
         context,
         'La quantite doit etre superieure a 0.',
@@ -380,7 +656,8 @@ class _ProcurementOrderFormDialogState
       return;
     }
 
-    if (unitPrice == null || unitPrice <= 0) {
+    final unitPrice = product.prixAchat;
+    if (unitPrice <= 0) {
       showMessage(
         context,
         'Le prix unitaire doit etre superieur a 0.',
@@ -410,8 +687,6 @@ class _ProcurementOrderFormDialogState
         );
       }
     });
-
-    _resetProductSelection();
   }
 
   void _removeLine(_PurchaseDraftLine line) {
@@ -465,7 +740,11 @@ class _ProcurementOrderFormDialogState
     if (!_formKey.currentState!.validate()) return;
 
     if (_supplierId == null) {
-      showMessage(context, 'Veuillez selectionner un fournisseur.', error: true);
+      showMessage(
+        context,
+        'Veuillez selectionner un fournisseur.',
+        error: true,
+      );
       return;
     }
 
@@ -565,7 +844,10 @@ class _ProcurementOrderFormDialogState
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(color: _purchaseTextSecondary, fontSize: 12),
+              style: const TextStyle(
+                color: _purchaseTextSecondary,
+                fontSize: 12,
+              ),
             ),
           ),
           Flexible(
@@ -627,7 +909,10 @@ class _ProcurementOrderFormDialogState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: _purchaseTextSecondary, fontSize: 12)),
+          Text(
+            label,
+            style: const TextStyle(color: _purchaseTextSecondary, fontSize: 12),
+          ),
           const SizedBox(height: 4),
           Text(
             value,
@@ -638,31 +923,6 @@ class _ProcurementOrderFormDialogState
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildInfoTag({
-    required String label,
-    required String value,
-    Color color = _purchasePrimary,
-  }) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: _purchaseBaseUnit * 1.25,
-        vertical: _purchaseBaseUnit,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        '$label: $value',
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
-        ),
       ),
     );
   }
@@ -737,151 +997,116 @@ class _ProcurementOrderFormDialogState
     );
   }
 
-  Widget _buildAddProductPanel() {
-    final visibleProducts = _visibleProducts;
-    final selectedProduct = _findProductById(_selectedProductId);
-    final isInactive = selectedProduct != null && !selectedProduct.active;
-    final vatRate = _getVatRateForProduct(selectedProduct);
+  Future<void> _openProductPicker() async {
+    if (_supplierId == null) {
+      showMessage(
+        context,
+        'Veuillez selectionner un fournisseur.',
+        error: true,
+      );
+      return;
+    }
 
-    final validSelectedProductId =
-        _selectedProductId != null &&
-            visibleProducts.any((p) => p.idProduit == _selectedProductId)
-        ? _selectedProductId
-        : null;
+    if (_supplierProducts.isEmpty && !_loadingSupplierProducts) {
+      await _loadProductsForSupplier(_supplierId!);
+    }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (_categoryOptions.isNotEmpty) ...[
-          DropdownButtonFormField<int?>(
-            key: ValueKey('category_${_selectedCategoryId ?? 'all'}'),
-            initialValue: _selectedCategoryId,
-            isExpanded: true,
-            decoration: InputDecoration(
-              labelText: 'Categorie',
-              prefixIcon: const Icon(Icons.category_outlined),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            items: [
-              const DropdownMenuItem<int?>(
-                value: null,
-                child: Text('Toutes les categories'),
-              ),
-              ..._categoryOptions.map(
-                (category) => DropdownMenuItem<int?>(
-                  value: category.idCategorie,
-                  child: Text(category.displayName),
-                ),
-              ),
-            ],
-            onChanged: _onCategoryChanged,
+    if (!mounted) return;
+
+    final selected =
+        await showDialog<({ProcurementProduct product, int quantity})>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => _SupplierProductPickerDialog(
+            products: _availableProducts,
+            supplier: _findSupplierById(_supplierId),
+            selectedProductIds: _lines
+                .map((line) => line.produitId)
+                .whereType<int>()
+                .toSet(),
           ),
-          const SizedBox(height: _purchaseBaseUnit * 1.5),
-        ],
-        DropdownButtonFormField<int?>(
-          key: ValueKey(
-            'product_${_selectedCategoryId ?? 'all'}_${validSelectedProductId ?? 'none'}',
-          ),
-          initialValue: validSelectedProductId,
-          isExpanded: true,
-          decoration: InputDecoration(
-            labelText: 'Produit',
-            prefixIcon: const Icon(Icons.inventory_2_outlined),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-          items: [
-            const DropdownMenuItem<int?>(
-              value: null,
-              child: Text('Selectionner un produit'),
-            ),
-            ...visibleProducts.map(
-              (product) => DropdownMenuItem<int?>(
-                value: product.idProduit,
-                child: Text(
-                  '${product.displayName} - ${formatPrice(product.prixAchat)}',
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ),
-          ],
-          onChanged: _onProductChanged,
-        ),
-        if (selectedProduct != null) ...[
-          const SizedBox(height: _purchaseBaseUnit * 1.25),
-          Wrap(
-            spacing: _purchaseBaseUnit,
-            runSpacing: _purchaseBaseUnit,
+        );
+
+    if (selected == null) return;
+    _addProductToOrder(selected.product, selected.quantity);
+  }
+
+  Widget _buildProductsHeader() {
+    final selectedSupplier = _findSupplierById(_supplierId);
+
+    if (_supplierId == null) {
+      return const EmptyPanel(
+        title: 'Choisissez un fournisseur',
+        message: 'Selectionnez un fournisseur pour charger ses produits.',
+      );
+    }
+
+    if (_loadingSupplierProducts) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 18),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_supplierProductsError != null) {
+      return EmptyPanel(
+        title: 'Produits indisponibles',
+        message: _supplierProductsError!,
+      );
+    }
+
+    final productCount = _availableProducts.length;
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(_purchaseBaseUnit * 1.5),
+      decoration: BoxDecoration(
+        color: _purchaseBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _purchaseBorderLight),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              _buildInfoTag(
-                label: 'TVA',
-                value: formatVatRate(vatRate),
-                color: _purchaseWarning,
+              Expanded(
+                child: Text(
+                  selectedSupplier == null
+                      ? 'Produits dans la commande'
+                      : 'Fournisseur : ${selectedSupplier.displayName}',
+                  style: const TextStyle(
+                    color: _purchaseTextPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
-              _buildInfoTag(
-                label: 'Stock',
-                value:
-                    '${selectedProduct.quantiteStock} ${selectedProduct.unitLabel}',
-                color: const Color(0xFF0F766E),
-              ),
-              _buildInfoTag(
-                label: 'Etat',
-                value: selectedProduct.active ? 'Actif' : 'Inactif',
-                color: selectedProduct.active
-                    ? const Color(0xFF16A34A)
-                    : _purchaseWarning,
+              ElevatedButton.icon(
+                onPressed: productCount == 0 ? null : _openProductPicker,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Ajouter un produit'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _purchasePrimary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          Text(
+            productCount == 0
+                ? 'Aucun produit disponible pour ce fournisseur'
+                : '$productCount produit(s) disponible(s) pour ce fournisseur',
+            style: const TextStyle(
+              color: _purchaseTextSecondary,
+              fontSize: 12.5,
+            ),
+          ),
         ],
-        const SizedBox(height: _purchaseBaseUnit * 1.5),
-        Row(
-          children: [
-            Expanded(
-              child: TextFormField(
-                controller: _quantityController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Quantite',
-                  prefixIcon: const Icon(Icons.tag_outlined),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ),
-            const SizedBox(width: _purchaseBaseUnit),
-            Expanded(
-              child: TextFormField(
-                controller: _priceController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(
-                  labelText: 'Prix unitaire',
-                  prefixIcon: const Icon(Icons.payments_outlined),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ),
-            const SizedBox(width: _purchaseBaseUnit),
-            Expanded(
-              child: SizedBox(
-                height: 54,
-                child: ElevatedButton.icon(
-                  onPressed: validSelectedProductId == null ? null : _addProduct,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isInactive
-                        ? _purchaseWarning
-                        : _purchasePrimary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Ajouter'),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
+      ),
     );
   }
 
@@ -964,7 +1189,9 @@ class _ProcurementOrderFormDialogState
                   decoration: InputDecoration(
                     labelText: 'Quantite',
                     prefixIcon: const Icon(Icons.tag_outlined),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   onChanged: (value) => _updateLineQuantity(line, value),
                   validator: (value) {
@@ -1040,86 +1267,24 @@ class _ProcurementOrderFormDialogState
               ),
               child: const Text(
                 'En mode edition, le fournisseur et les lignes restent en lecture seule. Seuls la date de livraison et l’adresse sont modifiables.',
-                style: TextStyle(
-                  color: _purchaseTextSecondary,
-                  fontSize: 12.5,
-                ),
+                style: TextStyle(color: _purchaseTextSecondary, fontSize: 12.5),
               ),
             )
           else ...[
-            if (widget.products.any((p) => !p.active))
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(_purchaseBaseUnit * 1.5),
-                decoration: BoxDecoration(
-                  color: _purchaseBackground,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: _purchaseBorderLight),
-                ),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Afficher les produits inactifs',
-                            style: TextStyle(
-                              color: _purchaseTextPrimary,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Le backend peut les reactiver automatiquement a la reception.',
-                            style: TextStyle(
-                              color: _purchaseTextSecondary,
-                              fontSize: 12.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Switch.adaptive(
-                      value: _showInactiveProducts,
-                      onChanged: (value) {
-                        final nextVisibleProducts = widget.products.where((product) {
-                          if (!value && !product.active) return false;
-                          if (_selectedCategoryId != null &&
-                              product.categorie?.idCategorie != _selectedCategoryId) {
-                            return false;
-                          }
-                          return true;
-                        }).toList();
-
-                        final stillValid = _selectedProductId != null &&
-                            nextVisibleProducts.any(
-                              (p) => p.idProduit == _selectedProductId,
-                            );
-
-                        setState(() {
-                          _showInactiveProducts = value;
-                          if (!stillValid) {
-                            _selectedProductId = null;
-                            _priceController.clear();
-                          }
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: _purchaseBaseUnit * 1.5),
-            _buildAddProductPanel(),
+            _buildProductsHeader(),
           ],
           const SizedBox(height: _purchaseBaseUnit * 2),
           if (_lines.isEmpty)
             const EmptyPanel(
               title: 'Aucune ligne',
-              message: 'Ajoutez au moins un produit a cette commande fournisseur.',
+              message:
+                  'Ajoutez au moins un produit a cette commande fournisseur.',
             )
           else
-            ...List.generate(_lines.length, (index) => _buildLineCard(index, _lines[index])),
+            ...List.generate(
+              _lines.length,
+              (index) => _buildLineCard(index, _lines[index]),
+            ),
         ],
       ),
     );
@@ -1136,7 +1301,9 @@ class _ProcurementOrderFormDialogState
             decoration: InputDecoration(
               labelText: 'Fournisseur',
               prefixIcon: const Icon(Icons.apartment_outlined),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             items: _supplierOptions.map((supplier) {
               return DropdownMenuItem<int>(
@@ -1147,7 +1314,7 @@ class _ProcurementOrderFormDialogState
                 ),
               );
             }).toList(),
-            onChanged: _isEditing ? null : _onSupplierChanged,
+            onChanged: _isEditing ? null : (value) => _onSupplierChanged(value),
             validator: (value) =>
                 value == null ? 'Selectionnez un fournisseur' : null,
           ),
@@ -1159,7 +1326,9 @@ class _ProcurementOrderFormDialogState
             decoration: InputDecoration(
               labelText: 'Adresse de livraison',
               prefixIcon: const Icon(Icons.location_on_outlined),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
@@ -1204,7 +1373,9 @@ class _ProcurementOrderFormDialogState
           const SizedBox(height: _purchaseBaseUnit),
           _buildSummaryTile(
             label: 'Email',
-            value: supplier?.email.trim().isNotEmpty == true ? supplier!.email : '-',
+            value: supplier?.email.trim().isNotEmpty == true
+                ? supplier!.email
+                : '-',
           ),
           const SizedBox(height: _purchaseBaseUnit),
           _buildSummaryTile(
@@ -1221,7 +1392,10 @@ class _ProcurementOrderFormDialogState
             value: formatDate(_deliveryDate),
           ),
           const SizedBox(height: _purchaseBaseUnit),
-          _buildSummaryTile(label: 'Nombre de lignes', value: '${_lines.length}'),
+          _buildSummaryTile(
+            label: 'Nombre de lignes',
+            value: '${_lines.length}',
+          ),
           const SizedBox(height: _purchaseBaseUnit * 1.5),
           _buildVatBreakdownCard(),
           if (_vatBreakdown.isNotEmpty)
@@ -1368,10 +1542,7 @@ class _ProcurementOrderFormDialogState
                               ),
                             ),
                             const SizedBox(width: _purchaseBaseUnit * 2),
-                            Expanded(
-                              flex: 2,
-                              child: _buildSummarySection(),
-                            ),
+                            Expanded(flex: 2, child: _buildSummarySection()),
                           ],
                         ),
                 ),
@@ -1389,7 +1560,9 @@ class _ProcurementOrderFormDialogState
                   ElevatedButton.icon(
                     onPressed: _submit,
                     icon: Icon(
-                      _isEditing ? Icons.save_outlined : Icons.add_task_outlined,
+                      _isEditing
+                          ? Icons.save_outlined
+                          : Icons.add_task_outlined,
                     ),
                     label: Text(_isEditing ? 'Modifier' : 'Creer'),
                     style: ElevatedButton.styleFrom(

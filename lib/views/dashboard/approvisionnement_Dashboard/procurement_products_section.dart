@@ -1,25 +1,18 @@
-import 'dart:typed_data';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:invera_mobile/config/api_config.dart';
 import 'package:invera_mobile/models/procurement_models.dart';
 import 'package:invera_mobile/services/procurement_service.dart';
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procurement_shared.dart';
+import 'package:invera_mobile/widgets/approvisionnement/product_form_dialog.dart';
 
 /// Widget qui affiche la section des produits d'approvisionnement.
 class ProcurementProductsSection extends StatefulWidget {
   const ProcurementProductsSection({super.key});
 
-  // Cycle de vie du widget.
-
-  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<ProcurementProductsSection> createState() =>
       _ProcurementProductsSectionState();
 }
 
-/// Classe utilitaire pour l'etat de la section des produits d'approvisionnement.
 class _ProcurementProductsSectionState
     extends State<ProcurementProductsSection> {
   final ProcurementService _service = ProcurementService();
@@ -28,6 +21,7 @@ class _ProcurementProductsSectionState
   bool _loading = true;
   String? _error;
   List<ProcurementCategory> _categories = const [];
+  List<ProcurementSupplier> _suppliers = const [];
   List<ProcurementProduct> _products = const [];
 
   String _statusFilter = '';
@@ -56,13 +50,15 @@ class _ProcurementProductsSectionState
     try {
       final results = await Future.wait([
         _service.getCategories(),
+        _service.getSuppliers(),
         _service.getProducts(),
       ]);
 
       if (!mounted) return;
       setState(() {
         _categories = results[0] as List<ProcurementCategory>;
-        _products = results[1] as List<ProcurementProduct>;
+        _suppliers = results[1] as List<ProcurementSupplier>;
+        _products = results[2] as List<ProcurementProduct>;
         _loading = false;
       });
     } catch (error) {
@@ -118,12 +114,38 @@ class _ProcurementProductsSectionState
       );
       return;
     }
+    if (_suppliers.isEmpty) {
+      showMessage(
+        context,
+        'Aucun fournisseur actif disponible pour enregistrer un produit.',
+        error: true,
+      );
+      return;
+    }
+
+    ProcurementProduct? productForDialog = initial;
+    if (initial != null) {
+      try {
+        productForDialog = await _service.getProductById(initial.idProduit);
+      } catch (error) {
+        if (!mounted) return;
+        showMessage(
+          context,
+          error.toString().replaceFirst('Exception: ', ''),
+          error: true,
+        );
+        return;
+      }
+    }
 
     final payload = await showDialog<ProductUpsertPayload>(
       context: context,
       barrierDismissible: false,
-      builder: (_) =>
-          ProductFormDialog(categories: _categories, initialProduct: initial),
+      builder: (_) => ProductFormDialog(
+        categories: _categories,
+        suppliers: _suppliers,
+        initialProduct: productForDialog,
+      ),
     );
 
     if (payload == null) return;
@@ -422,594 +444,20 @@ class _ProcurementProductsSectionState
   }
 }
 
-/// Widget qui affiche le dialogue du formulaire produit.
-class ProductFormDialog extends StatefulWidget {
-  // Configuration, dependances et etat local de l'interface.
-  final List<ProcurementCategory> categories;
-  final ProcurementProduct? initialProduct;
-
-  const ProductFormDialog({
-    super.key,
-    required this.categories,
-    required this.initialProduct,
-  });
-
-  // Cycle de vie du widget.
-
-  /// Cree l'objet d'etat mutable de ce widget.
-  @override
-  State<ProductFormDialog> createState() => _ProductFormDialogState();
-}
-
-/// Objet d'etat qui stocke les donnees temporaires de l'interface pour le dialogue du formulaire produit.
-class _ProductFormDialogState extends State<ProductFormDialog> {
-  // Configuration, dependances et etat local de l'interface.
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _nameController;
-  late final TextEditingController _salePriceController;
-  late final TextEditingController _purchasePriceController;
-  late final TextEditingController _stockController;
-  late final TextEditingController _thresholdController;
-  late final TextEditingController _discountController;
-
-  int? _categoryId;
-  String _unit = 'PIECE';
-  bool _active = true;
-  Uint8List? _selectedImageBytes;
-  String? _selectedImageName;
-  String? _selectedImageMimeType;
-  bool _pickingImage = false;
-
-  // Valeurs calculees et methodes utilitaires.
-
-  /// Retourne l'etat de modification.
-  bool get _isEditing => widget.initialProduct != null;
-
-  /// Retourne l'url de l'image existante.
-  String? get _existingImageUrl {
-    return ApiConfig.resolveMediaUrl(widget.initialProduct?.imageUrl);
-  }
-
-  // Cycle de vie du widget.
-
-  /// S'execute une seule fois quand le widget est insere dans l'arbre des widgets.
-  @override
-  void initState() {
-    super.initState();
-    final product = widget.initialProduct;
-    _nameController = TextEditingController(text: product?.displayName ?? '');
-    _salePriceController = TextEditingController(
-      text: product != null ? product.prixVente.toStringAsFixed(3) : '',
-    );
-    _purchasePriceController = TextEditingController(
-      text: product != null ? product.prixAchat.toStringAsFixed(3) : '',
-    );
-    _stockController = TextEditingController(
-      text: product != null ? '${product.quantiteStock}' : '0',
-    );
-    _thresholdController = TextEditingController(
-      text: product != null ? '${product.seuilMinimum}' : '10',
-    );
-    _discountController = TextEditingController(
-      text: product?.remiseTemporaire?.toStringAsFixed(1) ?? '',
-    );
-
-    _categoryId =
-        product?.categorie?.idCategorie ??
-        (widget.categories.isNotEmpty
-            ? widget.categories.first.idCategorie
-            : null);
-    _unit = product?.uniteMesure.toUpperCase() ?? 'PIECE';
-    _active = product?.active ?? true;
-  }
-
-  // Actions utilisateur et traitements asynchrones.
-
-  /// Permet a l'utilisateur de choisir l'image.
-  Future<void> _pickImage() async {
-    setState(() {
-      _pickingImage = true;
-    });
-
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
-        withData: true,
-      );
-
-      if (!mounted || result == null || result.files.isEmpty) return;
-
-      final file = result.files.single;
-      final bytes = file.bytes;
-      if (bytes == null || bytes.isEmpty) {
-        showMessage(
-          context,
-          'Impossible de lire l image selectionnee.',
-          error: true,
-        );
-        return;
-      }
-
-      final fileName = file.name.trim().isEmpty
-          ? 'product-image.jpg'
-          : file.name;
-      setState(() {
-        _selectedImageBytes = bytes;
-        _selectedImageName = fileName;
-        _selectedImageMimeType = _guessImageMimeType(
-          fileName,
-          extension: file.extension,
-        );
-      });
-    } catch (_) {
-      if (!mounted) return;
-      showMessage(
-        context,
-        'Erreur lors de la selection de l image.',
-        error: true,
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _pickingImage = false;
-        });
-      }
-    }
-  }
-
-  /// Efface l'image selectionnee.
-  void _clearSelectedImage() {
-    setState(() {
-      _selectedImageBytes = null;
-      _selectedImageName = null;
-      _selectedImageMimeType = null;
-    });
-  }
-
-  // Valeurs calculees et methodes utilitaires.
-
-  /// Determine automatiquement le type MIME de l'image.
-  String _guessImageMimeType(String fileName, {String? extension}) {
-    final parts = fileName.split('.');
-    final fallbackExtension = parts.length > 1 ? parts.last : '';
-    final normalized = (extension ?? fallbackExtension).toLowerCase();
-    switch (normalized) {
-      case 'png':
-        return 'image/png';
-      case 'jpg':
-      case 'jpeg':
-        return 'image/jpeg';
-      case 'gif':
-        return 'image/gif';
-      case 'webp':
-        return 'image/webp';
-      case 'bmp':
-        return 'image/bmp';
-      default:
-        return 'image/jpeg';
-    }
-  }
-
-  // Construction de l'interface.
-
-  /// Construit l'espace reserve de l'image.
-  Widget _buildImagePlaceholder() {
-    return Container(
-      width: 96,
-      height: 96,
-      decoration: BoxDecoration(
-        color: const Color(0xFFEFF4FF),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      alignment: Alignment.center,
-      child: const Icon(
-        Icons.image_outlined,
-        color: Color(0xFF2D47C8),
-        size: 38,
-      ),
-    );
-  }
-
-  /// Construit la section image.
-  Widget _buildImageSection() {
-    final hasExistingImage = _existingImageUrl != null;
-    final helperText = _selectedImageBytes != null
-        ? _selectedImageName!
-        : hasExistingImage
-        ? 'Image actuelle chargee. Choisissez-en une autre pour la remplacer.'
-        : 'Ajoutez une image pour afficher le produit clairement dans le catalogue.';
-
-    Widget preview = _buildImagePlaceholder();
-    if (_selectedImageBytes != null) {
-      preview = ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: Image.memory(
-          _selectedImageBytes!,
-          width: 96,
-          height: 96,
-          fit: BoxFit.cover,
-        ),
-      );
-    } else if (_existingImageUrl != null) {
-      preview = ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: Image.network(
-          _existingImageUrl!,
-          width: 96,
-          height: 96,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _buildImagePlaceholder(),
-        ),
-      );
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFD7DEEA)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          preview,
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Image produit',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1E293B),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  helperText,
-                  style: const TextStyle(
-                    color: Color(0xFF607089),
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: _pickingImage ? null : _pickImage,
-                      icon: Icon(
-                        _pickingImage
-                            ? Icons.hourglass_top_rounded
-                            : Icons.upload_file_outlined,
-                      ),
-                      label: Text(
-                        _selectedImageBytes != null || hasExistingImage
-                            ? 'Changer image'
-                            : 'Choisir image',
-                      ),
-                    ),
-                    if (_selectedImageBytes != null)
-                      TextButton.icon(
-                        onPressed: _clearSelectedImage,
-                        icon: const Icon(Icons.close),
-                        label: const Text('Annuler'),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Cycle de vie du widget.
-
-  /// Libere les controleurs et les ecouteurs avant la destruction du widget.
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _salePriceController.dispose();
-    _purchasePriceController.dispose();
-    _stockController.dispose();
-    _thresholdController.dispose();
-    _discountController.dispose();
-    super.dispose();
-  }
-
-  // Actions utilisateur et traitements asynchrones.
-
-  /// Soumet les donnees actuelles du formulaire.
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
-    if (_categoryId == null) return;
-
-    final payload = ProductUpsertPayload(
-      libelle: _nameController.text.trim(),
-      prixVente: double.parse(_salePriceController.text.replaceAll(',', '.')),
-      prixAchat: double.parse(
-        _purchasePriceController.text.replaceAll(',', '.'),
-      ),
-      categorieId: _categoryId!,
-      quantiteStock: int.parse(_stockController.text),
-      seuilMinimum: int.parse(_thresholdController.text),
-      uniteMesure: _unit,
-      remiseTemporaire: _discountController.text.trim().isEmpty
-          ? null
-          : double.parse(_discountController.text.replaceAll(',', '.')),
-      active: _active,
-      imageBytes: _selectedImageBytes,
-      imageFileName: _selectedImageName,
-      imageMimeType: _selectedImageMimeType,
-    );
-
-    Navigator.pop(context, payload);
-  }
-
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      insetPadding: const EdgeInsets.all(20),
-      contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-      title: Text(_isEditing ? 'Modifier le produit' : 'Nouveau produit'),
-      content: SizedBox(
-        width: 620,
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(labelText: 'Libelle'),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Saisissez le libelle du produit';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<int>(
-                  initialValue: _categoryId,
-                  decoration: const InputDecoration(labelText: 'Categorie'),
-                  items: widget.categories
-                      .map(
-                        (category) => DropdownMenuItem<int>(
-                          value: category.idCategorie,
-                          child: Text(category.displayName),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _categoryId = value;
-                    });
-                  },
-                ),
-                const SizedBox(height: 12),
-                _buildImageSection(),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _purchasePriceController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        decoration: const InputDecoration(
-                          labelText: 'Prix achat',
-                        ),
-                        validator: (value) {
-                          final parsed = double.tryParse(
-                            (value ?? '').replaceAll(',', '.'),
-                          );
-                          if (parsed == null || parsed <= 0) {
-                            return 'Prix achat invalide';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _salePriceController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        decoration: const InputDecoration(
-                          labelText: 'Prix vente',
-                        ),
-                        validator: (value) {
-                          final parsed = double.tryParse(
-                            (value ?? '').replaceAll(',', '.'),
-                          );
-                          if (parsed == null || parsed <= 0) {
-                            return 'Prix vente invalide';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _stockController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Quantite stock',
-                        ),
-                        validator: (value) {
-                          final parsed = int.tryParse(value ?? '');
-                          if (parsed == null || parsed < 0) {
-                            return 'Stock invalide';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _thresholdController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Seuil minimum',
-                        ),
-                        validator: (value) {
-                          final parsed = int.tryParse(value ?? '');
-                          if (parsed == null || parsed < 0) {
-                            return 'Seuil invalide';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        initialValue: _unit,
-                        decoration: const InputDecoration(
-                          labelText: 'Unite de mesure',
-                        ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'PIECE',
-                            child: Text('Piece'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'KILOGRAMME',
-                            child: Text('Kilogramme'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'GRAMME',
-                            child: Text('Gramme'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'LITRE',
-                            child: Text('Litre'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'MILLILITRE',
-                            child: Text('Millilitre'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'METRE',
-                            child: Text('Metre'),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            _unit = value ?? 'PIECE';
-                          });
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _discountController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        decoration: const InputDecoration(
-                          labelText: 'Remise temporaire (%)',
-                        ),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return null;
-                          }
-                          final parsed = double.tryParse(
-                            value.replaceAll(',', '.'),
-                          );
-                          if (parsed == null || parsed < 0) {
-                            return 'Remise invalide';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                SwitchListTile.adaptive(
-                  value: _active,
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Produit actif'),
-                  subtitle: const Text(
-                    'Les produits inactifs peuvent etre reactives plus tard.',
-                  ),
-                  onChanged: (value) {
-                    setState(() {
-                      _active = value;
-                    });
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Annuler'),
-        ),
-        FilledButton(
-          onPressed: _submit,
-          child: Text(_isEditing ? 'Mettre a jour' : 'Creer'),
-        ),
-      ],
-    );
-  }
-}
-
 /// Widget qui affiche le dialogue d'ajustement du stock.
 class StockAdjustDialog extends StatefulWidget {
-  // Configuration, dependances et etat local de l'interface.
   final int initialQuantity;
 
   const StockAdjustDialog({super.key, required this.initialQuantity});
 
-  // Cycle de vie du widget.
-
-  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<StockAdjustDialog> createState() => _StockAdjustDialogState();
 }
 
-/// Objet d'etat qui stocke les donnees temporaires de l'interface pour le dialogue d'ajustement du stock.
 class _StockAdjustDialogState extends State<StockAdjustDialog> {
-  // Configuration, dependances et etat local de l'interface.
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _quantityController;
 
-  // Cycle de vie du widget.
-
-  /// S'execute une seule fois quand le widget est insere dans l'arbre des widgets.
   @override
   void initState() {
     super.initState();
@@ -1018,24 +466,17 @@ class _StockAdjustDialogState extends State<StockAdjustDialog> {
     );
   }
 
-  /// Libere les controleurs et les ecouteurs avant la destruction du widget.
   @override
   void dispose() {
     _quantityController.dispose();
     super.dispose();
   }
 
-  // Actions utilisateur et traitements asynchrones.
-
-  /// Soumet les donnees actuelles du formulaire.
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
     Navigator.pop(context, int.parse(_quantityController.text));
   }
 
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
     return AlertDialog(

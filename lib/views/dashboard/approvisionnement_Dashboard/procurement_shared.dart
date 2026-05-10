@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:invera_mobile/config/api_config.dart';
 import 'package:invera_mobile/models/procurement_models.dart';
+import 'package:invera_mobile/widgets/approvisionnement/authenticated_product_image.dart';
 import 'package:invera_mobile/widgets/approvisionnement/procurement_user_role.dart';
 
 const Color procurementPrimary = Color(0xFF2563EB);
@@ -221,9 +223,7 @@ class ProcurementOrderActionPolicy {
             order.normalizedStatus == ProcurementOrderStatus.facturee);
   }
 
-  static bool canRestore({
-    required bool showArchives,
-  }) {
+  static bool canRestore({required bool showArchives}) {
     return showArchives;
   }
 }
@@ -615,11 +615,7 @@ class StatusPill extends StatelessWidget {
   final String label;
   final Color color;
 
-  const StatusPill({
-    super.key,
-    required this.label,
-    required this.color,
-  });
+  const StatusPill({super.key, required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -653,10 +649,7 @@ class StatusPill extends StatelessWidget {
 class ProcurementStatusBadge extends StatelessWidget {
   final String status;
 
-  const ProcurementStatusBadge({
-    super.key,
-    required this.status,
-  });
+  const ProcurementStatusBadge({super.key, required this.status});
 
   @override
   Widget build(BuildContext context) {
@@ -689,8 +682,7 @@ class ProcurementRoleSwitchCard extends StatelessWidget {
           ChoiceChip(
             label: const Text('Responsable achat'),
             selected: currentRole == ProcurementUserRole.responsableAchat,
-            onSelected: (_) =>
-                onChanged(ProcurementUserRole.responsableAchat),
+            onSelected: (_) => onChanged(ProcurementUserRole.responsableAchat),
           ),
           ChoiceChip(
             label: const Text('Admin'),
@@ -717,7 +709,9 @@ class ProductAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasImage = imageUrl != null && imageUrl!.trim().isNotEmpty;
+    final resolvedImageUrl = ApiConfig.resolveMediaUrl(imageUrl);
+    final hasImage =
+        resolvedImageUrl != null && resolvedImageUrl.trim().isNotEmpty;
 
     return Container(
       width: size,
@@ -728,10 +722,10 @@ class ProductAvatar extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: hasImage
-          ? Image.network(
-              imageUrl!,
+          ? AuthenticatedProductImage(
+              imageUrl: resolvedImageUrl,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _fallback(),
+              fallbackBuilder: _fallback,
             )
           : _fallback(),
     );
@@ -771,10 +765,7 @@ class ProductCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          ProductAvatar(
-            imageUrl: product.imageUrl,
-            product: product,
-          ),
+          ProductAvatar(imageUrl: product.imageUrl, product: product),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -820,10 +811,7 @@ class ProductCard extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(
-            onPressed: onEdit,
-            icon: const Icon(Icons.edit),
-          ),
+          IconButton(onPressed: onEdit, icon: const Icon(Icons.edit)),
           IconButton(
             onPressed: onAdjustStock,
             icon: const Icon(Icons.inventory_2_outlined),
@@ -929,11 +917,7 @@ class LowStockTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          ProductAvatar(
-            imageUrl: product.imageUrl,
-            product: product,
-            size: 52,
-          ),
+          ProductAvatar(imageUrl: product.imageUrl, product: product, size: 52),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -959,10 +943,7 @@ class LowStockTile extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    StatusPill(
-                      label: product.stockStatusLabel,
-                      color: color,
-                    ),
+                    StatusPill(label: product.stockStatusLabel, color: color),
                     StatusPill(
                       label:
                           'Stock ${product.quantiteStock}/${product.seuilMinimum}',
@@ -1082,7 +1063,10 @@ class MiniMetric extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: procurementMuted, fontSize: 12)),
+          Text(
+            label,
+            style: const TextStyle(color: procurementMuted, fontSize: 12),
+          ),
           const SizedBox(height: 4),
           Text(
             value,
@@ -1156,7 +1140,10 @@ class StatusBreakdownCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: procurementMuted, fontSize: 12)),
+          Text(
+            label,
+            style: const TextStyle(color: procurementMuted, fontSize: 12),
+          ),
           const SizedBox(height: 8),
           Text(
             '$value',

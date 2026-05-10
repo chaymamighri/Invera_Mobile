@@ -156,6 +156,32 @@ class ProcurementService {
         .toList();
   }
 
+  Future<List<ProcurementProduct>> getProductsBySupplier(int supplierId) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.productsByFournisseurEndpoint}/$supplierId',
+    );
+    final response = await http
+        .get(uri, headers: await _buildHeaders())
+        .timeout(const Duration(milliseconds: ApiConfig.connectionTimeout));
+
+    final body = _decodeBody(response);
+    _ensureSuccess(
+      response,
+      body,
+      'Erreur lors du chargement des produits du fournisseur',
+    );
+
+    final produits = body is Map<String, dynamic>
+        ? (body['produits'] ?? body['data'])
+        : body;
+    if (produits is! List) return [];
+
+    return produits
+        .whereType<Map<String, dynamic>>()
+        .map(ProcurementProduct.fromJson)
+        .toList();
+  }
+
   Future<List<ProcurementProduct>> getLowStockProducts() async {
     final uri = Uri.parse(
       '${ApiConfig.baseUrl}${ApiConfig.productsLowStockEndpoint}',
@@ -179,6 +205,30 @@ class ProcurementService {
         .whereType<Map<String, dynamic>>()
         .map(ProcurementProduct.fromJson)
         .toList();
+  }
+
+  Future<ProcurementProduct> getProductById(int id) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.productsPrefix}/$id',
+    );
+    final response = await http
+        .get(uri, headers: await _buildHeaders())
+        .timeout(const Duration(milliseconds: ApiConfig.connectionTimeout));
+
+    final body = _decodeBody(response);
+    _ensureSuccess(
+      response,
+      body,
+      'Erreur lors du chargement du produit',
+      requireSuccessFlag: true,
+    );
+
+    final produit = body is Map<String, dynamic> ? body['produit'] : null;
+    if (produit is! Map<String, dynamic>) {
+      throw Exception('Reponse produit invalide');
+    }
+
+    return ProcurementProduct.fromJson(produit);
   }
 
   Future<ProcurementProduct> createProduct(ProductUpsertPayload payload) async {
@@ -495,10 +545,7 @@ class ProcurementService {
         )
         .timeout(const Duration(milliseconds: ApiConfig.connectionTimeout));
 
-    return _parseOrderResponse(
-      response,
-      'Erreur lors du rejet de la commande',
-    );
+    return _parseOrderResponse(response, 'Erreur lors du rejet de la commande');
   }
 
   Future<ProcurementOrder> resendOrderAfterRejection(int id) async {
@@ -684,10 +731,17 @@ class ProcurementService {
     if (response.bodyBytes.isEmpty) return null;
 
     try {
-      return json.decode(utf8.decode(response.bodyBytes));
+      return json.decode(response.body);
     } catch (_) {
-      final raw = utf8.decode(response.bodyBytes).trim();
-      return raw.isEmpty ? null : raw;
+      try {
+        final raw = utf8
+            .decode(response.bodyBytes, allowMalformed: true)
+            .trim();
+        return raw.isEmpty ? null : json.decode(raw);
+      } catch (_) {
+        final raw = response.body.trim();
+        return raw.isEmpty ? null : raw;
+      }
     }
   }
 

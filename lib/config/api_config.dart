@@ -89,6 +89,8 @@ class ApiConfig {
   static const String productsSearchEndpoint = '$productsPrefix/search';
   static const String productsAddEndpoint = '$productsPrefix/add';
   static const String productsLowStockEndpoint = '$productsPrefix/low-stock';
+  static const String productsByFournisseurEndpoint =
+      '$productsPrefix/fournisseur';
 
   // Categories endpoints
   static const String categoriesAllEndpoint = categoriesPrefix;

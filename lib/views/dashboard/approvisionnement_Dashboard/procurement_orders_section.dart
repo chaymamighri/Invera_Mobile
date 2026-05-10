@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:invera_mobile/core/ui/adaptive_layout.dart';
 import 'package:invera_mobile/models/procurement_models.dart';
 import 'package:invera_mobile/services/procurement_service.dart';
 import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/procurement_invoice_pdf.dart';
@@ -9,14 +10,7 @@ import 'package:invera_mobile/widgets/approvisionnement/procurement_user_role.da
 import 'package:invera_mobile/widgets/approvisionnement/reception_modal.dart';
 
 class ProcurementOrdersSection extends StatefulWidget {
-  final bool receptionMode;
-  final VoidCallback? onSwitchToReceptions;
-
-  const ProcurementOrdersSection({
-    super.key,
-    required this.receptionMode,
-    this.onSwitchToReceptions,
-  });
+  const ProcurementOrdersSection({super.key});
 
   @override
   State<ProcurementOrdersSection> createState() =>
@@ -46,7 +40,8 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
   static const double _colDate = 170;
   static const double _colTotal = 150;
   static const double _colStatus = 210;
-  static const double _colActions = 220;
+  static const double _colActions = 236;
+  static const double _rowHorizontalPadding = 18;
 
   @override
   void initState() {
@@ -84,7 +79,9 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
 
       setState(() {
         _orders = results[0] as List<ProcurementOrder>;
-        _suppliers = results[1] as List<ProcurementSupplier>;
+        _suppliers = (results[1] as List<ProcurementSupplier>)
+            .where((supplier) => supplier.actif)
+            .toList();
         _products = results[2] as List<ProcurementProduct>;
         _loading = false;
       });
@@ -138,10 +135,10 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
   }
 
   Future<void> _showOrderDialog({ProcurementOrder? initial}) async {
-    if (initial == null && (_suppliers.isEmpty || _products.isEmpty)) {
+    if (initial == null && _suppliers.isEmpty) {
       showMessage(
         context,
-        'Produits ou fournisseurs indisponibles pour creer une commande.',
+        'Aucun fournisseur actif disponible pour creer une commande.',
         error: true,
       );
       return;
@@ -480,7 +477,11 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
       });
 
       try {
-        await _exportInvoicePdf(updated, billedAt: billedAt, showSuccess: false);
+        await _exportInvoicePdf(
+          updated,
+          billedAt: billedAt,
+          showSuccess: false,
+        );
         if (!mounted) return;
         showMessage(context, 'Commande facturee. PDF pret.');
       } catch (error) {
@@ -518,6 +519,22 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     showMessage(context, 'PDF ${facture.referenceFactureClient} genere.');
   }
 
+  String _formatCompactAmount(num value) {
+    if (value.abs() >= 1000) {
+      return '${(value / 1000).toStringAsFixed(1)}k TND';
+    }
+    return formatPrice(value);
+  }
+
+  int _countOrdersByStatuses(Set<String> statuses) {
+    return _filteredOrders
+        .where((order) => statuses.contains(order.normalizedStatus))
+        .length;
+  }
+
+  double get _visibleTotalAmount =>
+      _filteredOrders.fold<double>(0, (sum, order) => sum + order.totalTTC);
+
   List<Widget> _buildActions(ProcurementOrder order) {
     final widgets = <Widget>[];
     final id = order.idCommandeFournisseur;
@@ -536,7 +553,13 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
               onPressed: onPressed,
               style: FilledButton.styleFrom(
                 foregroundColor: color,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(40, 40),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               child: child,
             )
@@ -545,6 +568,20 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
               tooltip: tooltip,
               icon: child,
               color: color,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+              visualDensity: VisualDensity.compact,
+              style: IconButton.styleFrom(
+                backgroundColor: (color ?? procurementMuted).withValues(
+                  alpha: 0.08,
+                ),
+                side: BorderSide(
+                  color: (color ?? procurementMuted).withValues(alpha: 0.16),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
             );
 
       widgets.add(Tooltip(message: tooltip, child: button));
@@ -733,116 +770,237 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
   }
 
   Widget _buildToolbar() {
+    final isPhone = AdaptiveLayout.isPhone(context);
+
     return SectionSurface(
       title: 'Pilotage des commandes',
-      subtitle: 'Recherche, filtres, statut, pagination et actions comme sur le web',
+      subtitle:
+          'Recherche, filtres, pagination et actions adaptees au telephone comme au web',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              SizedBox(
-                width: 320,
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (_) {
-                    setState(() {
-                      _currentPage = 1;
-                    });
-                  },
-                  decoration: const InputDecoration(
-                    hintText: 'Rechercher par numero ou fournisseur...',
-                    prefixIcon: Icon(Icons.search),
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: 220,
-                child: DropdownButtonFormField<String>(
-                  initialValue: _statusFilter.isEmpty ? null : _statusFilter,
-                  decoration: const InputDecoration(labelText: 'Statut'),
-                  items: [
-                    const DropdownMenuItem<String>(
-                      value: '',
-                      child: Text('Tous les statuts'),
-                    ),
-                    ...ProcurementOrderStatus.all.map(
-                      (status) => DropdownMenuItem<String>(
-                        value: status,
-                        child: Text(orderStatusLabel(status)),
-                      ),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _statusFilter = value ?? '';
-                      _currentPage = 1;
-                    });
-                  },
-                ),
-              ),
-              SizedBox(
-                width: 140,
-                child: DropdownButtonFormField<int>(
-                  initialValue: _itemsPerPage,
-                  decoration: const InputDecoration(labelText: 'Par page'),
-                  items: const [
-                    DropdownMenuItem(value: 5, child: Text('5')),
-                    DropdownMenuItem(value: 10, child: Text('10')),
-                    DropdownMenuItem(value: 20, child: Text('20')),
-                    DropdownMenuItem(value: 50, child: Text('50')),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() {
-                      _itemsPerPage = value;
-                      _currentPage = 1;
-                    });
-                  },
-                ),
-              ),
-              OutlinedButton.icon(
-                onPressed: _loadData,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Actualiser'),
-              ),
-              OutlinedButton.icon(
-                onPressed: () async {
-                  setState(() {
-                    _showArchived = !_showArchived;
-                    _currentPage = 1;
-                  });
-                  await _loadData();
-                },
-                icon: Icon(
-                  _showArchived
-                      ? Icons.unarchive_outlined
-                      : Icons.archive_outlined,
-                ),
-                label: Text(
-                  _showArchived ? 'Retour aux actives' : 'Afficher archives',
-                ),
-              ),
-              if (_role == ProcurementUserRole.responsableAchat && !_showArchived)
-                FilledButton.icon(
-                  onPressed: () => _showOrderDialog(),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Nouvelle commande'),
-                ),
-            ],
-          ),
-          if (!_showArchived && widget.onSwitchToReceptions != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: TextButton.icon(
-                onPressed: widget.onSwitchToReceptions,
-                icon: const Icon(Icons.local_shipping_outlined),
-                label: const Text('Ouvrir le suivi des receptions'),
+          if (isPhone) ...[
+            TextField(
+              controller: _searchController,
+              onChanged: (_) {
+                setState(() {
+                  _currentPage = 1;
+                });
+              },
+              decoration: const InputDecoration(
+                hintText: 'Rechercher par numero ou fournisseur...',
+                prefixIcon: Icon(Icons.search),
               ),
             ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _statusFilter.isEmpty ? null : _statusFilter,
+                    decoration: const InputDecoration(labelText: 'Statut'),
+                    items: [
+                      const DropdownMenuItem<String>(
+                        value: '',
+                        child: Text('Tous les statuts'),
+                      ),
+                      ...ProcurementOrderStatus.all.map(
+                        (status) => DropdownMenuItem<String>(
+                          value: status,
+                          child: Text(orderStatusLabel(status)),
+                        ),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _statusFilter = value ?? '';
+                        _currentPage = 1;
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField<int>(
+                    initialValue: _itemsPerPage,
+                    decoration: const InputDecoration(labelText: 'Par page'),
+                    items: const [
+                      DropdownMenuItem(value: 5, child: Text('5')),
+                      DropdownMenuItem(value: 10, child: Text('10')),
+                      DropdownMenuItem(value: 20, child: Text('20')),
+                      DropdownMenuItem(value: 50, child: Text('50')),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() {
+                        _itemsPerPage = value;
+                        _currentPage = 1;
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _loadData,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Actualiser'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    setState(() {
+                      _showArchived = !_showArchived;
+                      _currentPage = 1;
+                    });
+                    await _loadData();
+                  },
+                  icon: Icon(
+                    _showArchived
+                        ? Icons.unarchive_outlined
+                        : Icons.archive_outlined,
+                  ),
+                  label: Text(_showArchived ? 'Retour actives' : 'Archives'),
+                ),
+                if (_role == ProcurementUserRole.responsableAchat &&
+                    !_showArchived)
+                  FilledButton.icon(
+                    onPressed: () => _showOrderDialog(),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Nouvelle'),
+                  ),
+              ],
+            ),
+          ] else
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SizedBox(
+                  width: 320,
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (_) {
+                      setState(() {
+                        _currentPage = 1;
+                      });
+                    },
+                    decoration: const InputDecoration(
+                      hintText: 'Rechercher par numero ou fournisseur...',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 220,
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _statusFilter.isEmpty ? null : _statusFilter,
+                    decoration: const InputDecoration(labelText: 'Statut'),
+                    items: [
+                      const DropdownMenuItem<String>(
+                        value: '',
+                        child: Text('Tous les statuts'),
+                      ),
+                      ...ProcurementOrderStatus.all.map(
+                        (status) => DropdownMenuItem<String>(
+                          value: status,
+                          child: Text(orderStatusLabel(status)),
+                        ),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _statusFilter = value ?? '';
+                        _currentPage = 1;
+                      });
+                    },
+                  ),
+                ),
+                SizedBox(
+                  width: 140,
+                  child: DropdownButtonFormField<int>(
+                    initialValue: _itemsPerPage,
+                    decoration: const InputDecoration(labelText: 'Par page'),
+                    items: const [
+                      DropdownMenuItem(value: 5, child: Text('5')),
+                      DropdownMenuItem(value: 10, child: Text('10')),
+                      DropdownMenuItem(value: 20, child: Text('20')),
+                      DropdownMenuItem(value: 50, child: Text('50')),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() {
+                        _itemsPerPage = value;
+                        _currentPage = 1;
+                      });
+                    },
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _loadData,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Actualiser'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    setState(() {
+                      _showArchived = !_showArchived;
+                      _currentPage = 1;
+                    });
+                    await _loadData();
+                  },
+                  icon: Icon(
+                    _showArchived
+                        ? Icons.unarchive_outlined
+                        : Icons.archive_outlined,
+                  ),
+                  label: Text(
+                    _showArchived ? 'Retour aux actives' : 'Afficher archives',
+                  ),
+                ),
+                if (_role == ProcurementUserRole.responsableAchat &&
+                    !_showArchived)
+                  FilledButton.icon(
+                    onPressed: () => _showOrderDialog(),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Nouvelle commande'),
+                  ),
+              ],
+            ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              MiniMetric(
+                label: 'Commandes visibles',
+                value: '${_filteredOrders.length}',
+                color: procurementPrimary,
+              ),
+              MiniMetric(
+                label: 'En cours',
+                value:
+                    '${_countOrdersByStatuses(const {ProcurementOrderStatus.brouillon, ProcurementOrderStatus.validee, ProcurementOrderStatus.envoyee, ProcurementOrderStatus.rejetee})}',
+                color: procurementWarning,
+              ),
+              MiniMetric(
+                label: 'A facturer',
+                value:
+                    '${_countOrdersByStatuses(const {ProcurementOrderStatus.recue})}',
+                color: procurementAccent,
+              ),
+              MiniMetric(
+                label: 'Montant visible',
+                value: _formatCompactAmount(_visibleTotalAmount),
+                color: procurementPurple,
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -850,7 +1008,10 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
 
   Widget _buildHeaderRow() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      padding: const EdgeInsets.symmetric(
+        horizontal: _rowHorizontalPadding,
+        vertical: 16,
+      ),
       decoration: const BoxDecoration(
         color: Color(0xFFF8FAFC),
         border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
@@ -860,7 +1021,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
           SizedBox(
             width: _colOrder,
             child: Text(
-              'N° Commande',
+              'No commande',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -931,12 +1092,13 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
 
   Widget _buildOrderRow(ProcurementOrder order) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      padding: const EdgeInsets.symmetric(
+        horizontal: _rowHorizontalPadding,
+        vertical: 14,
+      ),
       decoration: BoxDecoration(
         color: _showArchived ? const Color(0xFFF8FAFC) : Colors.white,
-        border: const Border(
-          bottom: BorderSide(color: Color(0xFFE5E7EB)),
-        ),
+        border: const Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -974,9 +1136,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
               children: [
                 Text(
                   order.partenaireNom,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 if (order.fournisseur?.email.trim().isNotEmpty == true)
                   Text(
@@ -1014,10 +1174,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
               children: [
                 ProcurementStatusBadge(status: order.statut),
                 if (_showArchived)
-                  const StatusPill(
-                    label: 'Archivee',
-                    color: Color(0xFF64748B),
-                  ),
+                  const StatusPill(label: 'Archivee', color: Color(0xFF64748B)),
               ],
             ),
           ),
@@ -1038,6 +1195,198 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     );
   }
 
+  Widget _buildOrderMeta(String label, String value, {Color? valueColor}) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: procurementMist,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: procurementLine),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: procurementMuted,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(
+              color: valueColor ?? procurementInk,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrderCard(ProcurementOrder order) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _showArchived ? const Color(0xFFF8FAFC) : Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: procurementLine),
+        boxShadow: procurementCardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      order.referenceCommande,
+                      style: const TextStyle(
+                        color: procurementInk,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      order.partenaireNom,
+                      style: const TextStyle(
+                        color: procurementMuted,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: procurementPrimary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: procurementPrimary.withValues(alpha: 0.12),
+                  ),
+                ),
+                child: Text(
+                  formatPrice(order.totalTTC),
+                  style: const TextStyle(
+                    color: procurementPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (order.motifRejet?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: procurementDanger.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: procurementDanger.withValues(alpha: 0.14),
+                ),
+              ),
+              child: Text(
+                'Motif du rejet: ${order.motifRejet!}',
+                style: const TextStyle(
+                  color: procurementDanger,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ProcurementStatusBadge(status: order.statut),
+              StatusPill(
+                label: formatDate(order.dateCommande, withTime: true),
+                color: procurementPrimary,
+              ),
+              if (_showArchived)
+                const StatusPill(label: 'Archivee', color: Color(0xFF64748B)),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _buildOrderMeta('Fournisseur', order.partenaireNom),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildOrderMeta(
+                  'Email',
+                  order.fournisseur?.email.trim().isNotEmpty == true
+                      ? order.fournisseur!.email
+                      : 'Non renseigne',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Actions rapides',
+            style: TextStyle(
+              color: procurementInk.withValues(alpha: 0.78),
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, runSpacing: 8, children: _buildActions(order)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactList() {
+    final rows = _paginatedOrders;
+
+    if (rows.isEmpty) {
+      return EmptyPanel(
+        title: _showArchived
+            ? 'Aucune commande archivee'
+            : 'Aucune commande trouvee',
+        message: _showArchived
+            ? 'Les commandes supprimees apparaitront ici.'
+            : 'Aucune commande ne correspond aux filtres actuels.',
+      );
+    }
+
+    return Column(
+      children: [
+        for (final order in rows) _buildOrderCard(order),
+        Container(
+          decoration: BoxDecoration(
+            color: procurementSurface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: procurementLine),
+            boxShadow: procurementCardShadow,
+          ),
+          child: _buildPaginationFooter(compact: true),
+        ),
+      ],
+    );
+  }
+
   Widget _buildTable() {
     final rows = _paginatedOrders;
 
@@ -1053,6 +1402,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     }
 
     final tableWidth =
+        (_rowHorizontalPadding * 2) +
         _colOrder +
         _colSupplier +
         _colDate +
@@ -1082,16 +1432,17 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
               ),
             ),
           ),
-          _buildPaginationFooter(),
+          _buildPaginationFooter(compact: false),
         ],
       ),
     );
   }
 
-  Widget _buildPaginationFooter() {
+  Widget _buildPaginationFooter({required bool compact}) {
     final totalItems = _filteredOrders.length;
-    final startIndex =
-        totalItems == 0 ? 0 : ((_currentPage - 1) * _itemsPerPage) + 1;
+    final startIndex = totalItems == 0
+        ? 0
+        : ((_currentPage - 1) * _itemsPerPage) + 1;
     final endIndex =
         ((_currentPage - 1) * _itemsPerPage + _paginatedOrders.length).clamp(
           0,
@@ -1112,28 +1463,28 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
         children: [
           Text(
             'Affichage de $startIndex a $endIndex sur $totalItems commandes',
-            style: const TextStyle(
-              color: procurementMuted,
-              fontSize: 12.5,
-            ),
+            style: const TextStyle(color: procurementMuted, fontSize: 12.5),
           ),
           Wrap(
             spacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              IconButton(
-                onPressed: _currentPage > 1
-                    ? () => setState(() => _currentPage = 1)
-                    : null,
-                icon: const Icon(Icons.first_page),
-              ),
+              if (!compact)
+                IconButton(
+                  onPressed: _currentPage > 1
+                      ? () => setState(() => _currentPage = 1)
+                      : null,
+                  icon: const Icon(Icons.first_page),
+                ),
               IconButton(
                 onPressed: _currentPage > 1
                     ? () => setState(() => _currentPage -= 1)
                     : null,
                 icon: const Icon(Icons.chevron_left),
               ),
-              for (final page in _visiblePageNumbers())
+              for (final page in _visiblePageNumbers(
+                maxVisible: compact ? 3 : 5,
+              ))
                 FilledButton.tonal(
                   onPressed: () => setState(() => _currentPage = page),
                   style: FilledButton.styleFrom(
@@ -1149,12 +1500,13 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
                     : null,
                 icon: const Icon(Icons.chevron_right),
               ),
-              IconButton(
-                onPressed: _currentPage < _totalPages
-                    ? () => setState(() => _currentPage = _totalPages)
-                    : null,
-                icon: const Icon(Icons.last_page),
-              ),
+              if (!compact)
+                IconButton(
+                  onPressed: _currentPage < _totalPages
+                      ? () => setState(() => _currentPage = _totalPages)
+                      : null,
+                  icon: const Icon(Icons.last_page),
+                ),
             ],
           ),
         ],
@@ -1162,8 +1514,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     );
   }
 
-  List<int> _visiblePageNumbers() {
-    final maxVisible = 5;
+  List<int> _visiblePageNumbers({required int maxVisible}) {
     var startPage = _currentPage - (maxVisible ~/ 2);
     if (startPage < 1) startPage = 1;
 
@@ -1190,20 +1541,26 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ProcurementRoleSwitchCard(
-          currentRole: _role,
-          onChanged: (role) {
-            ProcurementRoleStore.instance.setRole(role);
-          },
-        ),
-        const SizedBox(height: 16),
-        _buildToolbar(),
-        const SizedBox(height: 20),
-        _buildTable(),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final useCompactLayout = constraints.maxWidth < 880;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ProcurementRoleSwitchCard(
+              currentRole: _role,
+              onChanged: (role) {
+                ProcurementRoleStore.instance.setRole(role);
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildToolbar(),
+            const SizedBox(height: 20),
+            useCompactLayout ? _buildCompactList() : _buildTable(),
+          ],
+        );
+      },
     );
   }
 }

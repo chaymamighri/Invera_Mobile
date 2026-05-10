@@ -1169,30 +1169,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     final metrics = <Map<String, dynamic>>[
-      {
-        'icon': Icons.badge_outlined,
-        'label': 'ID',
-        'value': '#${_user.id}',
-        'color': _primary,
-      },
-      {
-        'icon': Icons.work_outline,
-        'label': 'Role',
-        'value': _roleLabel(_user.role),
-        'color': const Color(0xFF0EA5E9),
-      },
-      {
-        'icon': _user.active ? Icons.verified_outlined : Icons.block_outlined,
-        'label': 'Compte',
-        'value': _user.active ? 'Actif' : 'Inactif',
-        'color': _user.active ? _success : _danger,
-      },
-      {
-        'icon': Icons.schedule_outlined,
-        'label': 'Derniere sync',
-        'value': _lastSync == null ? '-' : _date(_lastSync!),
-        'color': const Color(0xFF7C3AED),
-      },
       if (_user.role == UserRole.COMMERCIAL ||
           _user.role == UserRole.RESPONSABLE_VENTE) ...[
         {

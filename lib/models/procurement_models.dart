@@ -64,8 +64,9 @@ class ProcurementSupplier {
     required this.actif,
   });
 
-  String get displayName =>
-      nomFournisseur.trim().isEmpty ? 'Fournisseur #$idFournisseur' : nomFournisseur;
+  String get displayName => nomFournisseur.trim().isEmpty
+      ? 'Fournisseur #$idFournisseur'
+      : nomFournisseur;
 
   String get fullName => displayName;
 
@@ -110,6 +111,7 @@ class ProcurementProduct {
   final String libelle;
   final double prixVente;
   final double prixAchat;
+  final int? fournisseurId;
   final ProcurementCategory? categorie;
   final int quantiteStock;
   final String status;
@@ -118,12 +120,14 @@ class ProcurementProduct {
   final int seuilMinimum;
   final String imageUrl;
   final double? remiseTemporaire;
+  final double? tauxTVA;
 
   const ProcurementProduct({
     required this.idProduit,
     required this.libelle,
     required this.prixVente,
     required this.prixAchat,
+    required this.fournisseurId,
     required this.categorie,
     required this.quantiteStock,
     required this.status,
@@ -132,6 +136,7 @@ class ProcurementProduct {
     required this.seuilMinimum,
     required this.imageUrl,
     required this.remiseTemporaire,
+    required this.tauxTVA,
   });
 
   String get displayName =>
@@ -183,6 +188,7 @@ class ProcurementProduct {
     String? libelle,
     double? prixVente,
     double? prixAchat,
+    int? fournisseurId,
     ProcurementCategory? categorie,
     int? quantiteStock,
     String? status,
@@ -191,12 +197,14 @@ class ProcurementProduct {
     int? seuilMinimum,
     String? imageUrl,
     double? remiseTemporaire,
+    double? tauxTVA,
   }) {
     return ProcurementProduct(
       idProduit: idProduit ?? this.idProduit,
       libelle: libelle ?? this.libelle,
       prixVente: prixVente ?? this.prixVente,
       prixAchat: prixAchat ?? this.prixAchat,
+      fournisseurId: fournisseurId ?? this.fournisseurId,
       categorie: categorie ?? this.categorie,
       quantiteStock: quantiteStock ?? this.quantiteStock,
       status: status ?? this.status,
@@ -205,27 +213,46 @@ class ProcurementProduct {
       seuilMinimum: seuilMinimum ?? this.seuilMinimum,
       imageUrl: imageUrl ?? this.imageUrl,
       remiseTemporaire: remiseTemporaire ?? this.remiseTemporaire,
+      tauxTVA: tauxTVA ?? this.tauxTVA,
     );
   }
 
   factory ProcurementProduct.fromJson(Map<String, dynamic> json) {
     final rawCategorie = json['categorie'];
+    ProcurementCategory? categorie;
+    if (rawCategorie is Map<String, dynamic>) {
+      categorie = ProcurementCategory.fromJson(rawCategorie);
+    } else {
+      final topLevelCategoryId = _readNullableInt(json, [
+        'categorieId',
+        'idCategorie',
+      ]);
+      if (topLevelCategoryId != null) {
+        categorie = ProcurementCategory(
+          idCategorie: topLevelCategoryId,
+          nomCategorie: _readString(json, [
+            'categorieNom',
+            'nomCategorie',
+          ], fallback: 'Sans categorie'),
+          description: '',
+          tauxTVA: _readDouble(json, ['tauxTVA', 'tauxTva'], fallback: 0),
+        );
+      }
+    }
 
     return ProcurementProduct(
       idProduit: _readInt(json, ['idProduit', 'id']),
       libelle: _readString(json, ['libelle', 'nom']),
       prixVente: _readDouble(json, ['prixVente', 'prix']),
       prixAchat: _readDouble(json, ['prixAchat']),
-      categorie: rawCategorie is Map<String, dynamic>
-          ? ProcurementCategory.fromJson(rawCategorie)
-          : null,
+      fournisseurId: _readNullableInt(json, ['fournisseurId']),
+      categorie: categorie,
       quantiteStock: _readInt(json, ['quantiteStock', 'stock']),
       status: _readString(json, ['status', 'statut'], fallback: 'EN_STOCK'),
-      uniteMesure: _readString(
-        json,
-        ['uniteMesure', 'unite'],
-        fallback: 'PIECE',
-      ),
+      uniteMesure: _readString(json, [
+        'uniteMesure',
+        'unite',
+      ], fallback: 'PIECE'),
       active: _readBool(json, ['active', 'actif'], fallback: true),
       seuilMinimum: _readInt(json, ['seuilMinimum'], fallback: 0),
       imageUrl: _readString(json, ['imageUrl']),
@@ -233,6 +260,7 @@ class ProcurementProduct {
         'remiseTemporaire',
         'remise',
       ]),
+      tauxTVA: _readNullableDouble(json, ['tauxTVA', 'tauxTva']),
     );
   }
 
@@ -242,6 +270,7 @@ class ProcurementProduct {
       'libelle': libelle,
       'prixVente': prixVente,
       'prixAchat': prixAchat,
+      'fournisseurId': fournisseurId,
       'categorie': categorie?.toJson(),
       'quantiteStock': quantiteStock,
       'status': status,
@@ -250,6 +279,7 @@ class ProcurementProduct {
       'seuilMinimum': seuilMinimum,
       'imageUrl': imageUrl,
       'remiseTemporaire': remiseTemporaire,
+      'tauxTVA': tauxTVA,
     };
   }
 }
@@ -302,21 +332,15 @@ class ProcurementOrderLine {
     final prixUnitaire = _readDouble(json, ['prixUnitaire']);
     final tauxTVA = _readDouble(json, ['tauxTVA'], fallback: 19);
 
-    final sousTotalHT = _readDouble(
-      json,
-      ['sousTotalHT'],
-      fallback: quantite * prixUnitaire,
-    );
-    final montantTVA = _readDouble(
-      json,
-      ['montantTVA'],
-      fallback: sousTotalHT * (tauxTVA / 100),
-    );
-    final sousTotalTTC = _readDouble(
-      json,
-      ['sousTotalTTC'],
-      fallback: sousTotalHT + montantTVA,
-    );
+    final sousTotalHT = _readDouble(json, [
+      'sousTotalHT',
+    ], fallback: quantite * prixUnitaire);
+    final montantTVA = _readDouble(json, [
+      'montantTVA',
+    ], fallback: sousTotalHT * (tauxTVA / 100));
+    final sousTotalTTC = _readDouble(json, [
+      'sousTotalTTC',
+    ], fallback: sousTotalHT + montantTVA);
 
     return ProcurementOrderLine(
       idLigneCommandeFournisseur: _readNullableInt(json, [
@@ -325,11 +349,10 @@ class ProcurementOrderLine {
       ]),
       produitId: _readInt(json, ['produitId', 'idProduit']),
       produitLibelle: _readString(json, ['produitLibelle', 'libelle']),
-      produitReference: _readString(
-        json,
-        ['produitReference', 'reference'],
-        fallback: '-',
-      ),
+      produitReference: _readString(json, [
+        'produitReference',
+        'reference',
+      ], fallback: '-'),
       quantite: quantite,
       prixUnitaire: prixUnitaire,
       sousTotalHT: sousTotalHT,
@@ -337,11 +360,10 @@ class ProcurementOrderLine {
       sousTotalTTC: sousTotalTTC,
       quantiteRecue: _readInt(json, ['quantiteRecue'], fallback: 0),
       notes: _readString(json, ['notes']),
-      categorieNom: _readString(
-        json,
-        ['categorieNom', 'categorie'],
-        fallback: '-',
-      ),
+      categorieNom: _readString(json, [
+        'categorieNom',
+        'categorie',
+      ], fallback: '-'),
       estInactif: _readBool(json, ['estInactif'], fallback: false),
       tauxTVA: tauxTVA,
     );
@@ -517,9 +539,9 @@ class ProcurementOrder {
       actif: _readBool(json, ['actif', 'active'], fallback: true),
       lignesCommande: rawLines is List
           ? rawLines
-              .whereType<Map<String, dynamic>>()
-              .map(ProcurementOrderLine.fromJson)
-              .toList()
+                .whereType<Map<String, dynamic>>()
+                .map(ProcurementOrderLine.fromJson)
+                .toList()
           : <ProcurementOrderLine>[],
       motifRejet: _readNullableString(json, ['motifRejet']),
       numeroBL: _readNullableString(json, ['numeroBL']),
@@ -599,6 +621,8 @@ class ProductUpsertPayload {
   final String uniteMesure;
   final double? remiseTemporaire;
   final bool active;
+  final int? fournisseurId;
+  final bool includeQuantiteStock;
   final Uint8List? imageBytes;
   final String? imageFileName;
   final String? imageMimeType;
@@ -613,6 +637,8 @@ class ProductUpsertPayload {
     required this.uniteMesure,
     required this.remiseTemporaire,
     required this.active,
+    required this.fournisseurId,
+    this.includeQuantiteStock = true,
     this.imageBytes,
     this.imageFileName,
     this.imageMimeType,
@@ -630,14 +656,21 @@ class ProductUpsertPayload {
       'prixVente': prixVente.toString(),
       'prixAchat': prixAchat.toString(),
       'categorieId': categorieId.toString(),
-      'quantiteStock': quantiteStock.toString(),
       'seuilMinimum': seuilMinimum.toString(),
       'uniteMesure': uniteMesure.trim().toUpperCase(),
       'active': active.toString(),
     };
 
+    if (includeQuantiteStock) {
+      fields['quantiteStock'] = quantiteStock.toString();
+    }
+
     if (remiseTemporaire != null) {
       fields['remiseTemporaire'] = remiseTemporaire.toString();
+    }
+
+    if (fournisseurId != null) {
+      fields['fournisseurId'] = fournisseurId.toString();
     }
 
     return fields;

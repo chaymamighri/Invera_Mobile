@@ -9,16 +9,12 @@ import 'auth_shell.dart';
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
-  // Cycle de vie du widget.
-
-  /// Cree l'objet d'etat mutable de ce widget.
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 /// Objet d'etat qui stocke les donnees temporaires de l'interface pour l'ecran de connexion.
 class _LoginScreenState extends State<LoginScreen> {
-  // Configuration, dependances et etat local de l'interface.
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -26,11 +22,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _submitted = false;
+  bool _emailTouched = false;
+  bool _passwordTouched = false;
+  bool _emailFocused = false;
+  bool _passwordFocused = false;
+
   String? _errorMessage;
 
-  // Cycle de vie du widget.
-
-  /// Libere les controleurs et les ecouteurs avant la destruction du widget.
   @override
   void dispose() {
     _emailController.dispose();
@@ -38,17 +37,20 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // Actions utilisateur et traitements asynchrones.
-
-  /// Gere la connexion.
   Future<void> _handleLogin() async {
+    setState(() {
+      _submitted = true;
+      _emailTouched = true;
+      _passwordTouched = true;
+      _errorMessage = null;
+    });
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
     setState(() {
       _isLoading = true;
-      _errorMessage = null;
     });
 
     final success = await _authService.login(
@@ -108,26 +110,56 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  // Valeurs calculees et methodes utilitaires.
-
-  /// Valide l'adresse e-mail.
   String? _validateEmail(String? value) {
     final email = (value ?? '').trim();
+
+    if (!_submitted && (!_emailTouched || _emailFocused)) {
+      return null;
+    }
+
     if (email.isEmpty) {
       return 'Email requis';
     }
 
+    if (!email.contains('@')) {
+      return 'Ajoutez @ dans votre email';
+    }
+
+    final parts = email.split('@');
+    if (parts.length != 2 || parts[0].isEmpty || parts[1].isEmpty) {
+      return 'Email incomplet';
+    }
+
+    if (!parts[1].contains('.')) {
+      return 'Ajoutez le domaine, exemple: gmail.com';
+    }
+
     final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
     if (!emailRegex.hasMatch(email)) {
-      return 'Email invalide';
+      return 'Format email invalide';
     }
 
     return null;
   }
 
-  // Construction de l'interface.
+  String? _validatePassword(String? value) {
+    final password = value ?? '';
 
-  /// Construit l'interface visible de ce widget.
+    if (!_submitted && (!_passwordTouched || _passwordFocused)) {
+      return null;
+    }
+
+    if (password.isEmpty) {
+      return 'Mot de passe requis';
+    }
+
+    if (password.length < 6) {
+      return 'Minimum 6 caracteres';
+    }
+
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final linkStyle = TextButton.styleFrom(
@@ -149,54 +181,74 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AuthTextField(
-              label: 'Email',
-              controller: _emailController,
-              hintText: 'exemple@invera.com',
-              icon: Icons.alternate_email_rounded,
-              keyboardType: TextInputType.emailAddress,
-              textInputAction: TextInputAction.next,
-              autofillHints: const [
-                AutofillHints.username,
-                AutofillHints.email,
-              ],
-              validator: _validateEmail,
-              onFieldSubmitted: (_) => FocusScope.of(context).nextFocus(),
+            Focus(
+              onFocusChange: (hasFocus) {
+                setState(() {
+                  _emailFocused = hasFocus;
+                  if (!hasFocus) {
+                    _emailTouched = true;
+                  }
+                });
+
+                if (!hasFocus) {
+                  _formKey.currentState?.validate();
+                }
+              },
+              child: AuthTextField(
+                label: 'Email',
+                controller: _emailController,
+                hintText: 'exemple@invera.com',
+                icon: Icons.alternate_email_rounded,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [
+                  AutofillHints.username,
+                  AutofillHints.email,
+                ],
+                validator: _validateEmail,
+                onFieldSubmitted: (_) => FocusScope.of(context).nextFocus(),
+              ),
             ),
             const SizedBox(height: 18),
-            AuthTextField(
-              label: 'Mot de passe',
-              controller: _passwordController,
-              hintText: 'Entrez votre mot de passe',
-              icon: Icons.lock_outline_rounded,
-              obscureText: _obscurePassword,
-              textInputAction: TextInputAction.done,
-              autofillHints: const [AutofillHints.password],
-              enableSuggestions: false,
-              autocorrect: false,
-              onFieldSubmitted: (_) => _handleLogin(),
-              suffixIcon: IconButton(
-                onPressed: () {
-                  setState(() {
-                    _obscurePassword = !_obscurePassword;
-                  });
-                },
-                icon: Icon(
-                  _obscurePassword
-                      ? Icons.visibility_off_rounded
-                      : Icons.visibility_rounded,
-                  color: AuthPalette.muted,
-                ),
-              ),
-              validator: (value) {
-                if ((value ?? '').isEmpty) {
-                  return 'Mot de passe requis';
+            Focus(
+              onFocusChange: (hasFocus) {
+                setState(() {
+                  _passwordFocused = hasFocus;
+                  if (!hasFocus) {
+                    _passwordTouched = true;
+                  }
+                });
+
+                if (!hasFocus) {
+                  _formKey.currentState?.validate();
                 }
-                if ((value ?? '').length < 6) {
-                  return 'Minimum 6 caracteres';
-                }
-                return null;
               },
+              child: AuthTextField(
+                label: 'Mot de passe',
+                controller: _passwordController,
+                hintText: 'Entrez votre mot de passe',
+                icon: Icons.lock_outline_rounded,
+                obscureText: _obscurePassword,
+                textInputAction: TextInputAction.done,
+                autofillHints: const [AutofillHints.password],
+                enableSuggestions: false,
+                autocorrect: false,
+                onFieldSubmitted: (_) => _handleLogin(),
+                suffixIcon: IconButton(
+                  onPressed: () {
+                    setState(() {
+                      _obscurePassword = !_obscurePassword;
+                    });
+                  },
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded,
+                    color: AuthPalette.muted,
+                  ),
+                ),
+                validator: _validatePassword,
+              ),
             ),
             const SizedBox(height: 8),
             Align(

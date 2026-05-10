@@ -60,11 +60,6 @@ class _ApprovisionnementDashboardState
           label: 'Bons de commande',
           icon: Icons.shopping_cart_outlined,
         ),
-        _SidebarItem(
-          id: 'receptions',
-          label: 'Receptions',
-          icon: Icons.local_shipping_outlined,
-        ),
       ],
     ),
   ];
@@ -89,8 +84,6 @@ class _ApprovisionnementDashboardState
         return 'Gestion des categories';
       case 'commandes':
         return 'Bons de commande fournisseurs';
-      case 'receptions':
-        return 'Receptions de marchandises';
       default:
         return 'Gestion des produits';
     }
@@ -104,8 +97,6 @@ class _ApprovisionnementDashboardState
         return 'Interface dediee aux categories et a leur TVA';
       case 'commandes':
         return 'Creation, validation, envoi, archivage et suivi des commandes';
-      case 'receptions':
-        return 'Suivi des commandes envoyees et cloture des receptions';
       default:
         return 'Catalogue, niveaux de stock et activation des articles';
     }
@@ -411,16 +402,7 @@ class _ApprovisionnementDashboardState
       case 'categories':
         return const ProcurementCategoriesSection();
       case 'commandes':
-        return ProcurementOrdersSection(
-          key: const ValueKey('orders'),
-          receptionMode: false,
-          onSwitchToReceptions: () => _setActivePage('receptions'),
-        );
-      case 'receptions':
-        return const ProcurementOrdersSection(
-          key: ValueKey('receptions'),
-          receptionMode: true,
-        );
+        return const ProcurementOrdersSection(key: ValueKey('orders'));
       default:
         return const ProcurementProductsSection();
     }
@@ -738,7 +720,7 @@ class _ApprovisionnementDashboardState
                         ),
                         const SizedBox(height: 2),
                         const Text(
-                          'Produits, commandes et receptions',
+                          'Produits, commandes et suivi achat',
                           style: TextStyle(
                             fontSize: 12,
                             color: Color(0xFFD3DDEB),
