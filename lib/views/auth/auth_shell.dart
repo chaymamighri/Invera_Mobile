@@ -10,26 +10,27 @@ class AuthPalette {
   const AuthPalette._();
 
   // Configuration, dependances et etat local de l'interface.
-  static const Color primary = Color(0xFF2553D4);
-  static const Color primaryDark = Color(0xFF15367A);
-  static const Color accent = Color(0xFF14B8A6);
-  static const Color ink = Color(0xFF10203A);
-  static const Color muted = Color(0xFF607089);
-  static const Color sidebarStart = Color(0xFF0B1730);
-  static const Color sidebarEnd = Color(0xFF15367A);
+  static const Color primary = Color(0xFF0B4EA2);
+  static const Color primaryDark = Color(0xFF0B3D82);
+  static const Color accent = Color(0xFF1D75D6);
+  static const Color ink = Color(0xFF1F2937);
+  static const Color muted = Color(0xFF64748B);
+  static const Color sidebarStart = Color(0xFF0B2F6B);
+  static const Color sidebarEnd = Color(0xFF1A5FC4);
 
-  static const Color backgroundTop = Color(0xFFF4F7FB);
-  static const Color backgroundMiddle = Color(0xFFEAF1FF);
-  static const Color backgroundBottom = Color(0xFFF8FBFF);
+  static const Color backgroundTop = Color(0xFFF0F4FA);
+  static const Color backgroundMiddle = Color(0xFFF8FAFC);
+  static const Color backgroundBottom = Color(0xFFEEF2F8);
 
   static const Color surface = Colors.white;
-  static const Color surfaceSoft = Color(0xFFF8FAFF);
-  static const Color border = Color(0xFFDCE5F3);
-  static const Color hint = Color(0xFF91A0B5);
+  static const Color surfaceSoft = Color(0xFFF9FAFB);
+  static const Color border = Color(0xFFE2E8F0);
+  static const Color hint = Color(0xFF9CA3AF);
 
   static const Color success = Color(0xFF16A34A);
   static const Color error = Color(0xFFDC2626);
   static const Color info = Color(0xFF0284C7);
+  static const Color warning = Color(0xFFD97706);
 }
 
 /// Widget qui affiche la structure d'authentification.
@@ -105,14 +106,16 @@ class AuthScaffold extends StatelessWidget {
                   constraints: const BoxConstraints(maxWidth: 430),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: AuthPalette.surface.withValues(alpha: 0.94),
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(color: AuthPalette.border),
+                      color: AuthPalette.surface.withValues(alpha: 0.90),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.60),
+                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0x160F172A),
-                          blurRadius: 28,
-                          offset: const Offset(0, 16),
+                          color: const Color(0x1F0F172A),
+                          blurRadius: 24,
+                          offset: const Offset(0, 14),
                         ),
                       ],
                     ),
@@ -128,9 +131,7 @@ class AuthScaffold extends StatelessWidget {
                                 vertical: 7,
                               ),
                               decoration: BoxDecoration(
-                                color: AuthPalette.primary.withValues(
-                                  alpha: 0.08,
-                                ),
+                                color: const Color(0xFFEFF6FF),
                                 borderRadius: BorderRadius.circular(999),
                               ),
                               child: Text(
@@ -149,7 +150,7 @@ class AuthScaffold extends StatelessWidget {
                             style: const TextStyle(
                               color: AuthPalette.ink,
                               fontSize: 28,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w700,
                               height: 1.1,
                             ),
                           ),
@@ -256,41 +257,41 @@ class AuthTextField extends StatelessWidget {
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: const TextStyle(color: AuthPalette.hint),
-            prefixIcon: Icon(icon, color: AuthPalette.primary, size: 20),
+            prefixIcon: Icon(icon, color: AuthPalette.hint, size: 20),
             suffixIcon: suffixIcon,
             filled: true,
-            fillColor: AuthPalette.surface.withValues(alpha: 0.92),
+            fillColor: AuthPalette.surfaceSoft,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
               vertical: 16,
             ),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide.none,
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(
                 color: AuthPalette.border,
                 width: 1.2,
               ),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(
                 color: AuthPalette.primary,
                 width: 1.6,
               ),
             ),
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(
                 color: AuthPalette.error,
                 width: 1.2,
               ),
             ),
             focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(
                 color: AuthPalette.error,
                 width: 1.6,
@@ -326,35 +327,56 @@ class AuthPrimaryButton extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       height: 52,
-      child: ElevatedButton(
-        onPressed: isLoading ? null : onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AuthPalette.primary,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: const Color(0xFF9CB1EE),
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isLoading
+                ? const [Color(0xFF93A7C6), Color(0xFF93A7C6)]
+                : const [AuthPalette.primaryDark, AuthPalette.accent],
           ),
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x330B4EA2),
+              blurRadius: 18,
+              offset: Offset(0, 8),
+            ),
+          ],
         ),
-        child: isLoading
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              )
-            : Text(label),
+        child: ElevatedButton(
+          onPressed: isLoading ? null : onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            textStyle: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          child: isLoading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : Text(label),
+        ),
       ),
     );
   }
 }
 
 /// Valeurs possibles de tonalite de la banniere d'authentification utilisees dans ce fichier.
-enum AuthBannerTone { info, success, error }
+enum AuthBannerTone { info, success, warning, error }
 
 /// Widget qui affiche la banniere d'authentification.
 class AuthBanner extends StatelessWidget {
@@ -380,12 +402,21 @@ class AuthBanner extends StatelessWidget {
     final Color accent = switch (tone) {
       AuthBannerTone.info => AuthPalette.info,
       AuthBannerTone.success => AuthPalette.success,
+      AuthBannerTone.warning => AuthPalette.warning,
       AuthBannerTone.error => AuthPalette.error,
+    };
+
+    final Color background = switch (tone) {
+      AuthBannerTone.warning => const Color(0xFFFFFBEB),
+      AuthBannerTone.error => const Color(0xFFFEF2F2),
+      AuthBannerTone.success => const Color(0xFFF0FDF4),
+      AuthBannerTone.info => const Color(0xFFEFF6FF),
     };
 
     final IconData icon = switch (tone) {
       AuthBannerTone.info => Icons.info_outline_rounded,
       AuthBannerTone.success => Icons.check_circle_outline_rounded,
+      AuthBannerTone.warning => Icons.warning_amber_rounded,
       AuthBannerTone.error => Icons.error_outline_rounded,
     };
 
@@ -393,9 +424,9 @@ class AuthBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: accent.withValues(alpha: 0.18)),
+        color: background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withValues(alpha: 0.22)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -469,7 +500,7 @@ class AuthRuleChecklist extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AuthPalette.surfaceSoft,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AuthPalette.border),
       ),
       child: Column(
@@ -548,8 +579,8 @@ class _AuthBackButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AuthPalette.border),
         boxShadow: [
           BoxShadow(
@@ -592,8 +623,8 @@ class _AuthBackgroundDecor extends StatelessWidget {
             child: _GlowOrb(
               size: math.max(220, size.width * 0.72),
               colors: [
-                AuthPalette.primary.withValues(alpha: 0.18),
-                AuthPalette.primary.withValues(alpha: 0.02),
+                AuthPalette.primary.withValues(alpha: 0.05),
+                AuthPalette.primary.withValues(alpha: 0.01),
               ],
             ),
           ),
@@ -610,8 +641,8 @@ class _AuthBackgroundDecor extends StatelessWidget {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      AuthPalette.sidebarStart.withValues(alpha: 0.14),
-                      AuthPalette.sidebarEnd.withValues(alpha: 0.06),
+                      AuthPalette.sidebarStart.withValues(alpha: 0.08),
+                      AuthPalette.sidebarEnd.withValues(alpha: 0.04),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(120),
@@ -625,8 +656,8 @@ class _AuthBackgroundDecor extends StatelessWidget {
             child: _GlowOrb(
               size: math.max(220, size.width * 0.7),
               colors: [
-                AuthPalette.accent.withValues(alpha: 0.16),
-                AuthPalette.accent.withValues(alpha: 0.02),
+                AuthPalette.accent.withValues(alpha: 0.05),
+                AuthPalette.accent.withValues(alpha: 0.01),
               ],
             ),
           ),
@@ -641,8 +672,8 @@ class _AuthBackgroundDecor extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      AuthPalette.primary.withValues(alpha: 0.12),
-                      AuthPalette.accent.withValues(alpha: 0.06),
+                      AuthPalette.primary.withValues(alpha: 0.08),
+                      AuthPalette.accent.withValues(alpha: 0.04),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(80),

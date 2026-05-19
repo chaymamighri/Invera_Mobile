@@ -29,6 +29,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _passwordFocused = false;
 
   String? _errorMessage;
+  List<String> _validationAlerts = const [];
 
   @override
   void dispose() {
@@ -38,11 +39,14 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
+    final validationAlerts = _collectValidationAlerts();
+
     setState(() {
       _submitted = true;
       _emailTouched = true;
       _passwordTouched = true;
       _errorMessage = null;
+      _validationAlerts = validationAlerts;
     });
 
     if (!_formKey.currentState!.validate()) {
@@ -153,11 +157,31 @@ class _LoginScreenState extends State<LoginScreen> {
       return 'Mot de passe requis';
     }
 
-    if (password.length < 6) {
-      return 'Minimum 6 caracteres';
+    if (password.length < 8) {
+      return 'Minimum 8 caracteres';
     }
 
     return null;
+  }
+
+  List<String> _collectValidationAlerts() {
+    final alerts = <String>[];
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty) {
+      alerts.add('Email requis');
+    } else if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+      alerts.add('Veuillez saisir un email valide, exemple@domaine.com');
+    }
+
+    if (password.isEmpty) {
+      alerts.add('Mot de passe requis');
+    } else if (password.length < 8) {
+      alerts.add('Le mot de passe doit contenir au moins 8 caracteres');
+    }
+
+    return alerts;
   }
 
   @override
@@ -181,6 +205,16 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (_validationAlerts.isNotEmpty) ...[
+              AuthBanner(
+                title: 'Verifiez vos identifiants',
+                message: _validationAlerts
+                    .map((alert) => '- $alert')
+                    .join('\n'),
+                tone: AuthBannerTone.warning,
+              ),
+              const SizedBox(height: 18),
+            ],
             Focus(
               onFocusChange: (hasFocus) {
                 setState(() {
@@ -253,45 +287,20 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerRight,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: _isLoading
-                        ? null
-                        : () {
-                            Navigator.pushNamed(
-                              context,
-                              AppRoutes.createPassword,
-                              arguments: {
-                                'email': _emailController.text
-                                    .trim()
-                                    .toLowerCase(),
-                              },
-                            );
+              child: TextButton(
+                onPressed: _isLoading
+                    ? null
+                    : () {
+                        Navigator.pushNamed(
+                          context,
+                          AppRoutes.forgotPassword,
+                          arguments: {
+                            'email': _emailController.text.trim().toLowerCase(),
                           },
-                    style: linkStyle,
-                    child: const Text('Activer mon compte'),
-                  ),
-                  const SizedBox(height: 2),
-                  TextButton(
-                    onPressed: _isLoading
-                        ? null
-                        : () {
-                            Navigator.pushNamed(
-                              context,
-                              AppRoutes.forgotPassword,
-                              arguments: {
-                                'email': _emailController.text
-                                    .trim()
-                                    .toLowerCase(),
-                              },
-                            );
-                          },
-                    style: linkStyle,
-                    child: const Text('Mot de passe oublie ?'),
-                  ),
-                ],
+                        );
+                      },
+                style: linkStyle,
+                child: const Text('Mot de passe oublie ?'),
               ),
             ),
             const SizedBox(height: 18),

@@ -61,7 +61,6 @@ class ApiConfig {
   static const String meEndpoint = '$apiPrefix/me';
   static const String forgotPasswordEndpoint = '$apiPrefix/forgot-password';
   static const String resetPasswordEndpoint = '$apiPrefix/reset-password';
-  static const String createPasswordEndpoint = '$apiPrefix/create-password';
   static const String changePasswordEndpoint = '$apiPrefix/change-password';
   static const String updateProfileEndpoint = '$apiPrefix/update-profile';
   static const String allUsersEndpoint = '$apiPrefix/all';

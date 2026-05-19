@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:invera_mobile/views/auth/create_password_screen.dart';
 import 'package:invera_mobile/views/auth/forgot_password_screen.dart';
 import 'package:invera_mobile/views/auth/reset_password_screen.dart';
 import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/Commercial_dashboard.dart';
@@ -94,15 +93,6 @@ class MyApp extends StatelessWidget {
             final email = args?['email'] as String?;
             return MaterialPageRoute(
               builder: (context) => ResetPasswordScreen(email: email ?? ''),
-            );
-
-          case AppRoutes.createPassword:
-            final args = settings.arguments as Map<String, dynamic>?;
-            final email = args?['email'] as String?;
-            final code = (args?['code'] ?? args?['token']) as String?;
-            return MaterialPageRoute(
-              builder: (context) =>
-                  CreatePasswordScreen(initialEmail: email, initialCode: code),
             );
         }
 
