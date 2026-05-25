@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:invera_mobile/views/auth/forgot_password_screen.dart';
-import 'package:invera_mobile/views/auth/reset_password_screen.dart';
-import 'package:invera_mobile/views/dashboard/Comemrcial_Dashboard/Commercial_dashboard.dart';
-import 'package:invera_mobile/views/dashboard/approvisionnement_Dashboard/approvisionnement_dashboard.dart';
-import 'package:invera_mobile/views/dashboard/vente_dashboard/responsable_vente_dashboard.dart';
-import 'package:invera_mobile/views/profile/profile_screen.dart';
+import 'package:invera_mobile/views/auth/mot_de_passe_oublie.dart';
+import 'package:invera_mobile/views/auth/reinitialiser_mot_de_passe.dart';
+import 'package:invera_mobile/views/dashboard/commercial/responsable_vente_dashboard.dart';
+import 'package:invera_mobile/views/dashboard/commercial/tableau_de_bord.dart';
+import 'package:invera_mobile/views/dashboard/approvisionnement/tableau_de_bord.dart';
+import 'package:invera_mobile/views/profile/profil.dart';
 
-import 'config/app_globals.dart';
-import 'config/app_routes.dart';
-import 'models/user_model.dart';
-import 'views/auth/login_screen.dart';
+import 'config/globals.dart';
+import 'config/routes.dart';
+import 'models/utilisateur.dart';
+import 'views/auth/connexion.dart';
 
 /// Lance l'application Flutter.
 void main() {
