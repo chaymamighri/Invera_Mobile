@@ -550,7 +550,7 @@ class ProcurementService {
 
   Future<ProcurementOrder> resendOrderAfterRejection(int id) async {
     final uri = Uri.parse(
-      '${ApiConfig.baseUrl}${ApiConfig.commandesFournisseursPrefix}/$id/renvoyer_attente',
+      '${ApiConfig.baseUrl}${ApiConfig.commandesFournisseursPrefix}/$id/renvoyer-attente',
     );
 
     final response = await http

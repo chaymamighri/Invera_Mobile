@@ -461,24 +461,24 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
         final compactDialog = _isPhoneWidth(ctx, breakpoint: 700);
 
         return Dialog(
-          insetPadding: EdgeInsets.all(compactDialog ? 10 : 24),
+          insetPadding: EdgeInsets.all(compactDialog ? 6 : 24),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(compactDialog ? 22 : 24),
           ),
           child: Container(
             width: AdaptiveLayout.dialogWidth(
               ctx,
               max: 1000,
-              sideMargin: compactDialog ? 8 : 12,
+              sideMargin: compactDialog ? 6 : 12,
             ),
             constraints: BoxConstraints(
               maxHeight: AdaptiveLayout.dialogHeight(
                 ctx,
-                ratio: compactDialog ? 0.94 : 0.9,
+                ratio: compactDialog ? 0.965 : 0.9,
               ),
             ),
             padding: EdgeInsets.all(
-              compactDialog ? _baseUnit * 2 : _baseUnit * 3,
+              compactDialog ? _baseUnit * 1.5 : _baseUnit * 3,
             ),
             child: Column(
               children: [
@@ -766,12 +766,198 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                       );
 
                       if (compact) {
-                        return SingleChildScrollView(
+                        final compactSummarySection = _buildDetailsSection(
+                          title: 'R\u00E9sum\u00E9 financier',
+                          compact: true,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Wrap(
+                                spacing: _baseUnit * 0.75,
+                                runSpacing: _baseUnit * 0.75,
+                                children: [
+                                  _buildDetailMetaPill(
+                                    icon: Icons.shopping_bag_outlined,
+                                    label: 'Lignes',
+                                    value: '${cmd.produits.length}',
+                                  ),
+                                  _buildDetailMetaPill(
+                                    icon: Icons.flag_outlined,
+                                    label: 'Statut',
+                                    value: _displayStatus(cmd.statut),
+                                  ),
+                                  _buildDetailMetaPill(
+                                    icon: Icons.percent_outlined,
+                                    label: 'Remise',
+                                    value:
+                                        '${cmd.tauxRemise.toStringAsFixed(2)}%',
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: _baseUnit * 1.25),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(_baseUnit * 1.25),
+                                decoration: BoxDecoration(
+                                  color: _background,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: _borderLight),
+                                ),
+                                child: Column(
+                                  children: [
+                                    _buildAmountRow(
+                                      'Sous-total estim\u00E9',
+                                      _buildCommandeSubtotal(cmd),
+                                      compact: true,
+                                    ),
+                                    const SizedBox(height: _baseUnit),
+                                    _buildAmountRow(
+                                      'Total final',
+                                      '${cmd.total.toStringAsFixed(2)} DT',
+                                      isPrimary: true,
+                                      compact: true,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        final compactInfoSection = _buildDetailsSection(
+                          title: 'Informations g\u00E9n\u00E9rales',
+                          compact: true,
+                          child: LayoutBuilder(
+                            builder: (context, infoConstraints) {
+                              final spacing = _baseUnit * 0.75;
+                              final cardWidth =
+                                  (infoConstraints.maxWidth - spacing) / 2;
+
+                              Widget infoCard({
+                                required IconData icon,
+                                required String label,
+                                required String value,
+                              }) {
+                                return SizedBox(
+                                  width: cardWidth,
+                                  child: _buildDetailInfoCard(
+                                    icon: icon,
+                                    label: label,
+                                    value: value,
+                                    compact: true,
+                                  ),
+                                );
+                              }
+
+                              return Wrap(
+                                spacing: spacing,
+                                runSpacing: spacing,
+                                children: [
+                                  infoCard(
+                                    icon: Icons.calendar_today_outlined,
+                                    label: 'Date',
+                                    value: cmd.dateCommandeFormatted,
+                                  ),
+                                  infoCard(
+                                    icon: Icons.person_outline,
+                                    label: 'Client',
+                                    value: client?.fullName ?? '-',
+                                  ),
+                                  infoCard(
+                                    icon: Icons.local_offer_outlined,
+                                    label: 'R\u00E9f\u00E9rence',
+                                    value: cmd.referenceCommandeClient,
+                                  ),
+                                  infoCard(
+                                    icon: Icons.percent_outlined,
+                                    label: 'Remise',
+                                    value:
+                                        '${cmd.tauxRemise.toStringAsFixed(2)}%',
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        );
+
+                        final compactClientSection = _buildDetailsSection(
+                          title: 'Coordonn\u00E9es client',
+                          compact: true,
                           child: Column(
                             children: [
-                              rightPanel,
-                              const SizedBox(height: _baseUnit * 1.5),
-                              leftPanel,
+                              _buildDetailRow(
+                                icon: Icons.person_outline,
+                                label: 'Nom complet',
+                                value: client?.fullName ?? '-',
+                                compact: true,
+                              ),
+                              _buildDetailRow(
+                                icon: Icons.phone_outlined,
+                                label: 'T\u00E9l\u00E9phone',
+                                value: client?.telephone ?? '-',
+                                compact: true,
+                              ),
+                              _buildDetailRow(
+                                icon: Icons.email_outlined,
+                                label: 'Email',
+                                value: client?.email ?? '-',
+                                compact: true,
+                              ),
+                              _buildDetailRow(
+                                icon: Icons.location_on_outlined,
+                                label: 'Adresse',
+                                value: client?.adresse ?? '-',
+                                isLast: true,
+                                compact: true,
+                              ),
+                            ],
+                          ),
+                        );
+
+                        final compactProductsSection = _buildDetailsSection(
+                          title: 'Produits command\u00E9s',
+                          compact: true,
+                          child: Column(
+                            children: [
+                              if (cmd.produits.isEmpty)
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(
+                                    _baseUnit * 1.5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _background,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: _borderLight),
+                                  ),
+                                  child: const Text(
+                                    'Aucun produit dans cette commande.',
+                                    style: TextStyle(color: _textSecondary),
+                                  ),
+                                )
+                              else
+                                ...cmd.produits.asMap().entries.map((entry) {
+                                  return _buildProduitDetailCard(
+                                    index: entry.key + 1,
+                                    produit: entry.value,
+                                    compact: true,
+                                  );
+                                }),
+                            ],
+                          ),
+                        );
+
+                        return SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              compactSummarySection,
+                              const SizedBox(height: _baseUnit * 1.25),
+                              compactInfoSection,
+                              const SizedBox(height: _baseUnit * 1.25),
+                              compactClientSection,
+                              const SizedBox(height: _baseUnit * 1.25),
+                              compactProductsSection,
                             ],
                           ),
                         );
@@ -3251,7 +3437,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
         border: Border.all(color: _borderLight),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 14,
             offset: const Offset(0, 6),
           ),
@@ -3282,18 +3468,20 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
   }) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(compact ? _baseUnit * 1.5 : _baseUnit * 2),
+      padding: EdgeInsets.all(compact ? _baseUnit * 1.25 : _baseUnit * 2),
       decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(20),
+        color: compact ? _surface.withValues(alpha: 0.96) : _surface,
+        borderRadius: BorderRadius.circular(compact ? 16 : 20),
         border: Border.all(color: _borderLight),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        boxShadow: compact
+            ? const []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3301,13 +3489,54 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
           Text(
             title,
             style: TextStyle(
-              fontSize: compact ? 14 : 15,
+              fontSize: compact ? 13.5 : 15,
               fontWeight: FontWeight.w800,
               color: _textPrimary,
             ),
           ),
-          SizedBox(height: compact ? _baseUnit : _baseUnit * 1.5),
+          SizedBox(height: compact ? _baseUnit * 0.9 : _baseUnit * 1.5),
           child,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailMetaPill({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: _baseUnit * 1.1,
+        vertical: _baseUnit * 0.75,
+      ),
+      decoration: BoxDecoration(
+        color: _background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: _borderLight),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: _primary),
+          const SizedBox(width: 6),
+          Text(
+            '$label: ',
+            style: const TextStyle(
+              color: _textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: _textPrimary,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ],
       ),
     );
@@ -3320,27 +3549,28 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     bool compact = false,
   }) {
     return Container(
-      constraints: BoxConstraints(minWidth: compact ? 150 : 190),
-      padding: EdgeInsets.all(compact ? _baseUnit * 1.2 : _baseUnit * 1.5),
+      constraints: BoxConstraints(minWidth: compact ? 0 : 190),
+      padding: EdgeInsets.all(compact ? _baseUnit * 1.05 : _baseUnit * 1.5),
       decoration: BoxDecoration(
         color: _background,
         borderRadius: BorderRadius.circular(compact ? 12 : 16),
         border: Border.all(color: _borderLight),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.max,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: compact ? 30 : 36,
-            height: compact ? 30 : 36,
+            width: compact ? 28 : 36,
+            height: compact ? 28 : 36,
             decoration: BoxDecoration(
               color: _surface,
               borderRadius: BorderRadius.circular(compact ? 8 : 10),
               border: Border.all(color: _borderLight),
             ),
-            child: Icon(icon, size: compact ? 16 : 18, color: _primary),
+            child: Icon(icon, size: compact ? 15 : 18, color: _primary),
           ),
-          const SizedBox(width: _baseUnit),
+          SizedBox(width: compact ? 7 : _baseUnit),
           Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -3349,17 +3579,18 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                   label,
                   style: TextStyle(
                     color: _textSecondary,
-                    fontSize: compact ? 11 : 12,
+                    fontSize: compact ? 10.5 : 12,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   value,
+                  maxLines: compact ? 2 : 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: _textPrimary,
                     fontWeight: FontWeight.w700,
-                    fontSize: compact ? 12 : 13,
+                    fontSize: compact ? 11.8 : 13,
                   ),
                 ),
               ],
@@ -3377,6 +3608,47 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     bool isLast = false,
     bool compact = false,
   }) {
+    if (compact) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: _baseUnit * 0.85),
+        decoration: BoxDecoration(
+          border: isLast
+              ? null
+              : const Border(bottom: BorderSide(color: _borderLight)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 15, color: _textSecondary),
+            const SizedBox(width: _baseUnit),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: _textSecondary,
+                      fontSize: 10.8,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      color: _textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       margin: EdgeInsets.only(bottom: isLast ? 0 : _baseUnit),
       padding: EdgeInsets.all(compact ? _baseUnit : _baseUnit * 1.25),
@@ -3423,6 +3695,77 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     required dynamic produit,
     bool compact = false,
   }) {
+    if (compact) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: _baseUnit * 0.75),
+        padding: const EdgeInsets.all(_baseUnit * 1.1),
+        decoration: BoxDecoration(
+          color: _background,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _borderLight),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 26,
+              height: 26,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: _surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _borderLight),
+              ),
+              child: Text(
+                '$index',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: _primary,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+            const SizedBox(width: _baseUnit),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    produit.libelle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12.8,
+                      color: _textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${produit.quantite} x ${produit.prixUnitaire.toStringAsFixed(2)} DT',
+                    style: const TextStyle(
+                      color: _textSecondary,
+                      fontSize: 11.2,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: _baseUnit),
+            Text(
+              '${produit.sousTotal.toStringAsFixed(2)} DT',
+              style: const TextStyle(
+                color: _primaryDark,
+                fontWeight: FontWeight.w800,
+                fontSize: 12.8,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       margin: EdgeInsets.only(bottom: compact ? _baseUnit : _baseUnit * 1.25),
       padding: EdgeInsets.all(compact ? _baseUnit * 1.2 : _baseUnit * 1.5),
@@ -3858,6 +4201,156 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
   }
 
   Widget _buildHeader() {
+    final isPhone = _isPhoneWidth(context, breakpoint: 760);
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(
+          _baseUnit * 1.5,
+          _baseUnit * 1.5,
+          _baseUnit * 1.5,
+          _baseUnit,
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(_baseUnit * 1.5),
+          decoration: BoxDecoration(
+            color: _surface.withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _borderLight),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Commandes commerciales',
+                      style: TextStyle(
+                        color: _textPrimary,
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  _buildCountPill(
+                    _commandes.length,
+                    compact: true,
+                    countOnly: true,
+                  ),
+                  const SizedBox(width: 4),
+                  _buildHeaderIconButton(
+                    tooltip: 'Actualiser',
+                    icon: Icons.refresh,
+                    onPressed: _isBusy
+                        ? null
+                        : () => _reloadCommandes(showBusy: true),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Suivi rapide des commandes en cours.',
+                style: TextStyle(
+                  color: _textSecondary,
+                  fontSize: 11.6,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: _baseUnit),
+              Wrap(
+                spacing: _baseUnit,
+                runSpacing: _baseUnit,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  ActionChip(
+                    avatar: Icon(
+                      Icons.tune_rounded,
+                      size: 18,
+                      color: _activeFilterCount > 0 ? _primary : _textSecondary,
+                    ),
+                    label: Text(
+                      _activeFilterCount > 0
+                          ? 'Filtres ($_activeFilterCount)'
+                          : 'Filtres',
+                    ),
+                    onPressed: _isBusy ? null : _openMobileFilterSheet,
+                    backgroundColor: _activeFilterCount > 0
+                        ? _primary.withOpacity(0.10)
+                        : _background,
+                    side: BorderSide(
+                      color: _activeFilterCount > 0
+                          ? _primary.withOpacity(0.28)
+                          : _borderLight,
+                    ),
+                    labelStyle: TextStyle(
+                      color: _activeFilterCount > 0
+                          ? _primaryDark
+                          : _textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  if (_activeFilterCount > 0)
+                    InputChip(
+                      avatar: Icon(
+                        Icons.filter_alt_outlined,
+                        size: 16,
+                        color: _primaryDark,
+                      ),
+                      label: Text(_displayStatus(_statusFilter)),
+                      selected: true,
+                      showCheckmark: false,
+                      backgroundColor: _primary.withOpacity(0.10),
+                      selectedColor: _primary.withOpacity(0.10),
+                      side: BorderSide(color: _primary.withOpacity(0.26)),
+                      labelStyle: const TextStyle(
+                        color: _primaryDark,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      deleteIcon: const Icon(Icons.close_rounded, size: 16),
+                      onDeleted: _isBusy ? null : () => _setFilter('TOUS'),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ActionChip(
+                    avatar: Icon(
+                      _useGrid
+                          ? Icons.view_agenda_outlined
+                          : Icons.grid_view_rounded,
+                      size: 18,
+                      color: _textSecondary,
+                    ),
+                    label: Text(_useGrid ? 'Liste' : 'Grille'),
+                    onPressed: () => setState(() => _useGrid = !_useGrid),
+                    backgroundColor: _background,
+                    side: const BorderSide(color: _borderLight),
+                    labelStyle: const TextStyle(
+                      color: _textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
+              const SizedBox(height: _baseUnit * 1.1),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isBusy ? null : _onCreate,
+                  icon: const Icon(Icons.add, size: 17),
+                  label: const Text('Nouvelle commande'),
+                  style: _compactFilledButtonStyle(dense: true),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         _baseUnit * 2,
@@ -3953,7 +4446,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
               border: Border.all(color: _borderLight),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
+                  color: Colors.black.withValues(alpha: 0.03),
                   blurRadius: 16,
                   offset: const Offset(0, 8),
                 ),
@@ -4076,42 +4569,204 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
   }
 
   void _setFilter(String status) {
+    if (_statusFilter == status) return;
     setState(() => _statusFilter = status);
     _reloadCommandes(showBusy: true);
+  }
+
+  int get _activeFilterCount => _statusFilter == 'TOUS' ? 0 : 1;
+
+  Future<void> _openMobileFilterSheet() async {
+    var draftStatus = _statusFilter;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, modalSetState) {
+            return SafeArea(
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _borderLight),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Filtres commandes',
+                            style: TextStyle(
+                              color: _textPrimary,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        if (draftStatus != 'TOUS')
+                          TextButton(
+                            onPressed: () {
+                              modalSetState(() {
+                                draftStatus = 'TOUS';
+                              });
+                            },
+                            child: const Text('Effacer'),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Choisissez un statut a afficher dans la liste.',
+                      style: TextStyle(
+                        color: _textSecondary,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: _baseUnit,
+                      runSpacing: _baseUnit,
+                      children: _statuses.map((status) {
+                        final selected = draftStatus == status;
+                        return ChoiceChip(
+                          label: Text(
+                            status == 'TOUS' ? 'Tous' : _displayStatus(status),
+                          ),
+                          selected: selected,
+                          selectedColor: _primary.withOpacity(0.16),
+                          backgroundColor: Colors.white,
+                          side: BorderSide(
+                            color: selected ? _primary : _borderLight,
+                          ),
+                          labelStyle: TextStyle(
+                            color: selected ? _primaryDark : _textPrimary,
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.w600,
+                          ),
+                          onSelected: (_) {
+                            modalSetState(() {
+                              draftStatus = status;
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(sheetContext).pop(),
+                          child: const Text('Fermer'),
+                        ),
+                        const Spacer(),
+                        FilledButton(
+                          onPressed: () {
+                            final shouldReload = draftStatus != _statusFilter;
+                            Navigator.of(sheetContext).pop();
+                            if (!shouldReload) return;
+                            setState(() {
+                              _statusFilter = draftStatus;
+                            });
+                            _reloadCommandes(showBusy: true);
+                          },
+                          child: const Text('Appliquer'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   bool _isPhoneWidth(BuildContext context, {double breakpoint = 640}) {
     return MediaQuery.sizeOf(context).width < breakpoint;
   }
 
-  ButtonStyle _compactOutlinedButtonStyle({Color? foregroundColor}) {
+  ButtonStyle _compactOutlinedButtonStyle({
+    Color? foregroundColor,
+    bool dense = false,
+  }) {
     return OutlinedButton.styleFrom(
       foregroundColor: foregroundColor,
       visualDensity: VisualDensity.compact,
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      minimumSize: const Size(0, 36),
-      padding: const EdgeInsets.symmetric(
-        horizontal: _baseUnit * 1.25,
-        vertical: _baseUnit,
+      minimumSize: Size(0, dense ? 32 : 36),
+      padding: EdgeInsets.symmetric(
+        horizontal: dense ? _baseUnit : _baseUnit * 1.25,
+        vertical: dense ? _baseUnit * 0.85 : _baseUnit,
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(dense ? 11 : 12),
+      ),
+      textStyle: TextStyle(
+        fontSize: dense ? 12 : 13,
+        fontWeight: FontWeight.w700,
+      ),
     );
   }
 
-  ButtonStyle _compactFilledButtonStyle({Color backgroundColor = _accent}) {
+  ButtonStyle _compactFilledButtonStyle({
+    Color backgroundColor = _accent,
+    bool dense = false,
+  }) {
     return ElevatedButton.styleFrom(
       backgroundColor: backgroundColor,
       foregroundColor: Colors.white,
       visualDensity: VisualDensity.compact,
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      minimumSize: const Size(0, 38),
-      padding: const EdgeInsets.symmetric(
-        horizontal: _baseUnit * 1.5,
-        vertical: _baseUnit * 1.1,
+      minimumSize: Size(0, dense ? 34 : 38),
+      padding: EdgeInsets.symmetric(
+        horizontal: dense ? _baseUnit * 1.2 : _baseUnit * 1.5,
+        vertical: dense ? _baseUnit : _baseUnit * 1.1,
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(dense ? 13 : 12),
+      ),
+      textStyle: TextStyle(
+        fontSize: dense ? 12.5 : 13,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+
+  Widget _buildHeaderIconButton({
+    required String tooltip,
+    required IconData icon,
+    required VoidCallback? onPressed,
+  }) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      padding: EdgeInsets.zero,
+      visualDensity: VisualDensity.compact,
+      constraints: BoxConstraints.tightFor(width: 32, height: 32),
+      icon: Icon(icon, size: 18.5),
+      style: IconButton.styleFrom(
+        foregroundColor: _primary,
+        backgroundColor: _background,
+        side: BorderSide(color: _borderLight),
+      ),
     );
   }
 
@@ -4119,6 +4774,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     int count, {
     bool onDark = false,
     bool compact = false,
+    bool countOnly = false,
   }) {
     return Container(
       padding: EdgeInsets.symmetric(
@@ -4137,7 +4793,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
         ),
       ),
       child: Text(
-        '$count commandes',
+        countOnly ? '$count' : '$count commandes',
         style: TextStyle(
           color: onDark ? Colors.white : _primary,
           fontWeight: FontWeight.w800,
@@ -4288,6 +4944,20 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
       ];
     }
 
+    if (compact) {
+      return [
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(
+            _baseUnit * 1.5,
+            _baseUnit,
+            _baseUnit * 1.5,
+            _baseUnit * 1.5,
+          ),
+          sliver: SliverToBoxAdapter(child: _buildOrdersTable(compact: true)),
+        ),
+      ];
+    }
+
     return [
       SliverPadding(
         padding: EdgeInsets.fromLTRB(
@@ -4309,6 +4979,135 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
         ),
       ),
     ];
+  }
+
+  Widget _buildOrdersTable({required bool compact}) {
+    return ColoredBox(
+      color: _surface,
+      child: Scrollbar(
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 1120),
+            child: DataTable(
+              headingRowHeight: 48,
+              dataRowMinHeight: 64,
+              dataRowMaxHeight: 80,
+              horizontalMargin: 10,
+              columnSpacing: 18,
+              dividerThickness: 0.8,
+              headingRowColor: WidgetStatePropertyAll(
+                _background.withValues(alpha: 0.92),
+              ),
+              headingTextStyle: const TextStyle(
+                color: _textSecondary,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+              ),
+              dataTextStyle: const TextStyle(
+                color: _textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+              columns: const [
+                DataColumn(label: Text('COMMANDE')),
+                DataColumn(label: Text('CLIENT')),
+                DataColumn(label: Text('DATE')),
+                DataColumn(label: Text('PRODUITS')),
+                DataColumn(label: Text('MONTANT')),
+                DataColumn(label: Text('STATUT')),
+                DataColumn(label: Text('ACTIONS')),
+              ],
+              rows: _commandes.map((cmd) {
+                final canEdit = !_isBusy && cmd.canEdit;
+                final canCancel = !_isBusy && cmd.canCancel;
+                final canConfirm = _canConfirm(cmd);
+
+                return DataRow(
+                  cells: [
+                    DataCell(
+                      SizedBox(
+                        width: 180,
+                        child: Text(
+                          cmd.referenceCommandeClient,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      SizedBox(
+                        width: 160,
+                        child: Text(
+                          cmd.client?.fullName ?? '-',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    DataCell(Text(cmd.dateCommandeFormatted)),
+                    DataCell(
+                      SizedBox(
+                        width: 240,
+                        child: Text(
+                          _productsPreview(cmd),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    DataCell(Text('${cmd.total.toStringAsFixed(2)} DT')),
+                    DataCell(_StatusChip(status: cmd.statut, compact: true)),
+                    DataCell(
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: [
+                          IconButton(
+                            tooltip: 'Details',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => _onDetails(cmd),
+                            icon: const Icon(
+                              Icons.visibility_outlined,
+                              size: 18,
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Modifier',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: canEdit ? () => _onEdit(cmd) : null,
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                          ),
+                          IconButton(
+                            tooltip: 'Confirmer',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: canConfirm
+                                ? () => _onConfirm(cmd)
+                                : null,
+                            icon: const Icon(
+                              Icons.check_circle_outline,
+                              size: 18,
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Annuler',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: canCancel ? () => _onCancel(cmd) : null,
+                            icon: const Icon(Icons.cancel_outlined, size: 18),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildMetaTile({
@@ -4367,28 +5166,33 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     final canCancel = !_isBusy && cmd.canCancel;
     final canConfirm = _canConfirm(cmd);
     final isPhone = _isPhoneWidth(context, breakpoint: 480);
+    final cardRadius = isPhone ? 14.0 : 20.0;
+    final cardPadding = isPhone ? _baseUnit * 1.1 : _baseUnit * 2;
 
     return Container(
       decoration: BoxDecoration(
         color: _surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(cardRadius),
         border: Border.all(color: _borderLight),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        boxShadow: AdaptiveSurface.shadow(
+          context,
+          breakpoint: 480,
+          compactBlur: 9,
+          compactOffsetY: 4,
+          regularBlur: 14,
+          regularOffsetY: 6,
+          compactColor: const Color(0x08000000),
+          regularColor: const Color(0x08000000),
+        ),
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(cardRadius),
         child: InkWell(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(cardRadius),
           onTap: () => _onDetails(cmd),
           child: Padding(
-            padding: EdgeInsets.all(isPhone ? _baseUnit * 1.5 : _baseUnit * 2),
+            padding: EdgeInsets.all(cardPadding),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -4396,19 +5200,21 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      width: isPhone ? 34 : 40,
-                      height: isPhone ? 34 : 40,
+                      width: isPhone ? 32 : 40,
+                      height: isPhone ? 32 : 40,
                       decoration: BoxDecoration(
                         color: _primary.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(isPhone ? 9 : 12),
                       ),
                       child: Icon(
                         Icons.receipt_long_outlined,
                         color: _primary,
-                        size: isPhone ? 20 : 24,
+                        size: isPhone ? 18 : 24,
                       ),
                     ),
-                    const SizedBox(width: _baseUnit * 1.25),
+                    SizedBox(
+                      width: isPhone ? _baseUnit * 0.85 : _baseUnit * 1.25,
+                    ),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4418,7 +5224,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                             maxLines: isPhone ? 2 : 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: isPhone ? 14 : 15,
+                              fontSize: isPhone ? 13.5 : 15,
                               fontWeight: FontWeight.w800,
                               color: _textPrimary,
                             ),
@@ -4428,47 +5234,76 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                             cmd.dateCommandeFormatted,
                             style: TextStyle(
                               color: _textSecondary,
-                              fontSize: isPhone ? 11 : 12,
+                              fontSize: isPhone ? 10.5 : 12,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(width: _baseUnit),
+                    SizedBox(width: isPhone ? _baseUnit * 0.6 : _baseUnit),
                     _StatusChip(status: cmd.statut, compact: isPhone),
                   ],
                 ),
-                SizedBox(height: isPhone ? _baseUnit : _baseUnit * 1.5),
-                Wrap(
-                  spacing: isPhone ? _baseUnit * 0.75 : _baseUnit,
-                  runSpacing: isPhone ? _baseUnit * 0.75 : _baseUnit,
-                  children: [
-                    _buildMetaTile(
-                      icon: Icons.person_outline,
-                      label: 'Client',
-                      value: cmd.client?.fullName ?? '-',
-                      compact: isPhone,
-                    ),
-                    _buildMetaTile(
-                      icon: Icons.payments_outlined,
-                      label: 'Total',
-                      value: '${cmd.total.toStringAsFixed(2)} DT',
-                      compact: isPhone,
-                    ),
-                    _buildMetaTile(
-                      icon: Icons.shopping_bag_outlined,
-                      label: 'Lignes',
-                      value: '${cmd.produits.length}',
-                      compact: isPhone,
-                    ),
-                  ],
-                ),
-                SizedBox(height: isPhone ? _baseUnit : _baseUnit * 1.5),
+                SizedBox(height: isPhone ? _baseUnit * 0.75 : _baseUnit * 1.5),
+                if (isPhone)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildMetaTile(
+                          icon: Icons.person_outline,
+                          label: 'Client',
+                          value: cmd.client?.fullName ?? '-',
+                          compact: true,
+                        ),
+                      ),
+                      const SizedBox(width: _baseUnit * 0.65),
+                      Expanded(
+                        child: _buildMetaTile(
+                          icon: Icons.payments_outlined,
+                          label: 'Total',
+                          value: '${cmd.total.toStringAsFixed(2)} DT',
+                          compact: true,
+                        ),
+                      ),
+                      const SizedBox(width: _baseUnit * 0.65),
+                      Expanded(
+                        child: _buildMetaTile(
+                          icon: Icons.shopping_bag_outlined,
+                          label: 'Lignes',
+                          value: '${cmd.produits.length}',
+                          compact: true,
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Wrap(
+                    spacing: _baseUnit,
+                    runSpacing: _baseUnit,
+                    children: [
+                      _buildMetaTile(
+                        icon: Icons.person_outline,
+                        label: 'Client',
+                        value: cmd.client?.fullName ?? '-',
+                      ),
+                      _buildMetaTile(
+                        icon: Icons.payments_outlined,
+                        label: 'Total',
+                        value: '${cmd.total.toStringAsFixed(2)} DT',
+                      ),
+                      _buildMetaTile(
+                        icon: Icons.shopping_bag_outlined,
+                        label: 'Lignes',
+                        value: '${cmd.produits.length}',
+                      ),
+                    ],
+                  ),
+                SizedBox(height: isPhone ? _baseUnit * 0.75 : _baseUnit * 1.5),
                 Container(
                   width: double.infinity,
                   padding: EdgeInsets.symmetric(
-                    horizontal: isPhone ? _baseUnit : _baseUnit * 1.25,
-                    vertical: isPhone ? _baseUnit * 0.8 : _baseUnit,
+                    horizontal: isPhone ? _baseUnit * 0.95 : _baseUnit * 1.25,
+                    vertical: isPhone ? _baseUnit * 0.7 : _baseUnit,
                   ),
                   decoration: BoxDecoration(
                     color: _background,
@@ -4490,7 +5325,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: _textSecondary,
-                            fontSize: isPhone ? 11 : 12,
+                            fontSize: isPhone ? 10.8 : 12,
                           ),
                         ),
                       ),
@@ -4498,49 +5333,145 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                   ),
                 ),
                 if (!grid) ...[
-                  SizedBox(height: isPhone ? _baseUnit : _baseUnit * 1.5),
-                  Wrap(
-                    alignment: WrapAlignment.end,
-                    spacing: isPhone ? _baseUnit * 0.75 : _baseUnit,
-                    runSpacing: isPhone ? _baseUnit * 0.75 : _baseUnit,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: () => _onDetails(cmd),
-                        icon: const Icon(Icons.visibility_outlined, size: 16),
-                        label: const Text('Détails'),
-                        style: _compactOutlinedButtonStyle(),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: canEdit ? () => _onEdit(cmd) : null,
-                        icon: const Icon(Icons.edit_outlined, size: 16),
-                        label: const Text('Modifier'),
-                        style: _compactOutlinedButtonStyle(),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: canConfirm ? () => _onConfirm(cmd) : null,
-                        icon: const Icon(Icons.check_circle_outline, size: 16),
-                        label: const Text('Confirmer'),
-                        style: _compactOutlinedButtonStyle(
-                          foregroundColor: _success,
-                        ),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: canCancel ? () => _onCancel(cmd) : null,
-                        icon: const Icon(Icons.cancel_outlined, size: 16),
-                        label: const Text('Annuler'),
-                        style: _compactOutlinedButtonStyle(
-                          foregroundColor: _error,
-                        ),
-                      ),
-                    ],
+                  SizedBox(
+                    height: isPhone ? _baseUnit * 0.75 : _baseUnit * 1.5,
                   ),
+                  if (isPhone)
+                    Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => _onDetails(cmd),
+                                icon: const Icon(
+                                  Icons.visibility_outlined,
+                                  size: 15,
+                                ),
+                                label: const Text('Details'),
+                                style: _compactOutlinedButtonStyle(dense: true),
+                              ),
+                            ),
+                            const SizedBox(width: _baseUnit * 0.75),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: canEdit ? () => _onEdit(cmd) : null,
+                                icon: const Icon(Icons.edit_outlined, size: 15),
+                                label: const Text('Modifier'),
+                                style: _compactOutlinedButtonStyle(dense: true),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: _baseUnit * 0.75),
+                        if (canConfirm || canCancel)
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: canConfirm
+                                      ? () => _onConfirm(cmd)
+                                      : null,
+                                  icon: const Icon(
+                                    Icons.check_circle_outline,
+                                    size: 15,
+                                  ),
+                                  label: const Text('Confirmer'),
+                                  style: _compactOutlinedButtonStyle(
+                                    dense: true,
+                                    foregroundColor: _success,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: _baseUnit * 0.75),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: canCancel
+                                      ? () => _onCancel(cmd)
+                                      : null,
+                                  icon: const Icon(
+                                    Icons.cancel_outlined,
+                                    size: 15,
+                                  ),
+                                  label: const Text('Annuler'),
+                                  style: _compactOutlinedButtonStyle(
+                                    dense: true,
+                                    foregroundColor: _error,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        else
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: _baseUnit,
+                              vertical: _baseUnit * 0.9,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _background,
+                              borderRadius: BorderRadius.circular(11),
+                              border: Border.all(color: _borderLight),
+                            ),
+                            child: const Text(
+                              'Traitee',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: _textSecondary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                      ],
+                    )
+                  else
+                    Wrap(
+                      alignment: WrapAlignment.end,
+                      spacing: _baseUnit,
+                      runSpacing: _baseUnit,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () => _onDetails(cmd),
+                          icon: const Icon(Icons.visibility_outlined, size: 16),
+                          label: const Text('Details'),
+                          style: _compactOutlinedButtonStyle(),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: canEdit ? () => _onEdit(cmd) : null,
+                          icon: const Icon(Icons.edit_outlined, size: 16),
+                          label: const Text('Modifier'),
+                          style: _compactOutlinedButtonStyle(),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: canConfirm ? () => _onConfirm(cmd) : null,
+                          icon: const Icon(
+                            Icons.check_circle_outline,
+                            size: 16,
+                          ),
+                          label: const Text('Confirmer'),
+                          style: _compactOutlinedButtonStyle(
+                            foregroundColor: _success,
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: canCancel ? () => _onCancel(cmd) : null,
+                          icon: const Icon(Icons.cancel_outlined, size: 16),
+                          label: const Text('Annuler'),
+                          style: _compactOutlinedButtonStyle(
+                            foregroundColor: _error,
+                          ),
+                        ),
+                      ],
+                    ),
                 ] else ...[
                   const Spacer(),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       IconButton(
-                        tooltip: 'Détails',
+                        tooltip: 'Details',
                         onPressed: () => _onDetails(cmd),
                         icon: const Icon(Icons.visibility_outlined),
                       ),

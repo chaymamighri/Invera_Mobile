@@ -11,12 +11,14 @@ class ProductFormDialog extends StatefulWidget {
   final List<ProcurementCategory> categories;
   final List<ProcurementSupplier> suppliers;
   final ProcurementProduct? initialProduct;
+  final bool isBottomSheet;
 
   const ProductFormDialog({
     super.key,
     required this.categories,
     required this.suppliers,
     required this.initialProduct,
+    this.isBottomSheet = false,
   });
 
   @override
@@ -270,6 +272,23 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
     );
   }
 
+  Widget _buildResponsivePair({required Widget left, required Widget right}) {
+    final compact =
+        widget.isBottomSheet || MediaQuery.sizeOf(context).width < 640;
+
+    if (compact) {
+      return Column(children: [left, const SizedBox(height: 12), right]);
+    }
+
+    return Row(
+      children: [
+        Expanded(child: left),
+        const SizedBox(width: 16),
+        Expanded(child: right),
+      ],
+    );
+  }
+
   Widget _buildSupplierCard() {
     final supplier = _selectedSupplier;
     return Container(
@@ -511,6 +530,493 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
     );
   }
 
+  Widget _buildStatusSelector({required bool compact}) {
+    Widget buildOption({
+      required String label,
+      required bool value,
+      required Color activeColor,
+    }) {
+      final selected = _active == value;
+      return Expanded(
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              _active = value;
+            });
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 10 : 12,
+              vertical: compact ? 10 : 12,
+            ),
+            decoration: BoxDecoration(
+              color: selected
+                  ? activeColor.withValues(alpha: 0.12)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: selected ? activeColor : const Color(0xFFD7DEEA),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  selected
+                      ? Icons.check_circle_rounded
+                      : Icons.radio_button_unchecked,
+                  size: 16,
+                  color: selected ? activeColor : const Color(0xFF64748B),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: selected ? activeColor : procurementInk,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 10 : 14,
+        vertical: compact ? 8 : 10,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFD7DEEA)),
+      ),
+      child: compact
+          ? Column(
+              children: [
+                Row(
+                  children: [
+                    buildOption(
+                      label: 'Actif',
+                      value: true,
+                      activeColor: procurementAccent,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    buildOption(
+                      label: 'Inactif',
+                      value: false,
+                      activeColor: procurementDanger,
+                    ),
+                  ],
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                buildOption(
+                  label: 'Actif',
+                  value: true,
+                  activeColor: procurementAccent,
+                ),
+                const SizedBox(width: 12),
+                buildOption(
+                  label: 'Inactif',
+                  value: false,
+                  activeColor: procurementDanger,
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildCompactSheet(BuildContext context, String title) {
+    final phone = MediaQuery.sizeOf(context).width < 560;
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        12,
+        12,
+        12,
+        viewInsets.bottom > 0 ? viewInsets.bottom : 12,
+      ),
+      child: SafeArea(
+        top: false,
+        child: Container(
+          width: double.infinity,
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.9,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Material(
+              color: Colors.white,
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(18, 18, 10, 14),
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(color: Color(0xFFE5E7EB)),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: procurementInk,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          splashRadius: 20,
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(
+                            Icons.close,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildSectionTitle('Informations generales'),
+                            _buildFieldTitle('Libelle', required: true),
+                            TextFormField(
+                              controller: _nameController,
+                              decoration: _inputDecoration(
+                                label: '',
+                                hint: 'Nom du produit',
+                              ).copyWith(labelText: null),
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Le libelle est requis';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            _buildResponsivePair(
+                              left: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildFieldTitle(
+                                    'Prix d\'achat DT',
+                                    required: true,
+                                  ),
+                                  TextFormField(
+                                    controller: _purchasePriceController,
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                          decimal: true,
+                                        ),
+                                    decoration: _inputDecoration(
+                                      label: '',
+                                      hint: '0',
+                                    ).copyWith(labelText: null),
+                                    validator: (value) {
+                                      final parsed = double.tryParse(
+                                        (value ?? '').replaceAll(',', '.'),
+                                      );
+                                      if (parsed == null || parsed <= 0) {
+                                        return 'Le prix d\'achat doit etre superieur a 0';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ],
+                              ),
+                              right: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildFieldTitle(
+                                    'Prix de vente DT',
+                                    required: true,
+                                  ),
+                                  TextFormField(
+                                    controller: _salePriceController,
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                          decimal: true,
+                                        ),
+                                    decoration: _inputDecoration(
+                                      label: '',
+                                      hint: '0',
+                                    ).copyWith(labelText: null),
+                                    validator: (value) {
+                                      final parsed = double.tryParse(
+                                        (value ?? '').replaceAll(',', '.'),
+                                      );
+                                      if (parsed == null || parsed <= 0) {
+                                        return 'Le prix de vente doit etre superieur a 0';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            _buildFieldTitle('Categorie', required: true),
+                            DropdownButtonFormField<int>(
+                              initialValue: _categoryId,
+                              decoration: _inputDecoration(
+                                label: '',
+                                hint: 'Selectionner une categorie',
+                              ).copyWith(labelText: null),
+                              items: widget.categories
+                                  .map(
+                                    (category) => DropdownMenuItem<int>(
+                                      value: category.idCategorie,
+                                      child: Text(category.displayName),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  _categoryId = value;
+                                });
+                              },
+                              validator: (value) => value == null
+                                  ? 'La categorie est requise'
+                                  : null,
+                            ),
+                            const SizedBox(height: 20),
+                            _buildSectionTitle(
+                              'Fournisseur',
+                              icon: Icons.apartment_rounded,
+                            ),
+                            _buildSupplierCard(),
+                            const SizedBox(height: 20),
+                            _buildSectionTitle('Gestion du stock'),
+                            _buildResponsivePair(
+                              left: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildFieldTitle('Stock actuel'),
+                                  TextFormField(
+                                    controller: _stockController,
+                                    enabled: false,
+                                    decoration:
+                                        _inputDecoration(
+                                          label: '',
+                                          helper: 'Gere automatiquement',
+                                        ).copyWith(
+                                          labelText: null,
+                                          fillColor: const Color(0xFFF1F5F9),
+                                        ),
+                                  ),
+                                ],
+                              ),
+                              right: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildFieldTitle('Seuil minimum'),
+                                  TextFormField(
+                                    controller: _thresholdController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: _inputDecoration(
+                                      label: '',
+                                    ).copyWith(labelText: null),
+                                    validator: (value) {
+                                      final parsed = int.tryParse(value ?? '');
+                                      if (parsed == null || parsed < 0) {
+                                        return 'Le seuil minimum doit etre positif';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            _buildFieldTitle('Unite de mesure', required: true),
+                            DropdownButtonFormField<String>(
+                              initialValue: _unit,
+                              decoration: _inputDecoration(
+                                label: '',
+                              ).copyWith(labelText: null),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'PIECE',
+                                  child: Text('Piece'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'KILOGRAMME',
+                                  child: Text('Kilogramme'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'GRAMME',
+                                  child: Text('Gramme'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'LITRE',
+                                  child: Text('Litre'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'MILLILITRE',
+                                  child: Text('Millilitre'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'METRE',
+                                  child: Text('Metre'),
+                                ),
+                              ],
+                              onChanged: (value) {
+                                setState(() {
+                                  _unit = value ?? 'PIECE';
+                                });
+                              },
+                            ),
+                            const SizedBox(height: 20),
+                            _buildSectionTitle('Informations commerciales'),
+                            _buildResponsivePair(
+                              left: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildFieldTitle('Remise temporaire (%)'),
+                                  TextFormField(
+                                    controller: _discountController,
+                                    enabled: !_discountDisabled,
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                          decimal: true,
+                                        ),
+                                    decoration:
+                                        _inputDecoration(
+                                          label: '',
+                                          hint: '0',
+                                          helper: _discountDisabled
+                                              ? 'La remise est geree par l\'administrateur'
+                                              : null,
+                                        ).copyWith(
+                                          labelText: null,
+                                          fillColor: _discountDisabled
+                                              ? const Color(0xFFF1F5F9)
+                                              : Colors.white,
+                                        ),
+                                    validator: (value) {
+                                      if (value == null ||
+                                          value.trim().isEmpty) {
+                                        return null;
+                                      }
+                                      final parsed = double.tryParse(
+                                        value.replaceAll(',', '.'),
+                                      );
+                                      if (parsed == null ||
+                                          parsed < 0 ||
+                                          parsed > 100) {
+                                        return 'La remise doit etre entre 0 et 100';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ],
+                              ),
+                              right: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildFieldTitle('Statut', required: true),
+                                  _buildStatusSelector(compact: phone),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _buildImageSection(),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+                    decoration: const BoxDecoration(
+                      border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF334155),
+                              side: const BorderSide(color: Color(0xFFD1D5DB)),
+                              minimumSize: const Size(0, 42),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: const Text('Annuler'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: _submit,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF15803D),
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(0, 42),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: Text(_isEditing ? 'Modifier' : 'Creer'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
     if (_categoryId == null || _supplierId == null) return;
@@ -556,6 +1062,10 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
     final primaryLabel = _isEditing
         ? 'Modifier le produit'
         : 'Créer le produit';
+
+    if (widget.isBottomSheet) {
+      return _buildCompactSheet(context, title);
+    }
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -877,66 +1387,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                                         'Statut',
                                         required: true,
                                       ),
-                                      Container(
-                                        width: double.infinity,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 14,
-                                          vertical: 10,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(
-                                            14,
-                                          ),
-                                          border: Border.all(
-                                            color: const Color(0xFFD7DEEA),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Expanded(
-                                              child: RadioListTile<bool>(
-                                                value: true,
-                                                groupValue: _active,
-                                                dense: true,
-                                                contentPadding: EdgeInsets.zero,
-                                                activeColor: procurementAccent,
-                                                title: const Text(
-                                                  'Actif',
-                                                  style: TextStyle(
-                                                    fontSize: 14,
-                                                  ),
-                                                ),
-                                                onChanged: (value) {
-                                                  setState(() {
-                                                    _active = value ?? true;
-                                                  });
-                                                },
-                                              ),
-                                            ),
-                                            Expanded(
-                                              child: RadioListTile<bool>(
-                                                value: false,
-                                                groupValue: _active,
-                                                dense: true,
-                                                contentPadding: EdgeInsets.zero,
-                                                activeColor: procurementDanger,
-                                                title: const Text(
-                                                  'Inactif',
-                                                  style: TextStyle(
-                                                    fontSize: 14,
-                                                  ),
-                                                ),
-                                                onChanged: (value) {
-                                                  setState(() {
-                                                    _active = value ?? false;
-                                                  });
-                                                },
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
+                                      _buildStatusSelector(compact: false),
                                     ],
                                   ),
                                 ),

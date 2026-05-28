@@ -748,18 +748,24 @@ class ProcurementOrderCreatePayload {
 }
 
 class ProcurementOrderUpdatePayload {
+  final int fournisseurId;
   final DateTime dateLivraisonPrevue;
   final String adresseLivraison;
+  final List<ProcurementOrderLinePayload> lignesCommande;
 
   const ProcurementOrderUpdatePayload({
+    required this.fournisseurId,
     required this.dateLivraisonPrevue,
     required this.adresseLivraison,
+    required this.lignesCommande,
   });
 
   Map<String, dynamic> toJson() {
     return {
+      'fournisseur': {'idFournisseur': fournisseurId},
       'dateLivraisonPrevue': dateLivraisonPrevue.toIso8601String(),
       'adresseLivraison': adresseLivraison.trim(),
+      'lignesCommande': lignesCommande.map((line) => line.toJson()).toList(),
     };
   }
 }

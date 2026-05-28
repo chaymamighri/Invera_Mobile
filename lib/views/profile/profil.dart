@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:invera_mobile/models/client.dart';
 import 'package:invera_mobile/models/commande.dart';
 import 'package:invera_mobile/models/utilisateur.dart';
 import 'package:invera_mobile/config/routes.dart';
 import 'package:invera_mobile/services/authentification.dart';
-import 'package:invera_mobile/services/clients.dart';
 import 'package:invera_mobile/services/commandes.dart';
 
 // Valeurs globales partagees utilisees par l'interface.
@@ -37,7 +35,6 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   // Configuration, dependances et etat local de l'interface.
   final AuthService _authService = AuthService();
-  final ClientService _clientService = ClientService();
   final CommandeService _commandeService = CommandeService();
 
   late User _user;
@@ -46,8 +43,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _warning;
   DateTime? _lastSync;
 
-  int _clientCount = 0;
-  int _clientTypeCount = 0;
   List<CommandeModel> _commandes = <CommandeModel>[];
 
   // Cycle de vie du widget.
@@ -92,24 +87,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (_user.role == UserRole.COMMERCIAL ||
           _user.role == UserRole.RESPONSABLE_VENTE) {
-        final clients = await _safe(
-          _clientService.getClients(),
-          <ClientModel>[],
-        );
-        final clientTypes = await _safe(
-          _clientService.getClientTypes(),
-          <String>[],
-        );
         final commandes = await _safe(
           _commandeService.getCommandes(),
           <CommandeModel>[],
         );
-        _clientCount = clients.length;
-        _clientTypeCount = clientTypes.where((e) => e.trim().isNotEmpty).length;
         _commandes = commandes;
       } else {
-        _clientCount = 0;
-        _clientTypeCount = 0;
         _commandes = <CommandeModel>[];
       }
 
@@ -156,19 +139,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
     return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
   }
-
-  /// Compte le statut.
-  int _countStatus(Set<String> statuses) {
-    return _commandes
-        .where((c) => statuses.contains(c.statut.trim().toUpperCase()))
-        .length;
-  }
-
-  /// Retourne le chiffre d'affaires.
-  double get _revenue => _commandes.fold<double>(0, (sum, c) => sum + c.total);
-
-  /// Retourne la moyenne par commande.
-  double get _avgOrder => _commandes.isEmpty ? 0 : _revenue / _commandes.length;
 
   /// Retourne les elements recents.
   List<CommandeModel> get _recent {
@@ -1168,47 +1138,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     }
 
-    final metrics = <Map<String, dynamic>>[
-      if (_user.role == UserRole.COMMERCIAL ||
-          _user.role == UserRole.RESPONSABLE_VENTE) ...[
-        {
-          'icon': Icons.people_alt_outlined,
-          'label': 'Clients',
-          'value': '$_clientCount',
-          'color': const Color(0xFF0284C7),
-        },
-        {
-          'icon': Icons.category_outlined,
-          'label': 'Types',
-          'value': '$_clientTypeCount',
-          'color': const Color(0xFF9333EA),
-        },
-        {
-          'icon': Icons.shopping_cart_outlined,
-          'label': 'Commandes',
-          'value': '${_commandes.length}',
-          'color': const Color(0xFFEA580C),
-        },
-        {
-          'icon': Icons.hourglass_top_outlined,
-          'label': 'En attente',
-          'value': '${_countStatus({'EN_ATTENTE'})}',
-          'color': const Color(0xFFD97706),
-        },
-        {
-          'icon': Icons.payments_outlined,
-          'label': 'CA',
-          'value': _money(_revenue),
-          'color': _success,
-        },
-        {
-          'icon': Icons.multiline_chart_outlined,
-          'label': 'Panier moyen',
-          'value': _money(_avgOrder),
-          'color': const Color(0xFFDB2777),
-        },
-      ],
-    ];
+    final isPhone = MediaQuery.sizeOf(context).width < 600;
 
     return Scaffold(
       backgroundColor: _background,
@@ -1256,7 +1186,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1200),
             child: ListView(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.all(isPhone ? 16 : 24),
               children: [
                 if (_warning != null)
                   Container(
@@ -1273,35 +1203,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                 Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: EdgeInsets.all(isPhone ? 16 : 20),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [_primary, _primaryDark],
                     ),
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: const [
+                    borderRadius: BorderRadius.circular(isPhone ? 16 : 18),
+                    boxShadow: [
                       BoxShadow(
                         color: Color(0x26000000),
-                        blurRadius: 18,
-                        offset: Offset(0, 8),
+                        blurRadius: isPhone ? 14 : 18,
+                        offset: Offset(0, isPhone ? 6 : 8),
                       ),
                     ],
                   ),
                   child: Row(
                     children: [
                       CircleAvatar(
-                        radius: 36,
+                        radius: isPhone ? 28 : 36,
                         backgroundColor: Colors.white.withValues(alpha: 0.2),
                         child: Text(
                           _initials(),
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w800,
-                            fontSize: 22,
+                            fontSize: isPhone ? 18 : 22,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 14),
+                      SizedBox(width: isPhone ? 10 : 14),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1310,25 +1240,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               '${_user.prenom} ${_user.nom}'.trim().isEmpty
                                   ? _user.email
                                   : '${_user.prenom} ${_user.nom}'.trim(),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 24,
+                                fontSize: isPhone ? 18.5 : 24,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            SizedBox(height: isPhone ? 2 : 4),
                             Text(
                               _user.email,
-                              style: const TextStyle(color: Color(0xFFE8EDFF)),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: const Color(0xFFE8EDFF),
+                                fontSize: isPhone ? 13 : 15,
+                              ),
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: isPhone ? 6 : 8),
                             Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
+                              spacing: isPhone ? 6 : 8,
+                              runSpacing: isPhone ? 6 : 8,
                               children: [
                                 _heroChip(
                                   Icons.work_outline,
                                   _roleLabel(_user.role),
+                                  compact: isPhone,
                                 ),
                                 _heroChip(
                                   _user.active
@@ -1338,6 +1274,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       ? 'Compte actif'
                                       : 'Compte inactif',
                                   color: _user.active ? _success : _danger,
+                                  compact: isPhone,
                                 ),
                               ],
                             ),
@@ -1350,26 +1287,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 16),
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final w = constraints.maxWidth;
-                    final cardWidth = w >= 1200
-                        ? (w - 36) / 4
-                        : w >= 900
-                        ? (w - 24) / 3
-                        : w >= 600
-                        ? (w - 12) / 2
-                        : w;
-                    return Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: metrics.map((m) {
-                        return SizedBox(width: cardWidth, child: _metric(m));
-                      }).toList(),
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
-                LayoutBuilder(
-                  builder: (context, constraints) {
                     final mobile = constraints.maxWidth < 960;
                     final left = Column(
                       children: [
@@ -1378,12 +1295,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Icons.person_pin_outlined,
                           Column(
                             children: [
-                              _infoRow(
-                                Icons.badge_outlined,
-                                'Identifiant',
-                                _user.id.toString(),
-                              ),
-                              _sep(),
                               _infoRow(
                                 Icons.person_outline,
                                 'Prenom',
@@ -1622,9 +1533,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // Valeurs calculees et methodes utilitaires.
 
   /// Methode utilitaire pour la pastille hero.
-  Widget _heroChip(IconData icon, String text, {Color color = Colors.white}) {
+  Widget _heroChip(
+    IconData icon,
+    String text, {
+    Color color = Colors.white,
+    bool compact = false,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 10,
+        vertical: compact ? 5 : 6,
+      ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(999),
@@ -1632,64 +1551,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: Colors.white),
-          const SizedBox(width: 6),
+          Icon(icon, size: compact ? 13 : 14, color: Colors.white),
+          SizedBox(width: compact ? 5 : 6),
           Text(
             text,
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
-              fontSize: 12,
+              fontSize: compact ? 11 : 12,
               fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Methode utilitaire pour la metrique.
-  Widget _metric(Map<String, dynamic> m) {
-    final icon = m['icon'] as IconData;
-    final label = m['label'] as String;
-    final value = m['value'] as String;
-    final color = m['color'] as Color;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(color: _textSecondary, fontSize: 12),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: _textPrimary,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
             ),
           ),
         ],

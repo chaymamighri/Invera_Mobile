@@ -196,6 +196,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return AuthScaffold(
       showBackButton: false,
+      hideSurfaceOnPhone: true,
       eyebrow: 'InVera ERP',
       title: 'Connexion',
       subtitle: 'Entrez vos identifiants pour acceder a votre espace.',

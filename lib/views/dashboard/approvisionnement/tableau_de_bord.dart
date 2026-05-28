@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:invera_mobile/config/routes.dart';
+import 'package:invera_mobile/core/ui/dialogues.dart';
 import 'package:invera_mobile/core/ui/mise_en_page.dart';
 import 'package:invera_mobile/models/utilisateur.dart';
 import 'package:invera_mobile/services/authentification.dart';
@@ -127,25 +128,15 @@ class _ApprovisionnementDashboardState
   }
 
   Future<void> _confirmLogout() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Deconnexion'),
-          content: const Text('Voulez-vous vraiment vous deconnecter ?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Annuler'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Deconnecter'),
-            ),
-          ],
-        );
-      },
+    final confirmed = await showAppConfirmationDialog(
+      context,
+      title: 'Deconnexion',
+      message: 'Voulez-vous vraiment vous deconnecter ?',
+      confirmLabel: 'Deconnecter',
+      confirmColor: const Color(0xFFEF4444),
+      accentColor: _achatPrimary,
+      icon: Icons.logout_rounded,
+      helper: 'Vous devrez vous reconnecter pour revenir sur votre espace.',
     );
 
     if (confirmed == true) {
@@ -735,4 +726,3 @@ class _ApprovisionnementDashboardState
     );
   }
 }
-

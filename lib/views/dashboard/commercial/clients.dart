@@ -769,7 +769,9 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
       );
     }
 
-    final isCompactPage = MediaQuery.sizeOf(context).width < 760;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isCompactPage = screenWidth < 760;
+    final useCompactTable = screenWidth >= 340;
 
     if (isCompactPage) {
       return Container(
@@ -789,19 +791,31 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                   hasScrollBody: false,
                   child: _buildEmptyState(isCompactPage: true),
                 )
+              else if (useCompactTable)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      _baseUnit * 1.25,
+                      0,
+                      _baseUnit * 1.25,
+                      _baseUnit * 1.5,
+                    ),
+                    child: _buildCompactTable(),
+                  ),
+                )
               else
                 SliverPadding(
                   padding: EdgeInsets.fromLTRB(
-                    _baseUnit * 1.5,
+                    _baseUnit * 1.25,
                     0,
+                    _baseUnit * 1.25,
                     _baseUnit * 1.5,
-                    _baseUnit * 2,
                   ),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate((context, index) {
                       final client = _clients[index];
                       return Padding(
-                        padding: EdgeInsets.only(bottom: _baseUnit),
+                        padding: EdgeInsets.only(bottom: _baseUnit * 0.75),
                         child: _buildClientCard(client),
                       );
                     }, childCount: _clients.length),
@@ -831,20 +845,85 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
   }
 
   Widget _buildHeader({required bool isCompactPage}) {
+    if (isCompactPage) {
+      return Container(
+        margin: const EdgeInsets.fromLTRB(
+          _baseUnit * 1.25,
+          _baseUnit * 1.25,
+          _baseUnit * 1.25,
+          _baseUnit,
+        ),
+        padding: const EdgeInsets.all(_baseUnit * 1.2),
+        decoration: BoxDecoration(
+          color: _surface.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _borderLight),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Gestion des clients',
+                    style: TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w800,
+                      color: _textPrimary,
+                    ),
+                  ),
+                ),
+                _buildCountPill(_clients.length, compact: true),
+                const SizedBox(width: 4),
+                _buildHeaderIconButton(
+                  tooltip: 'Actualiser',
+                  icon: Icons.refresh,
+                  onPressed: _isBusy
+                      ? null
+                      : () => _loadClients(showBusy: true),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Recherche rapide du portefeuille client.',
+              style: TextStyle(
+                color: _textSecondary,
+                fontSize: 11.6,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: _baseUnit),
+            _buildSearchBar(fullWidth: true, compact: true),
+            const SizedBox(height: _baseUnit),
+            _buildCreateButton(fullWidth: true, isCompactPage: true),
+            if (_clientTypes.isNotEmpty) ...[
+              const SizedBox(height: _baseUnit),
+              _buildTypeChips(isCompactPage: true),
+            ],
+          ],
+        ),
+      );
+    }
+
     return Container(
-      margin: EdgeInsets.all(isCompactPage ? _baseUnit * 1.25 : _baseUnit * 2),
-      padding: EdgeInsets.all(isCompactPage ? _baseUnit * 1.25 : _baseUnit * 2),
+      margin: EdgeInsets.all(isCompactPage ? _baseUnit : _baseUnit * 2),
+      padding: EdgeInsets.all(isCompactPage ? _baseUnit * 1.1 : _baseUnit * 2),
       decoration: BoxDecoration(
         color: _surface,
-        borderRadius: BorderRadius.circular(isCompactPage ? 16 : 20),
+        borderRadius: BorderRadius.circular(isCompactPage ? 14 : 20),
         border: Border.all(color: _borderLight),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: isCompactPage ? 14 : 20,
-            offset: Offset(0, isCompactPage ? 6 : 10),
-          ),
-        ],
+        boxShadow: AdaptiveSurface.shadow(
+          context,
+          breakpoint: 760,
+          compactBlur: 10,
+          compactOffsetY: 4,
+          regularBlur: 20,
+          regularOffsetY: 10,
+          compactColor: const Color(0x08000000),
+          regularColor: const Color(0x0A000000),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -906,7 +985,7 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
               ),
             ],
           ),
-          SizedBox(height: isCompactPage ? _baseUnit * 1.5 : _baseUnit * 2),
+          SizedBox(height: isCompactPage ? _baseUnit * 1.25 : _baseUnit * 2),
           LayoutBuilder(
             builder: (context, constraints) {
               final isCompact = constraints.maxWidth < 700;
@@ -914,7 +993,7 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                 return Column(
                   children: [
                     _buildSearchBar(fullWidth: true),
-                    const SizedBox(height: _baseUnit),
+                    const SizedBox(height: _baseUnit * 0.75),
                     Align(
                       alignment: Alignment.centerLeft,
                       child: _buildCreateButton(
@@ -944,11 +1023,11 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
     );
   }
 
-  Widget _buildCountPill(int count) {
+  Widget _buildCountPill(int count, {bool compact = false}) {
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: _baseUnit * 1.25,
-        vertical: _baseUnit * 0.75,
+        horizontal: compact ? _baseUnit : _baseUnit * 1.25,
+        vertical: compact ? _baseUnit * 0.65 : _baseUnit * 0.75,
       ),
       decoration: BoxDecoration(
         color: _primary.withValues(alpha: 0.1),
@@ -960,13 +1039,71 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
         style: const TextStyle(
           color: _primary,
           fontWeight: FontWeight.w800,
-          fontSize: 12,
+          fontSize: 11.5,
         ),
       ),
     );
   }
 
-  Widget _buildSearchBar({required bool fullWidth}) {
+  Widget _buildHeaderIconButton({
+    required String tooltip,
+    required IconData icon,
+    required VoidCallback? onPressed,
+  }) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      padding: EdgeInsets.zero,
+      visualDensity: VisualDensity.compact,
+      constraints: BoxConstraints.tightFor(width: 32, height: 32),
+      icon: Icon(icon, size: 18.5),
+      style: IconButton.styleFrom(
+        foregroundColor: _primary,
+        backgroundColor: _background,
+        side: BorderSide(color: _borderLight),
+      ),
+    );
+  }
+
+  Widget _buildSearchBar({required bool fullWidth, bool compact = false}) {
+    if (compact) {
+      return SizedBox(
+        width: fullWidth ? double.infinity : 320,
+        child: TextField(
+          controller: _searchController,
+          decoration: InputDecoration(
+            isDense: true,
+            hintText: 'Rechercher client',
+            prefixIcon: const Icon(Icons.search, size: 19),
+            suffixIcon: _searchController.text.isEmpty
+                ? null
+                : IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: _clearSearch,
+                  ),
+            filled: true,
+            fillColor: _background,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 13,
+              vertical: 10,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: _borderLight),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: _borderLight),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: _primary, width: 1.4),
+            ),
+          ),
+        ),
+      );
+    }
+
     return SizedBox(
       width: fullWidth ? double.infinity : 320,
       child: TextField(
@@ -984,19 +1121,19 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
           filled: true,
           fillColor: _background,
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 12,
+            horizontal: 13,
+            vertical: 11,
           ),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide(color: _borderLight),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide(color: _borderLight),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             borderSide: const BorderSide(color: _primary, width: 2),
           ),
         ),
@@ -1157,6 +1294,165 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  int? get _compactTableSortColumnIndex {
+    switch (_sortColumnIndex) {
+      case 0:
+        return 1;
+      case 1:
+        return 4;
+      case 2:
+        return 2;
+      default:
+        return null;
+    }
+  }
+
+  Widget _buildCompactTable() {
+    return ColoredBox(
+      color: _surface,
+      child: Scrollbar(
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 820),
+            child: DataTable(
+              sortColumnIndex: _compactTableSortColumnIndex,
+              sortAscending: _sortAscending,
+              headingRowHeight: 46,
+              dataRowMinHeight: 62,
+              dataRowMaxHeight: 76,
+              horizontalMargin: 12,
+              columnSpacing: 16,
+              dividerThickness: 0.8,
+              headingRowColor: WidgetStatePropertyAll(
+                _background.withValues(alpha: 0.92),
+              ),
+              headingTextStyle: const TextStyle(
+                color: _textSecondary,
+                fontSize: 11.2,
+                fontWeight: FontWeight.w800,
+              ),
+              dataTextStyle: const TextStyle(
+                color: _textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+              columns: [
+                const DataColumn(label: Text('ID')),
+                DataColumn(
+                  label: const Text('NOM & PRENOM'),
+                  onSort: (_, __) => _onSort(0),
+                ),
+                DataColumn(
+                  label: const Text('TELEPHONE'),
+                  onSort: (_, __) => _onSort(2),
+                ),
+                const DataColumn(label: Text('ADRESSE')),
+                DataColumn(
+                  label: const Text('TYPE'),
+                  onSort: (_, __) => _onSort(1),
+                ),
+                const DataColumn(label: Text('ACTIONS')),
+              ],
+              rows: _clients.map((client) {
+                final email = (client.email ?? '').trim();
+                final address = (client.adresse ?? '').trim();
+                return DataRow(
+                  cells: [
+                    DataCell(Text('${client.id}')),
+                    DataCell(
+                      SizedBox(
+                        width: 220,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              client.fullName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            if (email.isNotEmpty)
+                              Text(
+                                email,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: _textSecondary,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      SizedBox(
+                        width: 120,
+                        child: Text(
+                          client.telephone,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      SizedBox(
+                        width: 180,
+                        child: Text(
+                          address.isEmpty ? '-' : address,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: _textSecondary),
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      _StatusChip(
+                        label: _clientTypeLabel(client.typeClient),
+                        color: _clientTypeColor(client.typeClient),
+                      ),
+                    ),
+                    DataCell(
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: [
+                          IconButton(
+                            tooltip: 'Modifier',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: _isBusy
+                                ? null
+                                : () => _onEditClient(client),
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                            color: _primary,
+                          ),
+                          IconButton(
+                            tooltip: 'Supprimer',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: _isBusy
+                                ? null
+                                : () => _onDeleteClient(client),
+                            icon: const Icon(Icons.delete_outline, size: 18),
+                            color: _error,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
         ),
       ),
     );
@@ -1396,8 +1692,12 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
   Widget _buildClientCard(ClientModel client) {
     final email = (client.email ?? '').trim();
     final address = (client.adresse ?? '').trim();
+    final compact = AdaptiveSurface.isCompact(context, breakpoint: 520);
     final actionStyle = TextButton.styleFrom(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 10,
+        vertical: compact ? 5 : 6,
+      ),
       minimumSize: const Size(0, 32),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       visualDensity: VisualDensity.compact,
@@ -1406,22 +1706,25 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
 
     return Material(
       color: _surface,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(compact ? 10 : 12),
       child: InkWell(
         onTap: _isBusy ? null : () => _onEditClient(client),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(compact ? 10 : 12),
         child: Container(
-          padding: EdgeInsets.all(_baseUnit * 1.25),
+          padding: EdgeInsets.all(compact ? _baseUnit : _baseUnit * 1.25),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(compact ? 10 : 12),
             border: Border.all(color: _borderLight),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x0D000000),
-                blurRadius: 8,
-                offset: Offset(0, 3),
-              ),
-            ],
+            boxShadow: AdaptiveSurface.shadow(
+              context,
+              breakpoint: 520,
+              compactBlur: 7,
+              compactOffsetY: 2.5,
+              regularBlur: 8,
+              regularOffsetY: 3,
+              compactColor: const Color(0x06000000),
+              regularColor: const Color(0x0D000000),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1455,7 +1758,7 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: compact ? 6 : 8),
                   _StatusChip(
                     label: _clientTypeLabel(client.typeClient),
                     color: _clientTypeColor(client.typeClient),
@@ -1463,21 +1766,21 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                 ],
               ),
               if (email.isNotEmpty) ...[
-                const SizedBox(height: 6),
+                SizedBox(height: compact ? 5 : 6),
                 _buildClientMetaRow(Icons.email_outlined, email),
               ],
               if (address.isNotEmpty) ...[
-                const SizedBox(height: 4),
+                SizedBox(height: compact ? 3 : 4),
                 _buildClientMetaRow(
                   Icons.location_on_outlined,
                   address,
                   maxLines: 2,
                 ),
               ],
-              const SizedBox(height: 6),
+              SizedBox(height: compact ? 5 : 6),
               Wrap(
-                spacing: 4,
-                runSpacing: 4,
+                spacing: compact ? 3 : 4,
+                runSpacing: compact ? 3 : 4,
                 children: [
                   TextButton.icon(
                     onPressed: _isBusy ? null : () => _onEditClient(client),
@@ -1611,11 +1914,14 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
   static const String _emailFieldLabel = 'Email';
   static const String _adresseFieldLabel = 'Adresse complete';
   static const String _typeClientFieldLabel = 'Type de client';
+  static const String _raisonSocialeFieldLabel = 'Raison sociale';
+  static const String _matriculeFiscaleFieldLabel = 'Matricule fiscal';
 
   static const Color _identityAccent = _primary;
   static const Color _contactAccent = _accent;
   static const Color _addressAccent = _primaryDark;
   static const Color _categoryAccent = _primary;
+  static const Color _companyAccent = Color(0xFF2563EB);
   static const LinearGradient _headerGradient = LinearGradient(
     colors: [_primaryDark, _primary],
     begin: Alignment.centerLeft,
@@ -1628,12 +1934,16 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
   late final TextEditingController _telCtrl;
   late final TextEditingController _emailCtrl;
   late final TextEditingController _addrCtrl;
+  late final TextEditingController _raisonSocialeCtrl;
+  late final TextEditingController _matriculeFiscaleCtrl;
   late String _selectedClientType;
 
   // Valeurs calculees et methodes utilitaires.
 
   /// Retourne l'etat de modification.
   bool get _isEditing => widget.initialClient != null;
+
+  bool get _isEntreprise => _selectedClientType == ClientType.entreprise;
 
   /// Retourne les types disponibles.
   List<String> get _availableTypes {
@@ -1657,6 +1967,12 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
     _addrCtrl = TextEditingController(
       text: widget.initialClient?.adresse ?? '',
     );
+    _raisonSocialeCtrl = TextEditingController(
+      text: widget.initialClient?.raisonSociale ?? '',
+    );
+    _matriculeFiscaleCtrl = TextEditingController(
+      text: widget.initialClient?.matriculeFiscale ?? '',
+    );
     _selectedClientType = _isEditing
         ? () {
             final currentType = ClientType.normalize(
@@ -1678,6 +1994,8 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
     _telCtrl.dispose();
     _emailCtrl.dispose();
     _addrCtrl.dispose();
+    _raisonSocialeCtrl.dispose();
+    _matriculeFiscaleCtrl.dispose();
     super.dispose();
   }
 
@@ -1695,6 +2013,8 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
         email: _emailCtrl.text,
         adresse: _addrCtrl.text,
         typeClient: _selectedClientType,
+        raisonSociale: _raisonSocialeCtrl.text,
+        matriculeFiscale: _matriculeFiscaleCtrl.text,
       ),
     );
   }
@@ -1713,6 +2033,36 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
     if (requiredError != null) return requiredError;
     if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value!.trim())) {
       return 'Email invalide';
+    }
+    return null;
+  }
+
+  String? _validateRaisonSociale(String? value) {
+    if (!_isEntreprise) return null;
+    final raw = value?.trim() ?? '';
+    if (raw.isEmpty) {
+      return 'Raison sociale requise';
+    }
+    if (raw.length < 3) {
+      return 'Minimum 3 caracteres';
+    }
+    if (raw.length > 100) {
+      return 'Maximum 100 caracteres';
+    }
+    return null;
+  }
+
+  String? _validateMatriculeFiscale(String? value) {
+    if (!_isEntreprise) return null;
+    final raw = value?.trim() ?? '';
+    if (raw.isEmpty) {
+      return 'Matricule fiscal requis';
+    }
+    final valid = RegExp(
+      r'^(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9]{3,50}$',
+    ).hasMatch(raw);
+    if (!valid) {
+      return 'Doit contenir lettres et chiffres (3-50)';
     }
     return null;
   }
@@ -1781,6 +2131,7 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
     TextInputType keyboardType = TextInputType.text,
     int maxLines = 1,
     String? Function(String?)? validator,
+    TextCapitalization textCapitalization = TextCapitalization.none,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1791,6 +2142,7 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
           controller: controller,
           keyboardType: keyboardType,
           maxLines: maxLines,
+          textCapitalization: textCapitalization,
           decoration: _fieldDecoration(hintText: hintText),
           validator: validator,
         ),
@@ -1950,12 +2302,44 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
                     if (value == null) return;
                     setState(() {
                       _selectedClientType = value;
+                      if (_selectedClientType != ClientType.entreprise) {
+                        _raisonSocialeCtrl.clear();
+                        _matriculeFiscaleCtrl.clear();
+                      }
                     });
                   },
                 ),
               ],
             ),
           ),
+          if (_isEntreprise) ...[
+            SizedBox(height: _baseUnit * 2),
+            _buildSection(
+              title: 'Informations entreprise',
+              accent: _companyAccent,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildTextField(
+                    label: _raisonSocialeFieldLabel,
+                    controller: _raisonSocialeCtrl,
+                    hintText: 'Nom de l entreprise',
+                    required: true,
+                    textCapitalization: TextCapitalization.words,
+                    validator: _validateRaisonSociale,
+                  ),
+                  SizedBox(height: _baseUnit * 1.5),
+                  _buildTextField(
+                    label: _matriculeFiscaleFieldLabel,
+                    controller: _matriculeFiscaleCtrl,
+                    hintText: '1234567X',
+                    required: true,
+                    validator: _validateMatriculeFiscale,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

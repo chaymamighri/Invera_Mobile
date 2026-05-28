@@ -28,12 +28,14 @@ class ProcurementOrderFormDialog extends StatefulWidget {
   final List<ProcurementSupplier> suppliers;
   final List<ProcurementProduct> products;
   final ProcurementOrder? initialOrder;
+  final bool isBottomSheet;
 
   const ProcurementOrderFormDialog({
     super.key,
     required this.suppliers,
     required this.products,
     required this.initialOrder,
+    this.isBottomSheet = false,
   });
 
   @override
@@ -78,11 +80,13 @@ class _SupplierProductPickerDialog extends StatefulWidget {
   final List<ProcurementProduct> products;
   final ProcurementSupplier? supplier;
   final Set<int> selectedProductIds;
+  final bool isBottomSheet;
 
   const _SupplierProductPickerDialog({
     required this.products,
     required this.supplier,
     required this.selectedProductIds,
+    this.isBottomSheet = false,
   });
 
   @override
@@ -117,31 +121,43 @@ class _SupplierProductPickerDialogState
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: Container(
-        width: AdaptiveLayout.dialogWidth(context, max: 680, sideMargin: 16),
-        constraints: BoxConstraints(
-          maxHeight: AdaptiveLayout.dialogHeight(context, ratio: 0.82),
-        ),
+    final compact =
+        widget.isBottomSheet || MediaQuery.of(context).size.width < 600;
+    final surface = Container(
+      width: widget.isBottomSheet
+          ? double.infinity
+          : AdaptiveLayout.dialogWidth(context, max: 680, sideMargin: 16),
+      constraints: BoxConstraints(
+        maxHeight: widget.isBottomSheet
+            ? MediaQuery.sizeOf(context).height * 0.82
+            : AdaptiveLayout.dialogHeight(context, ratio: 0.82),
+      ),
+      decoration: BoxDecoration(
+        color: _purchaseSurface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _purchaseBorderLight),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
         child: Column(
           children: [
             Container(
-              padding: EdgeInsets.all(_purchaseBaseUnit * 2),
+              padding: EdgeInsets.all(
+                compact ? _purchaseBaseUnit * 1.5 : _purchaseBaseUnit * 2,
+              ),
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   colors: [_purchasePrimary, _purchasePrimaryDark],
                 ),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
               ),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Ajouter un produit',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 18,
+                        fontSize: compact ? 16 : 18,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -149,21 +165,25 @@ class _SupplierProductPickerDialogState
                   IconButton(
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close, color: Colors.white),
+                    visualDensity: VisualDensity.compact,
                   ),
                 ],
               ),
             ),
             Expanded(
               child: SingleChildScrollView(
-                padding: EdgeInsets.all(_purchaseBaseUnit * 2),
+                padding: EdgeInsets.all(
+                  compact ? _purchaseBaseUnit * 1.5 : _purchaseBaseUnit * 2,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Fournisseur : ${widget.supplier?.displayName ?? '-'}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: _purchaseTextSecondary,
                         fontWeight: FontWeight.w600,
+                        fontSize: compact ? 12.5 : 13,
                       ),
                     ),
                     const SizedBox(height: _purchaseBaseUnit * 1.5),
@@ -176,9 +196,13 @@ class _SupplierProductPickerDialogState
                     else
                       ...widget.products.map(_buildProductOption),
                     if (_selectedProduct != null) ...[
-                      const SizedBox(height: _purchaseBaseUnit * 1.5),
+                      const SizedBox(height: _purchaseBaseUnit * 1.25),
                       Container(
-                        padding: EdgeInsets.all(_purchaseBaseUnit * 1.5),
+                        padding: EdgeInsets.all(
+                          compact
+                              ? _purchaseBaseUnit * 1.25
+                              : _purchaseBaseUnit * 1.5,
+                        ),
                         decoration: BoxDecoration(
                           color: _purchaseBackground,
                           borderRadius: BorderRadius.circular(14),
@@ -202,9 +226,10 @@ class _SupplierProductPickerDialogState
                                       ? null
                                       : () => _changeQuantity(_quantity - 1),
                                   icon: const Icon(Icons.remove),
+                                  visualDensity: VisualDensity.compact,
                                 ),
                                 SizedBox(
-                                  width: 92,
+                                  width: compact ? 76 : 92,
                                   child: TextFormField(
                                     controller: _quantityController,
                                     textAlign: TextAlign.center,
@@ -227,6 +252,7 @@ class _SupplierProductPickerDialogState
                                   onPressed: () =>
                                       _changeQuantity(_quantity + 1),
                                   icon: const Icon(Icons.add),
+                                  visualDensity: VisualDensity.compact,
                                 ),
                               ],
                             ),
@@ -239,41 +265,92 @@ class _SupplierProductPickerDialogState
               ),
             ),
             Container(
-              padding: EdgeInsets.all(_purchaseBaseUnit * 2),
+              padding: EdgeInsets.all(
+                compact ? _purchaseBaseUnit * 1.5 : _purchaseBaseUnit * 2,
+              ),
               decoration: const BoxDecoration(
                 color: _purchaseBackground,
                 border: Border(top: BorderSide(color: _purchaseBorderLight)),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Annuler'),
-                  ),
-                  const SizedBox(width: _purchaseBaseUnit),
-                  ElevatedButton(
-                    onPressed: _selectedProduct == null
-                        ? null
-                        : () => Navigator.pop(context, (
-                            product: _selectedProduct!,
-                            quantity: _quantity,
-                          )),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _purchasePrimary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+              child: compact
+                  ? Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Annuler'),
+                          ),
+                        ),
+                        const SizedBox(width: _purchaseBaseUnit),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _selectedProduct == null
+                                ? null
+                                : () => Navigator.pop(context, (
+                                    product: _selectedProduct!,
+                                    quantity: _quantity,
+                                  )),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _purchasePrimary,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(0, 42),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('Ajouter'),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Annuler'),
+                        ),
+                        const SizedBox(width: _purchaseBaseUnit),
+                        ElevatedButton(
+                          onPressed: _selectedProduct == null
+                              ? null
+                              : () => Navigator.pop(context, (
+                                  product: _selectedProduct!,
+                                  quantity: _quantity,
+                                )),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _purchasePrimary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Ajouter a la commande'),
+                        ),
+                      ],
                     ),
-                    child: const Text('Ajouter a la commande'),
-                  ),
-                ],
-              ),
             ),
           ],
         ),
       ),
+    );
+
+    if (widget.isBottomSheet) {
+      return Padding(
+        padding: EdgeInsets.only(
+          left: _purchaseBaseUnit,
+          right: _purchaseBaseUnit,
+          top: _purchaseBaseUnit,
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: SafeArea(top: false, child: surface),
+      );
+    }
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(16),
+      child: surface,
     );
   }
 
@@ -399,8 +476,12 @@ class _ProcurementOrderFormDialogState
 
   final List<_PurchaseDraftLine> _lines = <_PurchaseDraftLine>[];
   int _draftLineSeed = 0;
+  int _mobileStep = 0;
 
   bool get _isEditing => widget.initialOrder != null;
+  bool get _isRejectedEdit =>
+      widget.initialOrder?.normalizedStatus == ProcurementOrderStatus.rejetee;
+  bool get _canEditLines => !_isEditing || _isRejectedEdit;
 
   List<ProcurementSupplier> get _supplierOptions {
     final map = <int, ProcurementSupplier>{
@@ -456,6 +537,9 @@ class _ProcurementOrderFormDialogState
     return '${supplier.displayName} ($contact)';
   }
 
+  bool get _isGeneralInfoReady =>
+      _supplierId != null && _addressController.text.trim().isNotEmpty;
+
   Future<void> _onSupplierChanged(int? supplierId) async {
     final previousSupplier = _findSupplierById(_supplierId);
     final nextSupplier = _findSupplierById(supplierId);
@@ -473,6 +557,7 @@ class _ProcurementOrderFormDialogState
       _lines.clear();
       _supplierProducts = const [];
       _supplierProductsError = null;
+      _mobileStep = 0;
       if (!_isEditing &&
           nextSupplier != null &&
           shouldPrefillAddress &&
@@ -566,7 +651,10 @@ class _ProcurementOrderFormDialogState
     _supplierId = order?.fournisseur?.idFournisseur;
 
     if (order != null) {
-      _supplierProducts = widget.products;
+      _mobileStep = _canEditLines ? 1 : 0;
+      _supplierProducts = widget.products
+          .where((product) => product.fournisseurId == _supplierId)
+          .toList();
       for (final line in order.lignesCommande) {
         final product = _findProductById(line.produitId);
         _lines.add(
@@ -576,10 +664,17 @@ class _ProcurementOrderFormDialogState
             quantite: line.quantite,
             prixUnitaire: line.prixUnitaire,
             fallbackLabel: line.produitLibelle,
-            readOnly: true,
+            readOnly: !_canEditLines,
           ),
         );
       }
+    }
+
+    if (_supplierId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _loadProductsForSupplier(_supplierId!);
+      });
     }
   }
 
@@ -636,7 +731,7 @@ class _ProcurementOrderFormDialogState
   }
 
   void _addProductToOrder(ProcurementProduct product, int quantity) {
-    if (_isEditing) return;
+    if (!_canEditLines) return;
 
     if (_supplierId == null) {
       showMessage(
@@ -736,6 +831,33 @@ class _ProcurementOrderFormDialogState
     return merged.values.toList();
   }
 
+  Future<void> _continueToProductStep() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    if (_supplierId == null) {
+      showMessage(
+        context,
+        'Veuillez selectionner un fournisseur.',
+        error: true,
+      );
+      return;
+    }
+
+    if (_addressController.text.trim().isEmpty) {
+      showMessage(context, 'Renseignez l\'adresse de livraison.', error: true);
+      return;
+    }
+
+    if (_supplierProducts.isEmpty && !_loadingSupplierProducts) {
+      await _loadProductsForSupplier(_supplierId!);
+      if (!mounted) return;
+    }
+
+    setState(() {
+      _mobileStep = 1;
+    });
+  }
+
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
 
@@ -748,10 +870,16 @@ class _ProcurementOrderFormDialogState
       return;
     }
 
-    if (!_isEditing && _lines.isEmpty) {
+    if (_addressController.text.trim().isEmpty) {
+      showMessage(context, 'Renseignez l\'adresse de livraison.', error: true);
+      return;
+    }
+
+    final payloadLines = _buildPayloadLines();
+    if (payloadLines.isEmpty) {
       showMessage(
         context,
-        'Veuillez ajouter au moins un article.',
+        'Veuillez ajouter au moins un produit valide a la commande.',
         error: true,
       );
       return;
@@ -762,20 +890,12 @@ class _ProcurementOrderFormDialogState
         context,
         ProcurementOrderDialogResult(
           updatePayload: ProcurementOrderUpdatePayload(
+            fournisseurId: _supplierId!,
             dateLivraisonPrevue: _deliveryDate,
             adresseLivraison: _addressController.text.trim(),
+            lignesCommande: payloadLines,
           ),
         ),
-      );
-      return;
-    }
-
-    final payloadLines = _buildPayloadLines();
-    if (payloadLines.isEmpty) {
-      showMessage(
-        context,
-        'Veuillez ajouter au moins un produit valide a la commande.',
-        error: true,
       );
       return;
     }
@@ -793,19 +913,25 @@ class _ProcurementOrderFormDialogState
     );
   }
 
-  Widget _buildFormSection({required String title, required Widget child}) {
+  Widget _buildFormSection({
+    required String title,
+    required Widget child,
+    bool compact = false,
+  }) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(_purchaseBaseUnit * 2),
+      padding: EdgeInsets.all(
+        compact ? _purchaseBaseUnit * 1.5 : _purchaseBaseUnit * 2,
+      ),
       decoration: BoxDecoration(
         color: _purchaseSurface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(compact ? 18 : 20),
         border: Border.all(color: _purchaseBorderLight),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
+            blurRadius: compact ? 10 : 14,
+            offset: Offset(0, compact ? 4 : 6),
           ),
         ],
       ),
@@ -814,25 +940,35 @@ class _ProcurementOrderFormDialogState
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 15,
+            style: TextStyle(
+              fontSize: compact ? 14 : 15,
               fontWeight: FontWeight.w800,
               color: _purchaseTextPrimary,
             ),
           ),
-          const SizedBox(height: _purchaseBaseUnit * 1.5),
+          SizedBox(
+            height: compact
+                ? _purchaseBaseUnit * 1.25
+                : _purchaseBaseUnit * 1.5,
+          ),
           child,
         ],
       ),
     );
   }
 
-  Widget _buildSummaryTile({required String label, required String value}) {
+  Widget _buildSummaryTile({
+    required String label,
+    required String value,
+    bool compact = false,
+  }) {
     return Container(
       width: double.infinity,
       padding: EdgeInsets.symmetric(
-        horizontal: _purchaseBaseUnit * 1.5,
-        vertical: _purchaseBaseUnit * 1.3,
+        horizontal: compact
+            ? _purchaseBaseUnit * 1.25
+            : _purchaseBaseUnit * 1.5,
+        vertical: compact ? _purchaseBaseUnit : _purchaseBaseUnit * 1.3,
       ),
       decoration: BoxDecoration(
         color: _purchaseBackground,
@@ -844,9 +980,9 @@ class _ProcurementOrderFormDialogState
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 color: _purchaseTextSecondary,
-                fontSize: 12,
+                fontSize: compact ? 11.5 : 12,
               ),
             ),
           ),
@@ -854,9 +990,10 @@ class _ProcurementOrderFormDialogState
             child: Text(
               value,
               textAlign: TextAlign.end,
-              style: const TextStyle(
+              style: TextStyle(
                 color: _purchaseTextPrimary,
                 fontWeight: FontWeight.w700,
+                fontSize: compact ? 12.5 : 14,
               ),
             ),
           ),
@@ -865,7 +1002,12 @@ class _ProcurementOrderFormDialogState
     );
   }
 
-  Widget _buildAmountRow(String label, String value, {bool isPrimary = false}) {
+  Widget _buildAmountRow(
+    String label,
+    String value, {
+    bool isPrimary = false,
+    bool compact = false,
+  }) {
     return Row(
       children: [
         Expanded(
@@ -874,7 +1016,9 @@ class _ProcurementOrderFormDialogState
             style: TextStyle(
               color: isPrimary ? _purchaseTextPrimary : _purchaseTextSecondary,
               fontWeight: isPrimary ? FontWeight.w700 : FontWeight.w600,
-              fontSize: isPrimary ? 15 : 13,
+              fontSize: compact
+                  ? (isPrimary ? 14 : 12.5)
+                  : (isPrimary ? 15 : 13),
             ),
           ),
         ),
@@ -883,7 +1027,7 @@ class _ProcurementOrderFormDialogState
           style: TextStyle(
             color: isPrimary ? _purchaseAccent : _purchaseTextPrimary,
             fontWeight: FontWeight.w800,
-            fontSize: isPrimary ? 18 : 14,
+            fontSize: compact ? (isPrimary ? 16 : 13.5) : (isPrimary ? 18 : 14),
           ),
         ),
       ],
@@ -1007,16 +1151,23 @@ class _ProcurementOrderFormDialogState
       return;
     }
 
+    final useBottomSheet =
+        widget.isBottomSheet || MediaQuery.of(context).size.width < 600;
+
     if (_supplierProducts.isEmpty && !_loadingSupplierProducts) {
       await _loadProductsForSupplier(_supplierId!);
     }
 
     if (!mounted) return;
 
-    final selected =
-        await showDialog<({ProcurementProduct product, int quantity})>(
+    Future<({ProcurementProduct product, int quantity})?> openPicker() {
+      if (useBottomSheet) {
+        return showModalBottomSheet<
+          ({ProcurementProduct product, int quantity})
+        >(
           context: context,
-          barrierDismissible: false,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
           builder: (_) => _SupplierProductPickerDialog(
             products: _availableProducts,
             supplier: _findSupplierById(_supplierId),
@@ -1024,17 +1175,190 @@ class _ProcurementOrderFormDialogState
                 .map((line) => line.produitId)
                 .whereType<int>()
                 .toSet(),
+            isBottomSheet: true,
           ),
         );
+      }
+
+      return showDialog<({ProcurementProduct product, int quantity})>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _SupplierProductPickerDialog(
+          products: _availableProducts,
+          supplier: _findSupplierById(_supplierId),
+          selectedProductIds: _lines
+              .map((line) => line.produitId)
+              .whereType<int>()
+              .toSet(),
+        ),
+      );
+    }
+
+    final selected = await openPicker();
 
     if (selected == null) return;
     _addProductToOrder(selected.product, selected.quantity);
   }
 
-  Widget _buildProductsHeader() {
+  Widget _buildPhoneStepChip({
+    required int step,
+    required IconData icon,
+    required String label,
+    required bool enabled,
+  }) {
+    final selected = _mobileStep == step;
+    final completed = step < _mobileStep;
+    final accent = selected || completed
+        ? _purchasePrimary
+        : _purchaseTextSecondary.withValues(alpha: 0.18);
+    final foreground = selected || completed
+        ? _purchasePrimary
+        : _purchaseTextSecondary;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: !enabled
+          ? null
+          : () {
+              if (step == 0) {
+                setState(() {
+                  _mobileStep = 0;
+                });
+                return;
+              }
+              _continueToProductStep();
+            },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected
+              ? _purchasePrimary.withValues(alpha: 0.10)
+              : _purchaseBackground,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: accent),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: selected || completed
+                    ? _purchasePrimary.withValues(alpha: 0.12)
+                    : Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                completed ? Icons.check_rounded : icon,
+                size: 14,
+                color: foreground,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: foreground,
+                fontWeight: FontWeight.w700,
+                fontSize: 12.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhoneStepBar() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _buildPhoneStepChip(
+            step: 0,
+            icon: Icons.apartment_outlined,
+            label: 'Infos',
+            enabled: true,
+          ),
+          const SizedBox(width: 10),
+          _buildPhoneStepChip(
+            step: 1,
+            icon: Icons.inventory_2_outlined,
+            label: 'Produits',
+            enabled: _isGeneralInfoReady,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactHint({
+    required IconData icon,
+    required String title,
+    required String message,
+    Color color = _purchasePrimary,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _purchaseBackground,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _purchaseBorderLight),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: _purchaseTextPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  message,
+                  style: const TextStyle(
+                    color: _purchaseTextSecondary,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductsHeader({bool compact = false}) {
     final selectedSupplier = _findSupplierById(_supplierId);
 
     if (_supplierId == null) {
+      if (compact) {
+        return _buildCompactHint(
+          icon: Icons.store_outlined,
+          title: 'Choisissez un fournisseur',
+          message: 'Selectionnez d abord un fournisseur.',
+        );
+      }
       return const EmptyPanel(
         title: 'Choisissez un fournisseur',
         message: 'Selectionnez un fournisseur pour charger ses produits.',
@@ -1042,13 +1366,24 @@ class _ProcurementOrderFormDialogState
     }
 
     if (_loadingSupplierProducts) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 18),
-        child: Center(child: CircularProgressIndicator()),
+      return SizedBox(
+        height: compact ? 60 : null,
+        child: const Padding(
+          padding: EdgeInsets.symmetric(vertical: 18),
+          child: Center(child: CircularProgressIndicator()),
+        ),
       );
     }
 
     if (_supplierProductsError != null) {
+      if (compact) {
+        return _buildCompactHint(
+          icon: Icons.error_outline,
+          title: 'Produits indisponibles',
+          message: _supplierProductsError!,
+          color: _purchaseWarning,
+        );
+      }
       return EmptyPanel(
         title: 'Produits indisponibles',
         message: _supplierProductsError!,
@@ -1056,6 +1391,65 @@ class _ProcurementOrderFormDialogState
     }
 
     final productCount = _availableProducts.length;
+
+    if (compact) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: _purchaseBackground,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _purchaseBorderLight),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (selectedSupplier != null)
+              Text(
+                selectedSupplier.displayName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _purchaseTextPrimary,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                ),
+              ),
+            if (selectedSupplier != null) const SizedBox(height: 4),
+            Text(
+              productCount == 0
+                  ? 'Aucun produit disponible pour ce fournisseur'
+                  : '$productCount produit(s) disponible(s) pour ce fournisseur',
+              style: const TextStyle(
+                color: _purchaseTextSecondary,
+                fontSize: 12.5,
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: productCount == 0 ? null : _openProductPicker,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Ajouter produit'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _purchasePrimary,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(0, 42),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Container(
       width: double.infinity,
@@ -1110,18 +1504,26 @@ class _ProcurementOrderFormDialogState
     );
   }
 
-  Widget _buildLineCard(int index, _PurchaseDraftLine line) {
+  Widget _buildLineCard(
+    int index,
+    _PurchaseDraftLine line, {
+    bool compact = false,
+  }) {
     final product = _findProductById(line.produitId);
     final isInactive = product != null && !product.active;
     final vatRate = _lineVatRate(line);
 
     return Container(
       key: ValueKey(line.rowKey),
-      margin: EdgeInsets.only(bottom: _purchaseBaseUnit * 1.5),
-      padding: EdgeInsets.all(_purchaseBaseUnit * 1.5),
+      margin: EdgeInsets.only(
+        bottom: compact ? _purchaseBaseUnit : _purchaseBaseUnit * 1.5,
+      ),
+      padding: EdgeInsets.all(
+        compact ? _purchaseBaseUnit * 1.25 : _purchaseBaseUnit * 1.5,
+      ),
       decoration: BoxDecoration(
         color: _purchaseBackground,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(compact ? 14 : 16),
         border: Border.all(color: _purchaseBorderLight),
       ),
       child: Column(
@@ -1131,9 +1533,10 @@ class _ProcurementOrderFormDialogState
               Expanded(
                 child: Text(
                   'Ligne ${index + 1}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
                     color: _purchaseTextPrimary,
+                    fontSize: compact ? 13 : 14,
                   ),
                 ),
               ),
@@ -1158,10 +1561,12 @@ class _ProcurementOrderFormDialogState
             alignment: Alignment.centerLeft,
             child: Text(
               product?.displayName ?? line.fallbackLabel ?? 'Produit',
-              style: const TextStyle(
+              maxLines: compact ? 2 : null,
+              overflow: compact ? TextOverflow.ellipsis : TextOverflow.visible,
+              style: TextStyle(
                 color: _purchaseTextPrimary,
                 fontWeight: FontWeight.w700,
-                fontSize: 15,
+                fontSize: compact ? 14 : 15,
               ),
             ),
           ),
@@ -1172,23 +1577,24 @@ class _ProcurementOrderFormDialogState
               product == null
                   ? '-'
                   : '${product.categorieLabel} • TVA ${formatVatRate(vatRate)}',
-              style: const TextStyle(
+              style: TextStyle(
                 color: _purchaseTextSecondary,
-                fontSize: 12.5,
+                fontSize: compact ? 12 : 12.5,
               ),
             ),
           ),
           const SizedBox(height: _purchaseBaseUnit * 1.5),
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
+          if (compact)
+            Column(
+              children: [
+                TextFormField(
                   controller: line.quantiteController,
                   readOnly: line.readOnly,
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
                     labelText: 'Quantite',
-                    prefixIcon: const Icon(Icons.tag_outlined),
+                    isDense: true,
+                    prefixIcon: const Icon(Icons.tag_outlined, size: 18),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -1202,61 +1608,141 @@ class _ProcurementOrderFormDialogState
                     return null;
                   },
                 ),
-              ),
-              const SizedBox(width: _purchaseBaseUnit),
-              Expanded(
-                child: Container(
+                const SizedBox(height: _purchaseBaseUnit),
+                Container(
+                  width: double.infinity,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
-                    vertical: 16,
+                    vertical: 12,
                   ),
                   decoration: BoxDecoration(
                     color: _purchaseSurface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: _purchaseBorderLight),
                   ),
-                  child: Text(
-                    formatPrice(line.unitPrice),
-                    style: const TextStyle(
-                      color: _purchaseTextPrimary,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.payments_outlined,
+                        size: 16,
+                        color: _purchaseTextSecondary,
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Prix unitaire',
+                          style: TextStyle(
+                            color: _purchaseTextSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        formatPrice(line.unitPrice),
+                        style: const TextStyle(
+                          color: _purchaseTextPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: _purchaseBaseUnit * 1.5),
-          Row(
-            children: [
-              Expanded(
-                child: _buildMetricCard(
+                const SizedBox(height: _purchaseBaseUnit),
+                _buildMetricCard(
                   label: 'Sous-total HT',
                   value: formatPrice(_lineSubTotal(line)),
                 ),
-              ),
-              const SizedBox(width: _purchaseBaseUnit),
-              Expanded(
-                child: _buildMetricCard(
+                const SizedBox(height: _purchaseBaseUnit),
+                _buildMetricCard(
                   label: 'Total TTC',
                   value: formatPrice(_lineTotalTtc(line)),
                   isPrimary: true,
                 ),
-              ),
-            ],
-          ),
+              ],
+            )
+          else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: line.quantiteController,
+                    readOnly: line.readOnly,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'Quantite',
+                      prefixIcon: const Icon(Icons.tag_outlined),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onChanged: (value) => _updateLineQuantity(line, value),
+                    validator: (value) {
+                      final parsed = int.tryParse(value ?? '');
+                      if (parsed == null || parsed <= 0) {
+                        return 'Quantite invalide';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: _purchaseBaseUnit),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 16,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _purchaseSurface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _purchaseBorderLight),
+                    ),
+                    child: Text(
+                      formatPrice(line.unitPrice),
+                      style: const TextStyle(
+                        color: _purchaseTextPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: _purchaseBaseUnit * 1.5),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildMetricCard(
+                    label: 'Sous-total HT',
+                    value: formatPrice(_lineSubTotal(line)),
+                  ),
+                ),
+                const SizedBox(width: _purchaseBaseUnit),
+                Expanded(
+                  child: _buildMetricCard(
+                    label: 'Total TTC',
+                    value: formatPrice(_lineTotalTtc(line)),
+                    isPrimary: true,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildProductsSection() {
+  Widget _buildProductsSection({bool compact = false}) {
+    final readOnlyEdit = _isEditing && !_canEditLines;
+
     return _buildFormSection(
       title: 'Produits',
+      compact: compact,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (_isEditing)
+          if (readOnlyEdit)
             Container(
               width: double.infinity,
               padding: EdgeInsets.all(_purchaseBaseUnit * 1.5),
@@ -1271,28 +1757,37 @@ class _ProcurementOrderFormDialogState
               ),
             )
           else ...[
-            _buildProductsHeader(),
+            _buildProductsHeader(compact: compact),
           ],
-          const SizedBox(height: _purchaseBaseUnit * 2),
+          SizedBox(
+            height: compact ? _purchaseBaseUnit * 1.5 : _purchaseBaseUnit * 2,
+          ),
           if (_lines.isEmpty)
-            const EmptyPanel(
-              title: 'Aucune ligne',
-              message:
-                  'Ajoutez au moins un produit a cette commande fournisseur.',
-            )
+            compact
+                ? _buildCompactHint(
+                    icon: Icons.inventory_2_outlined,
+                    title: 'Aucune ligne',
+                    message: 'Ajoutez au moins un produit a cette commande.',
+                  )
+                : const EmptyPanel(
+                    title: 'Aucune ligne',
+                    message:
+                        'Ajoutez au moins un produit a cette commande fournisseur.',
+                  )
           else
             ...List.generate(
               _lines.length,
-              (index) => _buildLineCard(index, _lines[index]),
+              (index) => _buildLineCard(index, _lines[index], compact: compact),
             ),
         ],
       ),
     );
   }
 
-  Widget _buildGeneralSection() {
+  Widget _buildGeneralSection({bool compact = false}) {
     return _buildFormSection(
-      title: 'Informations generales',
+      title: compact ? 'Informations commande' : 'Informations generales',
+      compact: compact,
       child: Column(
         children: [
           DropdownButtonFormField<int>(
@@ -1300,6 +1795,7 @@ class _ProcurementOrderFormDialogState
             isExpanded: true,
             decoration: InputDecoration(
               labelText: 'Fournisseur',
+              isDense: compact,
               prefixIcon: const Icon(Icons.apartment_outlined),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -1322,9 +1818,10 @@ class _ProcurementOrderFormDialogState
           TextFormField(
             controller: _addressController,
             minLines: 2,
-            maxLines: 4,
+            maxLines: compact ? 3 : 4,
             decoration: InputDecoration(
               labelText: 'Adresse de livraison',
+              isDense: compact,
               prefixIcon: const Icon(Icons.location_on_outlined),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -1343,7 +1840,11 @@ class _ProcurementOrderFormDialogState
             child: OutlinedButton.icon(
               onPressed: _pickDeliveryDate,
               icon: const Icon(Icons.event_outlined),
-              label: Text('Livraison prevue: ${formatDate(_deliveryDate)}'),
+              label: Text(
+                compact
+                    ? 'Livraison ${formatDate(_deliveryDate)}'
+                    : 'Livraison prevue: ${formatDate(_deliveryDate)}',
+              ),
             ),
           ),
         ],
@@ -1351,110 +1852,150 @@ class _ProcurementOrderFormDialogState
     );
   }
 
-  Widget _buildSummarySection() {
+  Widget _buildSummarySection({bool compact = false}) {
     final supplier = _findSupplierById(_supplierId);
 
     return _buildFormSection(
-      title: 'Resume de la commande',
+      title: compact ? 'Resume commande' : 'Resume de la commande',
+      compact: compact,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSummaryTile(
             label: 'Fournisseur',
             value: supplier?.displayName ?? '-',
+            compact: compact,
           ),
           const SizedBox(height: _purchaseBaseUnit),
-          _buildSummaryTile(
-            label: 'Telephone',
-            value: supplier?.telephone.trim().isNotEmpty == true
-                ? supplier!.telephone
-                : '-',
-          ),
-          const SizedBox(height: _purchaseBaseUnit),
-          _buildSummaryTile(
-            label: 'Email',
-            value: supplier?.email.trim().isNotEmpty == true
-                ? supplier!.email
-                : '-',
-          ),
-          const SizedBox(height: _purchaseBaseUnit),
-          _buildSummaryTile(
-            label: 'Adresse',
-            value: _addressController.text.trim().isEmpty
-                ? (supplier?.adresse.trim().isNotEmpty == true
-                      ? supplier!.adresse
-                      : '-')
-                : _addressController.text.trim(),
-          ),
-          const SizedBox(height: _purchaseBaseUnit),
-          _buildSummaryTile(
-            label: 'Date livraison',
-            value: formatDate(_deliveryDate),
-          ),
-          const SizedBox(height: _purchaseBaseUnit),
-          _buildSummaryTile(
-            label: 'Nombre de lignes',
-            value: '${_lines.length}',
-          ),
-          const SizedBox(height: _purchaseBaseUnit * 1.5),
-          _buildVatBreakdownCard(),
-          if (_vatBreakdown.isNotEmpty)
-            const SizedBox(height: _purchaseBaseUnit * 1.5),
-          const Divider(color: _purchaseBorderLight),
-          const SizedBox(height: _purchaseBaseUnit * 1.5),
-          _buildAmountRow('Sous-total HT', formatPrice(_subTotalHt)),
-          const SizedBox(height: _purchaseBaseUnit),
-          _buildAmountRow('TVA $_vatSummaryLabel', formatPrice(_totalVat)),
-          const SizedBox(height: _purchaseBaseUnit),
-          _buildAmountRow('Total TTC', formatPrice(_totalTtc), isPrimary: true),
-          const SizedBox(height: _purchaseBaseUnit * 2),
-          const Text(
-            'Apercu produits',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 14,
-              color: _purchaseTextPrimary,
+          if (compact) ...[
+            _buildSummaryTile(
+              label: 'Livraison',
+              value: formatDate(_deliveryDate),
+              compact: true,
             ),
+            const SizedBox(height: _purchaseBaseUnit),
+            _buildSummaryTile(
+              label: 'Adresse',
+              value: _addressController.text.trim().isEmpty
+                  ? '-'
+                  : _addressController.text.trim(),
+              compact: true,
+            ),
+            const SizedBox(height: _purchaseBaseUnit),
+            _buildSummaryTile(
+              label: 'Lignes',
+              value: '${_lines.length}',
+              compact: true,
+            ),
+            const SizedBox(height: _purchaseBaseUnit * 1.25),
+          ] else ...[
+            _buildSummaryTile(
+              label: 'Telephone',
+              value: supplier?.telephone.trim().isNotEmpty == true
+                  ? supplier!.telephone
+                  : '-',
+            ),
+            const SizedBox(height: _purchaseBaseUnit),
+            _buildSummaryTile(
+              label: 'Email',
+              value: supplier?.email.trim().isNotEmpty == true
+                  ? supplier!.email
+                  : '-',
+            ),
+            const SizedBox(height: _purchaseBaseUnit),
+            _buildSummaryTile(
+              label: 'Adresse',
+              value: _addressController.text.trim().isEmpty
+                  ? (supplier?.adresse.trim().isNotEmpty == true
+                        ? supplier!.adresse
+                        : '-')
+                  : _addressController.text.trim(),
+            ),
+            const SizedBox(height: _purchaseBaseUnit),
+            _buildSummaryTile(
+              label: 'Date livraison',
+              value: formatDate(_deliveryDate),
+            ),
+            const SizedBox(height: _purchaseBaseUnit),
+            _buildSummaryTile(
+              label: 'Nombre de lignes',
+              value: '${_lines.length}',
+            ),
+            const SizedBox(height: _purchaseBaseUnit * 1.5),
+            _buildVatBreakdownCard(),
+            if (_vatBreakdown.isNotEmpty)
+              const SizedBox(height: _purchaseBaseUnit * 1.5),
+          ],
+          const Divider(color: _purchaseBorderLight),
+          const SizedBox(height: _purchaseBaseUnit * 1.25),
+          _buildAmountRow(
+            'Sous-total HT',
+            formatPrice(_subTotalHt),
+            compact: compact,
           ),
           const SizedBox(height: _purchaseBaseUnit),
-          if (_lines.isEmpty)
+          _buildAmountRow(
+            'TVA $_vatSummaryLabel',
+            formatPrice(_totalVat),
+            compact: compact,
+          ),
+          const SizedBox(height: _purchaseBaseUnit),
+          _buildAmountRow(
+            'Total TTC',
+            formatPrice(_totalTtc),
+            isPrimary: true,
+            compact: compact,
+          ),
+          if (!compact) ...[
+            const SizedBox(height: _purchaseBaseUnit * 2),
             const Text(
-              'Aucun produit',
-              style: TextStyle(color: _purchaseTextSecondary),
-            )
-          else
-            ..._lines.map((line) {
-              final product = _findProductById(line.produitId);
-              return Container(
-                margin: EdgeInsets.only(bottom: _purchaseBaseUnit),
-                padding: EdgeInsets.all(_purchaseBaseUnit * 1.25),
-                decoration: BoxDecoration(
-                  color: _purchaseBackground,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _purchaseBorderLight),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '${product?.displayName ?? line.fallbackLabel ?? 'Produit'} x${line.quantity}',
-                        style: const TextStyle(
-                          color: _purchaseTextPrimary,
-                          fontWeight: FontWeight.w600,
+              'Apercu produits',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                color: _purchaseTextPrimary,
+              ),
+            ),
+            const SizedBox(height: _purchaseBaseUnit),
+            if (_lines.isEmpty)
+              const Text(
+                'Aucun produit',
+                style: TextStyle(color: _purchaseTextSecondary),
+              )
+            else
+              ..._lines.map((line) {
+                final product = _findProductById(line.produitId);
+                return Container(
+                  margin: EdgeInsets.only(bottom: _purchaseBaseUnit),
+                  padding: EdgeInsets.all(_purchaseBaseUnit * 1.25),
+                  decoration: BoxDecoration(
+                    color: _purchaseBackground,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _purchaseBorderLight),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${product?.displayName ?? line.fallbackLabel ?? 'Produit'} x${line.quantity}',
+                          style: const TextStyle(
+                            color: _purchaseTextPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                    ),
-                    Text(
-                      formatPrice(_lineTotalTtc(line)),
-                      style: const TextStyle(
-                        color: _purchaseTextSecondary,
-                        fontWeight: FontWeight.w700,
+                      Text(
+                        formatPrice(_lineTotalTtc(line)),
+                        style: const TextStyle(
+                          color: _purchaseTextSecondary,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              );
-            }),
+                    ],
+                  ),
+                );
+              }),
+          ],
         ],
       ),
     );
@@ -1463,69 +2004,129 @@ class _ProcurementOrderFormDialogState
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.of(context).size.width < 860;
+    final phone = MediaQuery.of(context).size.width < 560;
+    final isSheet = widget.isBottomSheet;
+    final usePhoneStepFlow = phone && _canEditLines;
+    final availableHeight = MediaQuery.sizeOf(context).height;
+    final title = _isEditing
+        ? (phone ? 'Modifier la commande' : 'Modifier le bon de commande')
+        : (phone ? 'Bon de commande' : 'Nouveau bon de commande');
+    final subtitle = _isRejectedEdit
+        ? 'Corrigez la livraison puis les lignes avant le renvoi.'
+        : _isEditing
+        ? 'Mettez a jour la livraison et les informations utiles.'
+        : 'Creez un bon fournisseur propre et rapide sur mobile.';
 
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: Container(
-        width: AdaptiveLayout.dialogWidth(context, max: 980, sideMargin: 12),
-        constraints: BoxConstraints(
-          maxHeight: AdaptiveLayout.dialogHeight(context, ratio: 0.9),
-        ),
-        padding: EdgeInsets.all(_purchaseBaseUnit * 3),
+    final surface = Container(
+      width: isSheet
+          ? double.infinity
+          : AdaptiveLayout.dialogWidth(
+              context,
+              max: 980,
+              sideMargin: phone ? 8 : 12,
+            ),
+      constraints: BoxConstraints(
+        maxHeight: isSheet
+            ? availableHeight * 0.88
+            : AdaptiveLayout.dialogHeight(context, ratio: phone ? 0.94 : 0.9),
+      ),
+      decoration: BoxDecoration(
+        color: _purchaseSurface,
+        borderRadius: BorderRadius.circular(phone ? 22 : 24),
+        border: Border.all(color: _purchaseBorderLight),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(phone ? 22 : 24),
         child: Form(
           key: _formKey,
           child: Column(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _isEditing
-                          ? 'Modifier le bon de commande'
-                          : 'Nouveau bon de commande',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: _purchaseTextPrimary,
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  phone ? _purchaseBaseUnit * 2 : _purchaseBaseUnit * 3,
+                  phone ? _purchaseBaseUnit * 2 : _purchaseBaseUnit * 3,
+                  phone ? _purchaseBaseUnit * 1.5 : _purchaseBaseUnit * 2.5,
+                  phone ? _purchaseBaseUnit * 1.25 : _purchaseBaseUnit * 2,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: isSheet ? 1 : 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: phone ? 17 : 20,
+                              height: 1.15,
+                              fontWeight: FontWeight.w800,
+                              color: _purchaseTextPrimary,
+                            ),
+                          ),
+                          if (!isSheet) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              subtitle,
+                              style: TextStyle(
+                                fontSize: phone ? 12.5 : 13.5,
+                                color: _purchaseTextSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
-                  ),
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: _purchaseBaseUnit * 1.5,
-                      vertical: _purchaseBaseUnit,
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                      visualDensity: VisualDensity.compact,
                     ),
-                    decoration: BoxDecoration(
-                      color: _purchaseBackground,
-                      borderRadius: BorderRadius.circular(30),
-                      border: Border.all(color: _purchaseBorderLight),
-                    ),
-                    child: const Text(
-                      'Workflow web',
-                      style: TextStyle(
-                        color: _purchasePrimaryDark,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: _purchaseBaseUnit),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              const SizedBox(height: _purchaseBaseUnit * 2),
               Expanded(
                 child: SingleChildScrollView(
-                  child: compact
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: EdgeInsets.fromLTRB(
+                    phone ? _purchaseBaseUnit * 1.5 : _purchaseBaseUnit * 3,
+                    0,
+                    phone ? _purchaseBaseUnit * 1.5 : _purchaseBaseUnit * 3,
+                    0,
+                  ),
+                  child: usePhoneStepFlow
                       ? Column(
                           children: [
-                            _buildGeneralSection(),
-                            const SizedBox(height: _purchaseBaseUnit * 2),
-                            _buildProductsSection(),
-                            const SizedBox(height: _purchaseBaseUnit * 2),
-                            _buildSummarySection(),
+                            _buildPhoneStepBar(),
+                            const SizedBox(height: _purchaseBaseUnit * 1.25),
+                            if (_mobileStep == 0)
+                              _buildGeneralSection(compact: true)
+                            else ...[
+                              _buildProductsSection(compact: true),
+                              const SizedBox(height: _purchaseBaseUnit * 1.25),
+                              _buildSummarySection(compact: true),
+                            ],
+                          ],
+                        )
+                      : compact
+                      ? Column(
+                          children: [
+                            _buildGeneralSection(compact: true),
+                            const SizedBox(height: _purchaseBaseUnit * 1.25),
+                            _buildProductsSection(compact: true),
+                            const SizedBox(height: _purchaseBaseUnit * 1.25),
+                            _buildSummarySection(compact: true),
                           ],
                         )
                       : Row(
@@ -1547,42 +2148,168 @@ class _ProcurementOrderFormDialogState
                         ),
                 ),
               ),
-              const SizedBox(height: _purchaseBaseUnit * 2),
-              Wrap(
-                alignment: WrapAlignment.end,
-                spacing: _purchaseBaseUnit,
-                runSpacing: _purchaseBaseUnit,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Annuler'),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: _submit,
-                    icon: Icon(
-                      _isEditing
-                          ? Icons.save_outlined
-                          : Icons.add_task_outlined,
-                    ),
-                    label: Text(_isEditing ? 'Modifier' : 'Creer'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _purchaseAccent,
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: _purchaseBaseUnit * 2,
-                        vertical: _purchaseBaseUnit * 1.5,
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  phone ? _purchaseBaseUnit * 1.5 : _purchaseBaseUnit * 3,
+                  _purchaseBaseUnit * 1.25,
+                  phone ? _purchaseBaseUnit * 1.5 : _purchaseBaseUnit * 3,
+                  phone ? _purchaseBaseUnit * 1.5 : _purchaseBaseUnit * 2,
+                ),
+                child: phone
+                    ? usePhoneStepFlow
+                          ? Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _mobileStep == 0
+                                        ? () => Navigator.of(context).pop()
+                                        : () {
+                                            setState(() {
+                                              _mobileStep = 0;
+                                            });
+                                          },
+                                    icon: Icon(
+                                      _mobileStep == 0
+                                          ? Icons.close_rounded
+                                          : Icons.arrow_back_rounded,
+                                      size: 18,
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      minimumSize: const Size(0, 42),
+                                    ),
+                                    label: Text(
+                                      _mobileStep == 0 ? 'Annuler' : 'Retour',
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: _purchaseBaseUnit),
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: _mobileStep == 0
+                                        ? _continueToProductStep
+                                        : _submit,
+                                    icon: Icon(
+                                      _mobileStep == 0
+                                          ? Icons.arrow_forward_rounded
+                                          : _isEditing
+                                          ? Icons.save_outlined
+                                          : Icons.add_task_outlined,
+                                    ),
+                                    label: Text(
+                                      _mobileStep == 0
+                                          ? 'Continuer'
+                                          : (_isEditing ? 'Modifier' : 'Creer'),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: _mobileStep == 0
+                                          ? _purchasePrimary
+                                          : _purchaseAccent,
+                                      foregroundColor: Colors.white,
+                                      minimumSize: const Size(0, 42),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(),
+                                    style: OutlinedButton.styleFrom(
+                                      minimumSize: const Size(0, 42),
+                                    ),
+                                    child: const Text('Annuler'),
+                                  ),
+                                ),
+                                const SizedBox(width: _purchaseBaseUnit),
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: _submit,
+                                    icon: Icon(
+                                      _isEditing
+                                          ? Icons.save_outlined
+                                          : Icons.add_task_outlined,
+                                    ),
+                                    label: Text(
+                                      _isEditing ? 'Modifier' : 'Creer',
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: _purchaseAccent,
+                                      foregroundColor: Colors.white,
+                                      minimumSize: const Size(0, 42),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                    : Wrap(
+                        alignment: WrapAlignment.end,
+                        spacing: _purchaseBaseUnit,
+                        runSpacing: _purchaseBaseUnit,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Annuler'),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: _submit,
+                            icon: Icon(
+                              _isEditing
+                                  ? Icons.save_outlined
+                                  : Icons.add_task_outlined,
+                            ),
+                            label: Text(_isEditing ? 'Modifier' : 'Creer'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _purchaseAccent,
+                              foregroundColor: Colors.white,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: _purchaseBaseUnit * 2,
+                                vertical: _purchaseBaseUnit * 1.5,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ],
           ),
         ),
       ),
+    );
+
+    if (isSheet) {
+      return Padding(
+        padding: EdgeInsets.only(
+          left: _purchaseBaseUnit,
+          right: _purchaseBaseUnit,
+          top: _purchaseBaseUnit,
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: SafeArea(top: false, child: surface),
+      );
+    }
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: EdgeInsets.all(phone ? 12 : 20),
+      child: surface,
     );
   }
 }

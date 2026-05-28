@@ -79,6 +79,8 @@ class ClientModel {
   final String? email;
   final String? adresse;
   final String? typeClient;
+  final String? raisonSociale;
+  final String? matriculeFiscale;
   final double? remise;
 
   ClientModel({
@@ -89,10 +91,14 @@ class ClientModel {
     this.email,
     this.adresse,
     this.typeClient,
+    this.raisonSociale,
+    this.matriculeFiscale,
     this.remise,
   });
 
   String get fullName {
+    final company = raisonSociale?.trim() ?? '';
+    if (company.isNotEmpty) return company;
     final value = '${prenom ?? ''} $nom'.trim();
     return value.isEmpty ? nom : value;
   }
@@ -132,12 +138,22 @@ class ClientModel {
       return null;
     }
 
+    final raisonSociale = readString([
+      'raisonSociale',
+      'raison_sociale',
+      'companyName',
+    ]);
     final nom = readString(['nom', 'name', 'raisonSociale', 'nomClient']);
     final prenom = readString(['prenom', 'firstName', 'givenName']);
     final telephone = readString(['telephone', 'phone', 'numeroTelephone']);
     final email = readString(['email']);
     final adresse = readString(['adresse', 'address']);
     final typeClient = readString(['typeClient', 'type']);
+    final matriculeFiscale = readString([
+      'matriculeFiscale',
+      'matriculeFiscal',
+      'matricule_fiscale',
+    ]);
     final normalizedType = ClientType.normalize(
       typeClient,
       fallbackToDefault: true,
@@ -176,6 +192,8 @@ class ClientModel {
       email: email.isEmpty ? null : email,
       adresse: adresse.isEmpty ? null : adresse,
       typeClient: normalizedType,
+      raisonSociale: raisonSociale.isEmpty ? null : raisonSociale,
+      matriculeFiscale: matriculeFiscale.isEmpty ? null : matriculeFiscale,
       remise: resolveRemiseForType(),
     );
   }
@@ -188,6 +206,8 @@ class NouveauClientPayload {
   final String? email;
   final String? adresse;
   final String? typeClient;
+  final String? raisonSociale;
+  final String? matriculeFiscale;
 
   NouveauClientPayload({
     required this.nom,
@@ -196,6 +216,8 @@ class NouveauClientPayload {
     this.email,
     this.adresse,
     this.typeClient,
+    this.raisonSociale,
+    this.matriculeFiscale,
   });
 
   Map<String, dynamic> toJson() {
@@ -205,6 +227,8 @@ class NouveauClientPayload {
       typeClient,
       fallbackToDefault: true,
     );
+    final normalizedRaisonSociale = raisonSociale?.trim();
+    final normalizedMatricule = matriculeFiscale?.trim().toUpperCase();
 
     return {
       'nom': nom.trim(),
@@ -216,6 +240,14 @@ class NouveauClientPayload {
         'adresse': adresse!.trim(),
       // Backend NouveauClientDTO expects "type"
       'type': normalizedType,
+      if (normalizedType == ClientType.entreprise &&
+          normalizedRaisonSociale != null &&
+          normalizedRaisonSociale.isNotEmpty)
+        'raisonSociale': normalizedRaisonSociale,
+      if (normalizedType == ClientType.entreprise &&
+          normalizedMatricule != null &&
+          normalizedMatricule.isNotEmpty)
+        'matriculeFiscale': normalizedMatricule,
     };
   }
 }

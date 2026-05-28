@@ -96,15 +96,29 @@ class _ProcurementCategoriesSectionState
   }
 
   Future<void> _showEditDialog(ProcurementCategory category) async {
-    final payload = await showDialog<ProcurementCategoryUpsertPayload>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => _CategoryEditToastDialog(
-        initialCategory: category,
-        initialVat: _editableVat(category.tauxTVA),
-      ),
-    );
+    final useBottomSheet = MediaQuery.sizeOf(context).width < 600;
 
+    final payload = useBottomSheet
+        ? await showModalBottomSheet<ProcurementCategoryUpsertPayload>(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (_) => _CategoryEditToastDialog(
+              initialCategory: category,
+              initialVat: _editableVat(category.tauxTVA),
+              isBottomSheet: true,
+            ),
+          )
+        : await showDialog<ProcurementCategoryUpsertPayload>(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => _CategoryEditToastDialog(
+              initialCategory: category,
+              initialVat: _editableVat(category.tauxTVA),
+            ),
+          );
+
+    if (!mounted) return;
     if (payload == null) return;
 
     try {
@@ -218,7 +232,7 @@ class _ProcurementCategoriesSectionState
       );
     }
 
-    final isCompact = MediaQuery.sizeOf(context).width < 900;
+    final compactTable = MediaQuery.sizeOf(context).width < 760;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -328,32 +342,45 @@ class _ProcurementCategoriesSectionState
                   message:
                       'Ajoutez votre premiere categorie via le formulaire ci-dessus.',
                 )
-              : isCompact
-              ? Column(
-                  children: [
-                    for (final category in _categories) ...[
-                      _CategoryMobileTile(
-                        category: category,
-                        onEdit: () => _showEditDialog(category),
-                        onDelete: () => _deleteCategory(category),
+              : Scrollbar(
+                  thumbVisibility: compactTable,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minWidth: 760),
+                      child: DataTable(
+                        headingRowHeight: compactTable ? 46 : 50,
+                        dataRowMinHeight: compactTable ? 64 : 70,
+                        dataRowMaxHeight: compactTable ? 76 : 84,
+                        horizontalMargin: compactTable ? 12 : 16,
+                        columnSpacing: compactTable ? 16 : 22,
+                        dividerThickness: 0.8,
+                        headingRowColor: const WidgetStatePropertyAll(
+                          procurementSoftBackground,
+                        ),
+                        headingTextStyle: TextStyle(
+                          color: procurementMuted,
+                          fontSize: compactTable ? 11.2 : 12.2,
+                          fontWeight: FontWeight.w800,
+                        ),
+                        dataTextStyle: TextStyle(
+                          color: procurementInk,
+                          fontSize: compactTable ? 12 : 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        columns: const [
+                          DataColumn(label: Text('ID')),
+                          DataColumn(label: Text('NOM')),
+                          DataColumn(label: Text('DESCRIPTION')),
+                          DataColumn(label: Text('TVA')),
+                          DataColumn(label: Text('ACTION')),
+                        ],
+                        rows: [
+                          for (final category in _categories)
+                            _buildRow(category),
+                        ],
                       ),
-                      const SizedBox(height: 10),
-                    ],
-                  ],
-                )
-              : SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    columns: const [
-                      DataColumn(label: Text('ID')),
-                      DataColumn(label: Text('Nom')),
-                      DataColumn(label: Text('Description')),
-                      DataColumn(label: Text('TVA')),
-                      DataColumn(label: Text('Actions')),
-                    ],
-                    rows: [
-                      for (final category in _categories) _buildRow(category),
-                    ],
+                    ),
                   ),
                 ),
         ),
@@ -399,97 +426,17 @@ class _ProcurementCategoriesSectionState
   }
 }
 
-/// Widget qui affiche la tuile mobile de categorie.
-class _CategoryMobileTile extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
-  final ProcurementCategory category;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  const _CategoryMobileTile({
-    required this.category,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  // Construction de l'interface.
-
-  /// Construit l'interface visible de ce widget.
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  category.displayName,
-                  style: const TextStyle(
-                    color: Color(0xFF1F2937),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              Text(
-                category.vatLabel,
-                style: const TextStyle(
-                  color: Color(0xFF1F2937),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'ID: ${category.idCategorie}',
-            style: const TextStyle(color: Color(0xFF6B7280), fontSize: 12.5),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            category.description.isEmpty ? '-' : category.description,
-            style: const TextStyle(color: Color(0xFF4B5563), height: 1.35),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton.icon(
-                onPressed: onEdit,
-                icon: const Icon(Icons.edit_outlined),
-                label: const Text('Modifier'),
-              ),
-              const SizedBox(width: 8),
-              TextButton.icon(
-                onPressed: onDelete,
-                icon: const Icon(Icons.delete_outline),
-                label: const Text('Supprimer'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Widget qui affiche le dialogue toast de modification de categorie.
 class _CategoryEditToastDialog extends StatefulWidget {
   // Configuration, dependances et etat local de l'interface.
   final ProcurementCategory initialCategory;
   final String initialVat;
+  final bool isBottomSheet;
 
   const _CategoryEditToastDialog({
     required this.initialCategory,
     required this.initialVat,
+    this.isBottomSheet = false,
   });
 
   // Cycle de vie du widget.
@@ -553,75 +500,140 @@ class _CategoryEditToastDialogState extends State<_CategoryEditToastDialog> {
   /// Construit l'interface visible de ce widget.
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      insetPadding: const EdgeInsets.all(20),
-      contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-      title: const Text('Modifier la categorie'),
-      content: SizedBox(
-        width: 520,
+    final phone = MediaQuery.sizeOf(context).width < 560;
+    final surface = Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(phone ? 18 : 20),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          phone ? 18 : 24,
+          phone ? 18 : 20,
+          phone ? 18 : 24,
+          phone ? 18 : 22,
+        ),
         child: Form(
           key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nom de la categorie',
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Modifier la categorie',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: procurementInk,
+                      ),
+                    ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Le nom de la categorie est requis';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _vatController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.close),
                   ),
-                  decoration: const InputDecoration(
-                    labelText: 'Taux de TVA (%)',
-                  ),
-                  validator: (value) {
-                    final raw = value?.replaceAll(',', '.').trim() ?? '';
-                    final parsed = double.tryParse(raw);
-                    if (raw.isEmpty) {
-                      return 'Le taux de TVA est requis';
-                    }
-                    if (parsed == null || parsed < 0 || parsed > 100) {
-                      return 'Taux TVA invalide';
-                    }
-                    return null;
-                  },
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Nom de la categorie',
                 ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _descriptionController,
-                  minLines: 3,
-                  maxLines: 4,
-                  decoration: const InputDecoration(labelText: 'Description'),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Le nom de la categorie est requis';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _vatController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
                 ),
-              ],
-            ),
+                decoration: const InputDecoration(labelText: 'Taux de TVA (%)'),
+                validator: (value) {
+                  final raw = value?.replaceAll(',', '.').trim() ?? '';
+                  final parsed = double.tryParse(raw);
+                  if (raw.isEmpty) {
+                    return 'Le taux de TVA est requis';
+                  }
+                  if (parsed == null || parsed < 0 || parsed > 100) {
+                    return 'Taux TVA invalide';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _descriptionController,
+                minLines: 3,
+                maxLines: 4,
+                decoration: const InputDecoration(labelText: 'Description'),
+              ),
+              const SizedBox(height: 16),
+              phone
+                  ? Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Annuler'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: _submit,
+                            icon: const Icon(Icons.edit_outlined),
+                            label: const Text('Mettre a jour'),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Annuler'),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton.icon(
+                          onPressed: _submit,
+                          icon: const Icon(Icons.edit_outlined),
+                          label: const Text('Mettre a jour'),
+                        ),
+                      ],
+                    ),
+            ],
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Annuler'),
+    );
+
+    if (widget.isBottomSheet) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(
+          12,
+          12,
+          12,
+          MediaQuery.viewInsetsOf(context).bottom > 0
+              ? MediaQuery.viewInsetsOf(context).bottom
+              : 12,
         ),
-        FilledButton.icon(
-          onPressed: _submit,
-          icon: const Icon(Icons.edit_outlined),
-          label: const Text('Mettre a jour'),
-        ),
-      ],
+        child: SafeArea(top: false, child: surface),
+      );
+    }
+
+    return AlertDialog(
+      insetPadding: EdgeInsets.all(phone ? 12 : 20),
+      contentPadding: EdgeInsets.zero,
+      content: SizedBox(width: 520, child: surface),
     );
   }
 }

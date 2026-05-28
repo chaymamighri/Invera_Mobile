@@ -30,12 +30,14 @@ const String _pdfCompanyTaxId = 'MF: 0000000/A/M/000';
 class CommercialFacturesSection extends StatefulWidget {
   final String title;
   final String subtitle;
+  final bool showHeroHeader;
 
   const CommercialFacturesSection({
     super.key,
     this.title = 'Commandes pour facturation',
     this.subtitle =
         'Toutes les commandes confirmees. Filtrez par calendrier puis generez chaque facture commande par commande.',
+    this.showHeroHeader = true,
   });
 
   // Cycle de vie du widget.
@@ -599,6 +601,20 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     return raw;
   }
 
+  /// Retourne un libelle d'affichage pour le statut de facture.
+  String _displayFactureStatus(String raw) {
+    final norm = raw.trim().toUpperCase();
+    if (norm == 'PAYE') return 'Payee';
+    if (norm == 'NON_PAYE' || norm == 'IMPAYEE') return 'Non payee';
+    if (norm == 'EN_ATTENTE') return 'En attente';
+    return raw.trim().isEmpty ? 'Inconnue' : raw;
+  }
+
+  /// Indique si la facture est deja marquee comme payee.
+  bool _isFacturePaid(String raw) {
+    return raw.trim().toUpperCase() == 'PAYE';
+  }
+
   // Construction de l'interface.
 
   /// Construit l'apercu des produits.
@@ -701,14 +717,49 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     _showFactureDetails(cmd, facture);
   }
 
+  /// Marque une facture de commande comme payee puis met a jour l'etat local.
+  Future<void> _markFacturePayeeForCommande(
+    CommandeModel cmd,
+    FactureModel facture,
+  ) async {
+    try {
+      final updated = await _factureService.markFacturePayee(
+        facture.idFactureClient,
+        commandeId: cmd.idCommandeClient,
+      );
+      final nextFacture = updated ?? facture.copyWith(statut: 'PAYE');
+      if (!mounted) return;
+      setState(() {
+        _facturesByCommandeId[cmd.idCommandeClient] = nextFacture;
+      });
+      _showMessage(
+        'Facture ${nextFacture.referenceFactureClient} marquee comme payee.',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage(
+        'Mise a jour impossible: ${_cleanErrorMessage(error)}',
+        isError: true,
+      );
+    }
+  }
+
   /// Exporte le PDF de la facture.
   Future<void> _exportFacturePdf(
     CommandeModel cmd,
     FactureModel facture,
   ) async {
     try {
+      Uint8List pdfBytes;
+      try {
+        pdfBytes = await _factureService.downloadFacturePdf(
+          facture.idFactureClient,
+        );
+      } catch (_) {
+        pdfBytes = await _buildFacturePdfBytes(cmd, facture);
+      }
       await Printing.layoutPdf(
-        onLayout: (_) => _buildFacturePdfBytes(cmd, facture),
+        onLayout: (_) async => pdfBytes,
         name: '${facture.referenceFactureClient}.pdf',
       );
     } catch (error) {
@@ -1455,102 +1506,365 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
-        return AlertDialog(
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 24,
-          ),
-          titlePadding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
-          contentPadding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-          title: const Text('Facture'),
-          content: SizedBox(
-            width: AdaptiveLayout.dialogWidth(ctx, max: 520, sideMargin: 8),
-            child: SingleChildScrollView(
+        final compactDialog = AdaptiveSurface.isCompact(ctx, breakpoint: 720);
+        FactureModel currentFacture = facture;
+        bool updatingStatus = false;
+
+        return StatefulBuilder(
+          builder: (context, modalSetState) {
+            final client = cmd.client;
+            final lineCount = cmd.produits.length;
+            final computedSubtotal = cmd.produits.fold<double>(
+              0,
+              (sum, produit) => sum + produit.sousTotal,
+            );
+            final subtotal = computedSubtotal > 0
+                ? computedSubtotal
+                : cmd.sousTotal;
+            final remiseAmount = subtotal > 0 && cmd.tauxRemise > 0
+                ? subtotal * (cmd.tauxRemise / 100)
+                : 0.0;
+            final totalFacture = currentFacture.montantTotal > 0
+                ? currentFacture.montantTotal
+                : (cmd.total > 0 ? cmd.total : subtotal - remiseAmount);
+            final paid = _isFacturePaid(currentFacture.statut);
+
+            Future<void> markAsPaid() async {
+              if (updatingStatus || paid) return;
+
+              modalSetState(() => updatingStatus = true);
+              try {
+                final updated =
+                    await _factureService.markFacturePayee(
+                      currentFacture.idFactureClient,
+                      commandeId: cmd.idCommandeClient,
+                    ) ??
+                    currentFacture.copyWith(statut: 'PAYE');
+
+                if (!mounted || !context.mounted) return;
+                setState(() {
+                  _facturesByCommandeId[cmd.idCommandeClient] = updated;
+                });
+
+                modalSetState(() {
+                  currentFacture = updated;
+                  updatingStatus = false;
+                });
+
+                _showMessage(
+                  'Facture ${updated.referenceFactureClient} marquee comme payee.',
+                );
+              } catch (error) {
+                if (!mounted || !context.mounted) return;
+                modalSetState(() => updatingStatus = false);
+                _showMessage(
+                  'Mise a jour impossible: ${_cleanErrorMessage(error)}',
+                  isError: true,
+                );
+              }
+            }
+
+            final invoiceInfoSection = _buildDetailsSection(
+              title: 'Facture',
+              compact: true,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildDetailsSection(
-                    title: 'Informations facture',
-                    child: Column(
-                      children: [
-                        _buildSummaryTile(
-                          label: 'Reference',
-                          value: facture.referenceFactureClient,
-                        ),
-                        const SizedBox(height: _baseUnit),
-                        _buildSummaryTile(
-                          label: 'Commande',
-                          value: cmd.referenceCommandeClient,
-                        ),
-                        const SizedBox(height: _baseUnit),
-                        _buildSummaryTile(
-                          label: 'Date facture',
-                          value: facture.dateFactureDisplay,
-                        ),
-                        const SizedBox(height: _baseUnit),
-                        _buildSummaryTile(
-                          label: 'Statut',
-                          value: facture.statut,
-                        ),
-                        const SizedBox(height: _baseUnit),
-                        _buildSummaryTile(
-                          label: 'Montant total',
-                          value: _formatAmount(facture.montantTotal),
-                        ),
-                      ],
-                    ),
+                  _buildFactureInfoRow(
+                    label: 'Reference',
+                    value: currentFacture.referenceFactureClient,
                   ),
-                  const SizedBox(height: _baseUnit * 2),
-                  _buildDetailsSection(
-                    title: 'Client',
-                    child: Column(
-                      children: [
-                        _buildCommandeDetailRow(
-                          icon: Icons.person_outline,
-                          label: 'Nom complet',
-                          value: cmd.client?.fullName ?? '-',
-                        ),
-                        _buildCommandeDetailRow(
-                          icon: Icons.phone_outlined,
-                          label: 'Telephone',
-                          value: cmd.client?.telephone ?? '-',
-                        ),
-                        _buildCommandeDetailRow(
-                          icon: Icons.email_outlined,
-                          label: 'Email',
-                          value: cmd.client?.email ?? '-',
-                        ),
-                        _buildCommandeDetailRow(
-                          icon: Icons.location_on_outlined,
-                          label: 'Adresse',
-                          value: cmd.client?.adresse ?? '-',
-                          isLast: true,
-                        ),
-                      ],
-                    ),
+                  _buildFactureInfoRow(
+                    label: 'Commande',
+                    value: cmd.referenceCommandeClient,
+                  ),
+                  _buildFactureInfoRow(
+                    label: 'Date emission',
+                    value: currentFacture.dateFactureDisplay,
+                  ),
+                  _buildFactureInfoRow(label: 'Lignes', value: '$lineCount'),
+                  _buildFactureInfoRow(
+                    label: 'Statut',
+                    value: _displayFactureStatus(currentFacture.statut),
+                    emphasize: true,
+                    isLast: true,
                   ),
                 ],
               ),
-            ),
-          ),
-          actions: [
-            TextButton.icon(
-              onPressed: () => Navigator.of(ctx).pop(),
-              icon: const Icon(Icons.close),
-              label: const Text('Fermer'),
-            ),
-            ElevatedButton.icon(
-              onPressed: () => _exportFacturePdf(cmd, facture),
-              icon: const Icon(Icons.picture_as_pdf_outlined),
-              label: const Text('PDF'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _accent,
-                foregroundColor: Colors.white,
+            );
+
+            final clientSection = _buildDetailsSection(
+              title: 'Client',
+              compact: true,
+              child: Column(
+                children: [
+                  _buildFactureInfoRow(
+                    label: 'Nom',
+                    value: client?.fullName ?? '-',
+                  ),
+                  _buildFactureInfoRow(
+                    label: 'Type',
+                    value: _formatClientType(client?.typeClient),
+                  ),
+                  _buildFactureInfoRow(
+                    label: 'Telephone',
+                    value: client?.telephone ?? '-',
+                  ),
+                  _buildFactureInfoRow(
+                    label: 'Email',
+                    value: client?.email ?? '-',
+                  ),
+                  _buildFactureInfoRow(
+                    label: 'Adresse',
+                    value: client?.adresse ?? '-',
+                    isLast: true,
+                  ),
+                ],
               ),
-            ),
-          ],
+            );
+
+            final articlesSection = _buildDetailsSection(
+              title: 'Articles',
+              compact: true,
+              child: Column(
+                children: [
+                  if (cmd.produits.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: _baseUnit * 0.5),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Aucun article disponible.',
+                          style: TextStyle(color: _textSecondary, fontSize: 12),
+                        ),
+                      ),
+                    )
+                  else
+                    ...cmd.produits.asMap().entries.map((entry) {
+                      return _buildFactureProductRow(
+                        index: entry.key + 1,
+                        produit: entry.value,
+                        isLast: entry.key == cmd.produits.length - 1,
+                      );
+                    }),
+                ],
+              ),
+            );
+
+            final totalsSection = _buildDetailsSection(
+              title: 'Totaux',
+              compact: true,
+              child: Column(
+                children: [
+                  _buildFactureInfoRow(
+                    label: 'Sous-total',
+                    value: _formatAmount(subtotal),
+                  ),
+                  if (cmd.tauxRemise > 0)
+                    _buildFactureInfoRow(
+                      label: 'Remise (${cmd.tauxRemise.toStringAsFixed(2)}%)',
+                      value: '-${_formatAmount(remiseAmount)}',
+                      valueColor: const Color(0xFFB42318),
+                    ),
+                  _buildFactureInfoRow(
+                    label: 'Montant facture',
+                    value: _formatAmount(totalFacture),
+                    emphasize: true,
+                    isLast: true,
+                  ),
+                ],
+              ),
+            );
+
+            final body = compactDialog
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      invoiceInfoSection,
+                      const SizedBox(height: _baseUnit * 1.1),
+                      clientSection,
+                      const SizedBox(height: _baseUnit * 1.1),
+                      articlesSection,
+                      const SizedBox(height: _baseUnit * 1.1),
+                      totalsSection,
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: invoiceInfoSection),
+                          const SizedBox(width: _baseUnit * 1.5),
+                          Expanded(child: clientSection),
+                        ],
+                      ),
+                      const SizedBox(height: _baseUnit * 1.5),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(flex: 3, child: articlesSection),
+                          const SizedBox(width: _baseUnit * 1.5),
+                          Expanded(flex: 2, child: totalsSection),
+                        ],
+                      ),
+                    ],
+                  );
+
+            return Dialog(
+              insetPadding: EdgeInsets.all(compactDialog ? 8 : 24),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(compactDialog ? 22 : 26),
+              ),
+              child: Container(
+                width: AdaptiveLayout.dialogWidth(
+                  ctx,
+                  max: compactDialog ? 520 : 980,
+                  sideMargin: compactDialog ? 8 : 16,
+                ),
+                constraints: BoxConstraints(
+                  maxHeight: AdaptiveLayout.dialogHeight(
+                    ctx,
+                    ratio: compactDialog ? 0.965 : 0.9,
+                  ),
+                ),
+                padding: EdgeInsets.fromLTRB(
+                  compactDialog ? 14 : 22,
+                  compactDialog ? 14 : 18,
+                  compactDialog ? 14 : 22,
+                  compactDialog ? 12 : 16,
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: compactDialog ? 42 : 48,
+                          height: compactDialog ? 42 : 48,
+                          decoration: BoxDecoration(
+                            color: _primary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(
+                              compactDialog ? 14 : 16,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.description_outlined,
+                            color: _primary,
+                            size: compactDialog ? 22 : 24,
+                          ),
+                        ),
+                        const SizedBox(width: _baseUnit * 1.25),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Facture',
+                                style: TextStyle(
+                                  fontSize: compactDialog ? 15.5 : 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: _textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                currentFacture.referenceFactureClient,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: compactDialog ? 13 : 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: _textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: _baseUnit * 0.75,
+                                runSpacing: _baseUnit * 0.75,
+                                children: [
+                                  _buildFactureStatusChip(
+                                    currentFacture.statut,
+                                    compact: true,
+                                  ),
+                                  _buildDetailMetaPill(
+                                    icon: Icons.calendar_today_outlined,
+                                    label: 'Date',
+                                    value: currentFacture.dateFactureDisplay,
+                                  ),
+                                  _buildDetailMetaPill(
+                                    icon: Icons.payments_outlined,
+                                    label: 'Total',
+                                    value: _formatAmount(totalFacture),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Fermer',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: _baseUnit * 1.25),
+                    Expanded(child: SingleChildScrollView(child: body)),
+                    const SizedBox(height: _baseUnit * 1.25),
+                    Container(
+                      padding: const EdgeInsets.only(top: _baseUnit * 1.25),
+                      decoration: const BoxDecoration(
+                        border: Border(top: BorderSide(color: _borderLight)),
+                      ),
+                      child: Wrap(
+                        alignment: WrapAlignment.end,
+                        spacing: _baseUnit,
+                        runSpacing: _baseUnit,
+                        children: [
+                          TextButton.icon(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            icon: const Icon(Icons.close),
+                            label: const Text('Fermer'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () =>
+                                _exportFacturePdf(cmd, currentFacture),
+                            icon: const Icon(Icons.picture_as_pdf_outlined),
+                            label: const Text('PDF'),
+                          ),
+                          if (!paid)
+                            ElevatedButton.icon(
+                              onPressed: updatingStatus ? null : markAsPaid,
+                              icon: updatingStatus
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(Icons.check_circle_outline),
+                              label: Text(
+                                updatingStatus
+                                    ? 'Mise a jour...'
+                                    : 'Marquer comme payee',
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _accent,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -1564,69 +1878,140 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
       barrierDismissible: true,
       builder: (ctx) {
         final client = cmd.client;
+        final compactDialog = AdaptiveSurface.isCompact(ctx, breakpoint: 700);
 
         return Dialog(
+          insetPadding: EdgeInsets.all(compactDialog ? 6 : 24),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(compactDialog ? 22 : 24),
           ),
           child: Container(
-            width: AdaptiveLayout.dialogWidth(ctx, max: 1000, sideMargin: 12),
-            constraints: BoxConstraints(
-              maxHeight: AdaptiveLayout.dialogHeight(ctx, ratio: 0.9),
+            width: AdaptiveLayout.dialogWidth(
+              ctx,
+              max: 1000,
+              sideMargin: compactDialog ? 6 : 12,
             ),
-            padding: EdgeInsets.all(_baseUnit * 3),
+            constraints: BoxConstraints(
+              maxHeight: AdaptiveLayout.dialogHeight(
+                ctx,
+                ratio: compactDialog ? 0.965 : 0.9,
+              ),
+            ),
+            padding: EdgeInsets.all(
+              compactDialog ? _baseUnit * 1.5 : _baseUnit * 3,
+            ),
             child: Column(
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: _primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(16),
+                if (compactDialog) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: _primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.receipt_long_outlined,
+                          color: _primary,
+                          size: 20,
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.receipt_long_outlined,
-                        color: _primary,
-                        size: 26,
-                      ),
-                    ),
-                    const SizedBox(width: _baseUnit * 1.5),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Details de la commande',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                              color: _textPrimary,
+                      const SizedBox(width: _baseUnit * 1.25),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Details commande',
+                              style: TextStyle(
+                                fontSize: 16.5,
+                                fontWeight: FontWeight.w800,
+                                color: _textPrimary,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            cmd.referenceCommandeClient,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: _textSecondary,
-                              fontWeight: FontWeight.w600,
+                            const SizedBox(height: 2),
+                            Text(
+                              cmd.referenceCommandeClient,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: _textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    _buildStatusChip(cmd.statut),
-                    const SizedBox(width: _baseUnit),
-                    IconButton(
-                      tooltip: 'Fermer',
-                      onPressed: () => Navigator.pop(ctx),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
+                      IconButton(
+                        tooltip: 'Fermer',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: _baseUnit),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: _buildStatusChip(cmd.statut, compact: true),
+                  ),
+                ] else
+                  Row(
+                    children: [
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: _primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(
+                          Icons.receipt_long_outlined,
+                          color: _primary,
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: _baseUnit * 1.5),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Details de la commande',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: _textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              cmd.referenceCommandeClient,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: _textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      _buildStatusChip(cmd.statut),
+                      const SizedBox(width: _baseUnit),
+                      IconButton(
+                        tooltip: 'Fermer',
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                SizedBox(
+                  height: compactDialog ? _baseUnit * 1.25 : _baseUnit * 2,
                 ),
-                const SizedBox(height: _baseUnit * 2),
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
@@ -1637,6 +2022,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
                           children: [
                             _buildDetailsSection(
                               title: 'Informations generales',
+                              compact: compact,
                               child: Wrap(
                                 spacing: _baseUnit,
                                 runSpacing: _baseUnit,
@@ -1645,22 +2031,26 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
                                     icon: Icons.calendar_today_outlined,
                                     label: 'Date',
                                     value: cmd.dateCommandeFormatted,
+                                    compact: compact,
                                   ),
                                   _buildDetailInfoCard(
                                     icon: Icons.person_outline,
                                     label: 'Client',
                                     value: client?.fullName ?? '-',
+                                    compact: compact,
                                   ),
                                   _buildDetailInfoCard(
                                     icon: Icons.local_offer_outlined,
                                     label: 'Reference',
                                     value: cmd.referenceCommandeClient,
+                                    compact: compact,
                                   ),
                                   _buildDetailInfoCard(
                                     icon: Icons.percent_outlined,
                                     label: 'Remise',
                                     value:
                                         '${cmd.tauxRemise.toStringAsFixed(2)}%',
+                                    compact: compact,
                                   ),
                                 ],
                               ),
@@ -1668,28 +2058,33 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
                             const SizedBox(height: _baseUnit * 2),
                             _buildDetailsSection(
                               title: 'Coordonnees client',
+                              compact: compact,
                               child: Column(
                                 children: [
                                   _buildCommandeDetailRow(
                                     icon: Icons.person_outline,
                                     label: 'Nom complet',
                                     value: client?.fullName ?? '-',
+                                    compact: compact,
                                   ),
                                   _buildCommandeDetailRow(
                                     icon: Icons.phone_outlined,
                                     label: 'Telephone',
                                     value: client?.telephone ?? '-',
+                                    compact: compact,
                                   ),
                                   _buildCommandeDetailRow(
                                     icon: Icons.email_outlined,
                                     label: 'Email',
                                     value: client?.email ?? '-',
+                                    compact: compact,
                                   ),
                                   _buildCommandeDetailRow(
                                     icon: Icons.location_on_outlined,
                                     label: 'Adresse',
                                     value: client?.adresse ?? '-',
                                     isLast: true,
+                                    compact: compact,
                                   ),
                                 ],
                               ),
@@ -1697,6 +2092,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
                             const SizedBox(height: _baseUnit * 2),
                             _buildDetailsSection(
                               title: 'Produits commandes',
+                              compact: compact,
                               child: Column(
                                 children: [
                                   if (cmd.produits.isEmpty)
@@ -1720,6 +2116,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
                                       return _buildProduitDetailCard(
                                         index: entry.key + 1,
                                         produit: entry.value,
+                                        compact: compact,
                                       );
                                     }),
                                 ],
@@ -1734,22 +2131,26 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
                           children: [
                             _buildDetailsSection(
                               title: 'Resume financier',
+                              compact: compact,
                               child: Column(
                                 children: [
                                   _buildSummaryTile(
                                     label: 'Nombre de lignes',
                                     value: '${cmd.produits.length}',
+                                    compact: compact,
                                   ),
                                   const SizedBox(height: _baseUnit),
                                   _buildSummaryTile(
                                     label: 'Statut',
                                     value: _displayStatus(cmd.statut),
+                                    compact: compact,
                                   ),
                                   const SizedBox(height: _baseUnit),
                                   _buildSummaryTile(
                                     label: 'Remise appliquee',
                                     value:
                                         '${cmd.tauxRemise.toStringAsFixed(2)}%',
+                                    compact: compact,
                                   ),
                                   const SizedBox(height: _baseUnit * 1.5),
                                   const Divider(color: _borderLight),
@@ -1757,12 +2158,14 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
                                   _buildAmountRow(
                                     'Sous-total estime',
                                     _buildCommandeSubtotal(cmd),
+                                    compact: compact,
                                   ),
                                   const SizedBox(height: _baseUnit),
                                   _buildAmountRow(
                                     'Total final',
                                     '${cmd.total.toStringAsFixed(2)} DT',
                                     isPrimary: true,
+                                    compact: compact,
                                   ),
                                 ],
                               ),
@@ -1771,16 +2174,19 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
                               const SizedBox(height: _baseUnit * 2),
                               _buildDetailsSection(
                                 title: 'Facture enregistree',
+                                compact: compact,
                                 child: Column(
                                   children: [
                                     _buildSummaryTile(
                                       label: 'Reference',
                                       value: facture.referenceFactureClient,
+                                      compact: compact,
                                     ),
                                     const SizedBox(height: _baseUnit),
                                     _buildSummaryTile(
                                       label: 'Statut facture',
                                       value: facture.statut,
+                                      compact: compact,
                                     ),
                                     const SizedBox(height: _baseUnit),
                                     _buildSummaryTile(
@@ -1788,6 +2194,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
                                       value: _formatAmount(
                                         facture.montantTotal,
                                       ),
+                                      compact: compact,
                                     ),
                                   ],
                                 ),
@@ -1798,12 +2205,234 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
                       );
 
                       if (compact) {
-                        return Column(
-                          children: [
-                            Expanded(child: leftPanel),
-                            const SizedBox(height: _baseUnit * 2),
-                            Expanded(child: rightPanel),
-                          ],
+                        final compactSummarySection = _buildDetailsSection(
+                          title: 'Resume financier',
+                          compact: true,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Wrap(
+                                spacing: _baseUnit * 0.75,
+                                runSpacing: _baseUnit * 0.75,
+                                children: [
+                                  _buildDetailMetaPill(
+                                    icon: Icons.shopping_bag_outlined,
+                                    label: 'Lignes',
+                                    value: '${cmd.produits.length}',
+                                  ),
+                                  _buildDetailMetaPill(
+                                    icon: Icons.flag_outlined,
+                                    label: 'Statut',
+                                    value: _displayStatus(cmd.statut),
+                                  ),
+                                  _buildDetailMetaPill(
+                                    icon: Icons.percent_outlined,
+                                    label: 'Remise',
+                                    value:
+                                        '${cmd.tauxRemise.toStringAsFixed(2)}%',
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: _baseUnit * 1.25),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(_baseUnit * 1.25),
+                                decoration: BoxDecoration(
+                                  color: _background,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: _borderLight),
+                                ),
+                                child: Column(
+                                  children: [
+                                    _buildAmountRow(
+                                      'Sous-total estime',
+                                      _buildCommandeSubtotal(cmd),
+                                      compact: true,
+                                    ),
+                                    const SizedBox(height: _baseUnit),
+                                    _buildAmountRow(
+                                      'Total final',
+                                      '${cmd.total.toStringAsFixed(2)} DT',
+                                      isPrimary: true,
+                                      compact: true,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        final compactInfoSection = _buildDetailsSection(
+                          title: 'Informations generales',
+                          compact: true,
+                          child: LayoutBuilder(
+                            builder: (context, infoConstraints) {
+                              final spacing = _baseUnit * 0.75;
+                              final cardWidth =
+                                  (infoConstraints.maxWidth - spacing) / 2;
+
+                              Widget infoCard({
+                                required IconData icon,
+                                required String label,
+                                required String value,
+                              }) {
+                                return SizedBox(
+                                  width: cardWidth,
+                                  child: _buildDetailInfoCard(
+                                    icon: icon,
+                                    label: label,
+                                    value: value,
+                                    compact: true,
+                                  ),
+                                );
+                              }
+
+                              return Wrap(
+                                spacing: spacing,
+                                runSpacing: spacing,
+                                children: [
+                                  infoCard(
+                                    icon: Icons.calendar_today_outlined,
+                                    label: 'Date',
+                                    value: cmd.dateCommandeFormatted,
+                                  ),
+                                  infoCard(
+                                    icon: Icons.person_outline,
+                                    label: 'Client',
+                                    value: client?.fullName ?? '-',
+                                  ),
+                                  infoCard(
+                                    icon: Icons.local_offer_outlined,
+                                    label: 'Reference',
+                                    value: cmd.referenceCommandeClient,
+                                  ),
+                                  infoCard(
+                                    icon: Icons.percent_outlined,
+                                    label: 'Remise',
+                                    value:
+                                        '${cmd.tauxRemise.toStringAsFixed(2)}%',
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        );
+
+                        final compactClientSection = _buildDetailsSection(
+                          title: 'Coordonnees client',
+                          compact: true,
+                          child: Column(
+                            children: [
+                              _buildCommandeDetailRow(
+                                icon: Icons.person_outline,
+                                label: 'Nom complet',
+                                value: client?.fullName ?? '-',
+                                compact: true,
+                              ),
+                              _buildCommandeDetailRow(
+                                icon: Icons.phone_outlined,
+                                label: 'Telephone',
+                                value: client?.telephone ?? '-',
+                                compact: true,
+                              ),
+                              _buildCommandeDetailRow(
+                                icon: Icons.email_outlined,
+                                label: 'Email',
+                                value: client?.email ?? '-',
+                                compact: true,
+                              ),
+                              _buildCommandeDetailRow(
+                                icon: Icons.location_on_outlined,
+                                label: 'Adresse',
+                                value: client?.adresse ?? '-',
+                                isLast: true,
+                                compact: true,
+                              ),
+                            ],
+                          ),
+                        );
+
+                        final compactProductsSection = _buildDetailsSection(
+                          title: 'Produits commandes',
+                          compact: true,
+                          child: Column(
+                            children: [
+                              if (cmd.produits.isEmpty)
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(
+                                    _baseUnit * 1.5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _background,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: _borderLight),
+                                  ),
+                                  child: const Text(
+                                    'Aucun produit dans cette commande.',
+                                    style: TextStyle(color: _textSecondary),
+                                  ),
+                                )
+                              else
+                                ...cmd.produits.asMap().entries.map((entry) {
+                                  return _buildProduitDetailCard(
+                                    index: entry.key + 1,
+                                    produit: entry.value,
+                                    compact: true,
+                                  );
+                                }),
+                            ],
+                          ),
+                        );
+
+                        final compactInvoiceSection = facture == null
+                            ? null
+                            : _buildDetailsSection(
+                                title: 'Facture enregistree',
+                                compact: true,
+                                child: Column(
+                                  children: [
+                                    _buildSummaryTile(
+                                      label: 'Reference',
+                                      value: facture.referenceFactureClient,
+                                      compact: true,
+                                    ),
+                                    const SizedBox(height: _baseUnit * 0.75),
+                                    _buildSummaryTile(
+                                      label: 'Statut facture',
+                                      value: facture.statut,
+                                      compact: true,
+                                    ),
+                                    const SizedBox(height: _baseUnit * 0.75),
+                                    _buildSummaryTile(
+                                      label: 'Montant',
+                                      value: _formatAmount(
+                                        facture.montantTotal,
+                                      ),
+                                      compact: true,
+                                    ),
+                                  ],
+                                ),
+                              );
+
+                        return SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              compactSummarySection,
+                              if (compactInvoiceSection != null) ...[
+                                const SizedBox(height: _baseUnit * 1.25),
+                                compactInvoiceSection,
+                              ],
+                              const SizedBox(height: _baseUnit * 1.25),
+                              compactInfoSection,
+                              const SizedBox(height: _baseUnit * 1.25),
+                              compactClientSection,
+                              const SizedBox(height: _baseUnit * 1.25),
+                              compactProductsSection,
+                            ],
+                          ),
                         );
                       }
 
@@ -1818,20 +2447,22 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
                     },
                   ),
                 ),
-                const SizedBox(height: _baseUnit * 2),
-                Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: _baseUnit,
-                  runSpacing: _baseUnit,
-                  children: [
-                    TextButton.icon(
-                      onPressed: () =>
-                          Navigator.of(ctx, rootNavigator: true).pop(),
-                      icon: const Icon(Icons.close),
-                      label: const Text('Fermer'),
-                    ),
-                  ],
-                ),
+                if (!compactDialog) ...[
+                  const SizedBox(height: _baseUnit * 2),
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: _baseUnit,
+                    runSpacing: _baseUnit,
+                    children: [
+                      TextButton.icon(
+                        onPressed: () =>
+                            Navigator.of(ctx, rootNavigator: true).pop(),
+                        icon: const Icon(Icons.close),
+                        label: const Text('Fermer'),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -1843,7 +2474,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
   // Construction de l'interface.
 
   /// Construit la pastille de statut.
-  Widget _buildStatusChip(String status) {
+  Widget _buildStatusChip(String status, {bool compact = false}) {
     final normalized = status.trim().toUpperCase();
     late Color bg;
     late Color fg;
@@ -1861,17 +2492,182 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
 
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: _baseUnit * 1.5,
-        vertical: _baseUnit,
+        horizontal: compact ? _baseUnit * 1.2 : _baseUnit * 1.5,
+        vertical: compact ? _baseUnit * 0.7 : _baseUnit,
       ),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(compact ? 16 : 20),
         border: Border.all(color: fg.withValues(alpha: 0.3)),
       ),
       child: Text(
         _displayStatus(status),
-        style: TextStyle(color: fg, fontWeight: FontWeight.w600, fontSize: 12),
+        style: TextStyle(
+          color: fg,
+          fontWeight: FontWeight.w600,
+          fontSize: compact ? 11 : 12,
+        ),
+      ),
+    );
+  }
+
+  /// Construit la pastille de statut pour une facture.
+  Widget _buildFactureStatusChip(String status, {bool compact = false}) {
+    final paid = _isFacturePaid(status);
+    final bg = paid ? const Color(0xFFE9F8EF) : const Color(0xFFFFF4E5);
+    final fg = paid ? const Color(0xFF11853F) : const Color(0xFFB54708);
+    final icon = paid ? Icons.check_circle_outline : Icons.schedule_outlined;
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? _baseUnit * 1.1 : _baseUnit * 1.35,
+        vertical: compact ? _baseUnit * 0.7 : _baseUnit * 0.9,
+      ),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(compact ? 16 : 20),
+        border: Border.all(color: fg.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: compact ? 14 : 16, color: fg),
+          const SizedBox(width: 6),
+          Text(
+            _displayFactureStatus(status),
+            style: TextStyle(
+              color: fg,
+              fontWeight: FontWeight.w700,
+              fontSize: compact ? 11 : 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Construit une ligne compacte pour les infos de facture.
+  Widget _buildFactureInfoRow({
+    required String label,
+    required String value,
+    bool emphasize = false,
+    bool isLast = false,
+    Color? valueColor,
+  }) {
+    final resolvedValueColor =
+        valueColor ?? (emphasize ? _accent : _textPrimary);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: _baseUnit * 0.95),
+      decoration: BoxDecoration(
+        border: isLast
+            ? null
+            : const Border(bottom: BorderSide(color: _borderLight)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 4,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: _textSecondary,
+                fontSize: emphasize ? 11.5 : 11.2,
+                fontWeight: emphasize ? FontWeight.w700 : FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: _baseUnit),
+          Expanded(
+            flex: 6,
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              softWrap: true,
+              style: TextStyle(
+                color: resolvedValueColor,
+                fontSize: emphasize ? 13.2 : 12.2,
+                fontWeight: emphasize ? FontWeight.w800 : FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Construit une ligne compacte pour les articles d'une facture.
+  Widget _buildFactureProductRow({
+    required int index,
+    required CommandeProduitDetail produit,
+    bool isLast = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: _baseUnit),
+      decoration: BoxDecoration(
+        border: isLast
+            ? null
+            : const Border(bottom: BorderSide(color: _borderLight)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: _background,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _borderLight),
+            ),
+            child: Text(
+              '$index',
+              style: const TextStyle(
+                color: _primary,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: _baseUnit),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  produit.libelle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _textPrimary,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${produit.quantite} x ${produit.prixUnitaire.toStringAsFixed(2)} DT',
+                  style: const TextStyle(
+                    color: _textSecondary,
+                    fontSize: 11.1,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: _baseUnit),
+          Text(
+            '${produit.sousTotal.toStringAsFixed(2)} DT',
+            style: const TextStyle(
+              color: _primaryDark,
+              fontSize: 12.4,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1915,35 +2711,82 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
   }
 
   /// Construit la section de details.
-  Widget _buildDetailsSection({required String title, required Widget child}) {
+  Widget _buildDetailsSection({
+    required String title,
+    required Widget child,
+    bool compact = false,
+  }) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(_baseUnit * 2),
+      padding: EdgeInsets.all(compact ? _baseUnit * 1.25 : _baseUnit * 2),
       decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(20),
+        color: compact ? _surface.withValues(alpha: 0.96) : _surface,
+        borderRadius: BorderRadius.circular(compact ? 16 : 20),
         border: Border.all(color: _borderLight),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        boxShadow: compact
+            ? const []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 15,
+            style: TextStyle(
+              fontSize: compact ? 13.5 : 15,
               fontWeight: FontWeight.w800,
               color: _textPrimary,
             ),
           ),
-          const SizedBox(height: _baseUnit * 1.5),
+          SizedBox(height: compact ? _baseUnit * 0.9 : _baseUnit * 1.5),
           child,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailMetaPill({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: _baseUnit * 1.1,
+        vertical: _baseUnit * 0.75,
+      ),
+      decoration: BoxDecoration(
+        color: _background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: _borderLight),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: _primary),
+          const SizedBox(width: 6),
+          Text(
+            '$label: ',
+            style: const TextStyle(
+              color: _textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: _textPrimary,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ],
       ),
     );
@@ -1954,45 +2797,51 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     required IconData icon,
     required String label,
     required String value,
+    bool compact = false,
   }) {
     return Container(
-      constraints: const BoxConstraints(minWidth: 190),
-      padding: EdgeInsets.all(_baseUnit * 1.5),
+      constraints: BoxConstraints(minWidth: compact ? 0 : 190),
+      padding: EdgeInsets.all(compact ? _baseUnit * 1.05 : _baseUnit * 1.5),
       decoration: BoxDecoration(
         color: _background,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(compact ? 12 : 16),
         border: Border.all(color: _borderLight),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.max,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: compact ? 28 : 36,
+            height: compact ? 28 : 36,
             decoration: BoxDecoration(
               color: _surface,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(compact ? 8 : 10),
               border: Border.all(color: _borderLight),
             ),
-            child: Icon(icon, size: 18, color: _primary),
+            child: Icon(icon, size: compact ? 15 : 18, color: _primary),
           ),
-          const SizedBox(width: _baseUnit),
+          SizedBox(width: compact ? 7 : _baseUnit),
           Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   label,
-                  style: const TextStyle(color: _textSecondary, fontSize: 12),
+                  style: TextStyle(
+                    color: _textSecondary,
+                    fontSize: compact ? 10.5 : 12,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   value,
+                  maxLines: compact ? 2 : 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: _textPrimary,
                     fontWeight: FontWeight.w700,
-                    fontSize: 13,
+                    fontSize: compact ? 11.8 : 13,
                   ),
                 ),
               ],
@@ -2009,7 +2858,49 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     required String label,
     required String value,
     bool isLast = false,
+    bool compact = false,
   }) {
+    if (compact) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: _baseUnit * 0.85),
+        decoration: BoxDecoration(
+          border: isLast
+              ? null
+              : const Border(bottom: BorderSide(color: _borderLight)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 15, color: _textSecondary),
+            const SizedBox(width: _baseUnit),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: _textSecondary,
+                      fontSize: 10.8,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      color: _textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       margin: EdgeInsets.only(bottom: isLast ? 0 : _baseUnit),
       padding: EdgeInsets.all(_baseUnit * 1.25),
@@ -2052,7 +2943,79 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
   Widget _buildProduitDetailCard({
     required int index,
     required CommandeProduitDetail produit,
+    bool compact = false,
   }) {
+    if (compact) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: _baseUnit * 0.75),
+        padding: const EdgeInsets.all(_baseUnit * 1.1),
+        decoration: BoxDecoration(
+          color: _background,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _borderLight),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 26,
+              height: 26,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: _surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _borderLight),
+              ),
+              child: Text(
+                '$index',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: _primary,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+            const SizedBox(width: _baseUnit),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    produit.libelle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12.8,
+                      color: _textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${produit.quantite} x ${produit.prixUnitaire.toStringAsFixed(2)} DT',
+                    style: const TextStyle(
+                      color: _textSecondary,
+                      fontSize: 11.2,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: _baseUnit),
+            Text(
+              '${produit.sousTotal.toStringAsFixed(2)} DT',
+              style: const TextStyle(
+                color: _primaryDark,
+                fontWeight: FontWeight.w800,
+                fontSize: 12.8,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       margin: EdgeInsets.only(bottom: _baseUnit * 1.25),
       padding: EdgeInsets.all(_baseUnit * 1.5),
@@ -2130,7 +3093,11 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
   }
 
   /// Construit la tuile recapitulative.
-  Widget _buildSummaryTile({required String label, required String value}) {
+  Widget _buildSummaryTile({
+    required String label,
+    required String value,
+    bool compact = false,
+  }) {
     final decoration = BoxDecoration(
       color: _background,
       borderRadius: BorderRadius.circular(12),
@@ -2144,32 +3111,42 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
       style: const TextStyle(color: _textSecondary, fontSize: 12),
     );
 
-    final valueWidget = Text(
-      value,
-      maxLines: 3,
-      overflow: TextOverflow.ellipsis,
-      softWrap: true,
-      style: const TextStyle(color: _textPrimary, fontWeight: FontWeight.w700),
-    );
-
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 320;
+        final stacked = compact || constraints.maxWidth < 320;
 
         return Container(
           width: double.infinity,
           padding: EdgeInsets.symmetric(
-            horizontal: _baseUnit * 1.5,
-            vertical: _baseUnit * 1.3,
+            horizontal: compact ? _baseUnit * 1.15 : _baseUnit * 1.5,
+            vertical: compact ? _baseUnit : _baseUnit * 1.3,
           ),
           decoration: decoration,
-          child: compact
+          child: stacked
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    labelWidget,
+                    Text(
+                      label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: _textSecondary,
+                        fontSize: compact ? 10.8 : 12,
+                      ),
+                    ),
                     const SizedBox(height: 6),
-                    valueWidget,
+                    Text(
+                      value,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: true,
+                      style: TextStyle(
+                        color: _textPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: compact ? 12 : 13,
+                      ),
+                    ),
                   ],
                 )
               : Row(
@@ -2200,7 +3177,12 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
   }
 
   /// Construit amount ligne.
-  Widget _buildAmountRow(String label, String value, {bool isPrimary = false}) {
+  Widget _buildAmountRow(
+    String label,
+    String value, {
+    bool isPrimary = false,
+    bool compact = false,
+  }) {
     return Row(
       children: [
         Expanded(
@@ -2209,7 +3191,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
             style: TextStyle(
               color: isPrimary ? _textPrimary : _textSecondary,
               fontWeight: isPrimary ? FontWeight.w700 : FontWeight.w600,
-              fontSize: isPrimary ? 15 : 13,
+              fontSize: compact ? (isPrimary ? 14 : 12) : (isPrimary ? 15 : 13),
             ),
           ),
         ),
@@ -2218,7 +3200,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
           style: TextStyle(
             color: isPrimary ? _accent : _textPrimary,
             fontWeight: FontWeight.w800,
-            fontSize: isPrimary ? 18 : 14,
+            fontSize: compact ? (isPrimary ? 16 : 13) : (isPrimary ? 18 : 14),
           ),
         ),
       ],
@@ -2286,14 +3268,34 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     );
   }
 
+  Widget _buildHeaderIconButton({
+    required String tooltip,
+    required VoidCallback? onPressed,
+    required Widget icon,
+  }) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      padding: EdgeInsets.zero,
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+      icon: icon,
+      style: IconButton.styleFrom(
+        foregroundColor: _primary,
+        backgroundColor: _background,
+        side: const BorderSide(color: _borderLight),
+      ),
+    );
+  }
+
   /// Construit l'en-tete.
   Widget _buildHeader({
     required List<CommandeModel> visible,
     required int pending,
   }) {
-    final selectableVisible = visible
-        .where((e) => !_isInvoiced(e.idCommandeClient))
-        .toList();
+    final selectableVisible = widget.showHeroHeader
+        ? visible.where((e) => !_isInvoiced(e.idCommandeClient)).toList()
+        : const <CommandeModel>[];
 
     final hasDateFilter = _selectedDateRange != null;
     final dateFilterButton = OutlinedButton.icon(
@@ -2318,95 +3320,165 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          padding: EdgeInsets.all(_baseUnit * 2),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [_primary, _primaryDark],
+        if (!widget.showHeroHeader) ...[
+          Container(
+            padding: EdgeInsets.all(_baseUnit * 1.5),
+            decoration: BoxDecoration(
+              color: _surface.withValues(alpha: 0.96),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _borderLight),
             ),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x3A2D47C8),
-                blurRadius: 20,
-                offset: Offset(0, 10),
-              ),
-            ],
-          ),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 760;
-              final titleBlock = Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.title,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    widget.subtitle,
-                    style: TextStyle(color: Color(0xFFE3EBFF), fontSize: 13),
-                  ),
-                  const SizedBox(height: _baseUnit * 1.5),
-                  Wrap(
-                    spacing: _baseUnit,
-                    runSpacing: _baseUnit,
-                    children: [
-                      _buildBadge(
-                        '$pending non facturees',
-                        Colors.white,
-                        Colors.white.withValues(alpha: 0.16),
-                      ),
-                      _buildBadge(
-                        '${selectableVisible.length} visibles a generer',
-                        Colors.white,
-                        Colors.white.withValues(alpha: 0.16),
-                      ),
-                      _buildBadge(
-                        'Montant visible: ${_formatAmount(_sumTotal(selectableVisible))}',
-                        Colors.white,
-                        Colors.white.withValues(alpha: 0.16),
-                      ),
-                    ],
-                  ),
-                ],
-              );
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 720;
+                final refreshIcon = _refreshing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: _primary,
+                        ),
+                      )
+                    : const Icon(Icons.refresh, size: 18.5);
 
-              final counter = _buildCountPill(
-                _confirmedCommandes.length,
-                onDark: true,
-              );
-
-              if (compact) {
-                return Column(
+                return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    titleBlock,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.title,
+                            style: TextStyle(
+                              fontSize: compact ? 15.5 : 18,
+                              fontWeight: FontWeight.w800,
+                              color: _textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            widget.subtitle,
+                            maxLines: compact ? 2 : 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: _textSecondary,
+                              fontSize: compact ? 11.6 : 12.4,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: _baseUnit),
+                    _buildCountPill(_confirmedCommandes.length),
+                    const SizedBox(width: 4),
+                    _buildHeaderIconButton(
+                      tooltip: 'Actualiser',
+                      onPressed: _refreshing
+                          ? null
+                          : () => _loadData(showLoader: false),
+                      icon: refreshIcon,
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: _baseUnit * 1.25),
+        ],
+        if (widget.showHeroHeader) ...[
+          Container(
+            padding: EdgeInsets.all(_baseUnit * 2),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [_primary, _primaryDark],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x3A2D47C8),
+                  blurRadius: 20,
+                  offset: Offset(0, 10),
+                ),
+              ],
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 760;
+                final titleBlock = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.title,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      widget.subtitle,
+                      style: TextStyle(color: Color(0xFFE3EBFF), fontSize: 13),
+                    ),
                     const SizedBox(height: _baseUnit * 1.5),
+                    Wrap(
+                      spacing: _baseUnit,
+                      runSpacing: _baseUnit,
+                      children: [
+                        _buildBadge(
+                          '$pending non facturees',
+                          Colors.white,
+                          Colors.white.withValues(alpha: 0.16),
+                        ),
+                        _buildBadge(
+                          '${selectableVisible.length} visibles a generer',
+                          Colors.white,
+                          Colors.white.withValues(alpha: 0.16),
+                        ),
+                        _buildBadge(
+                          'Montant visible: ${_formatAmount(_sumTotal(selectableVisible))}',
+                          Colors.white,
+                          Colors.white.withValues(alpha: 0.16),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+
+                final counter = _buildCountPill(
+                  _confirmedCommandes.length,
+                  onDark: true,
+                );
+
+                if (compact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      titleBlock,
+                      const SizedBox(height: _baseUnit * 1.5),
+                      counter,
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: titleBlock),
+                    const SizedBox(width: _baseUnit * 2),
                     counter,
                   ],
                 );
-              }
-
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: titleBlock),
-                  const SizedBox(width: _baseUnit * 2),
-                  counter,
-                ],
-              );
-            },
+              },
+            ),
           ),
-        ),
-        const SizedBox(height: _baseUnit * 1.5),
+          const SizedBox(height: _baseUnit * 1.5),
+        ],
         Container(
           padding: EdgeInsets.all(_baseUnit * 1.5),
           decoration: BoxDecoration(
@@ -2533,11 +3605,13 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
 
   /// Construit le panneau des commandes.
   Widget _buildOrdersPanel(List<CommandeModel> visible) {
+    final compact = AdaptiveSurface.isCompact(context, breakpoint: 430);
+    final useTable = AdaptiveSurface.isCompact(context, breakpoint: 920);
     if (visible.isEmpty) {
       return Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(compact ? 14 : 16),
           border: Border.all(color: const Color(0xFFE6EAF2)),
         ),
         child: const Center(
@@ -2546,19 +3620,195 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
       );
     }
 
+    if (useTable) {
+      return _buildOrdersTable(visible, compact: compact);
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(compact ? 14 : 16),
         border: Border.all(color: const Color(0xFFE6EAF2)),
       ),
       child: ListView.separated(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.all(compact ? 10 : 12),
         itemCount: visible.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        separatorBuilder: (_, __) => SizedBox(height: compact ? 8 : 10),
         itemBuilder: (context, index) => _buildCommandeCard(visible[index]),
+      ),
+    );
+  }
+
+  Widget _buildOrdersTable(
+    List<CommandeModel> visible, {
+    required bool compact,
+  }) {
+    return ColoredBox(
+      color: _surface,
+      child: Scrollbar(
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 980),
+            child: DataTable(
+              headingRowHeight: compact ? 48 : 52,
+              dataRowMinHeight: compact ? 62 : 68,
+              dataRowMaxHeight: compact ? 74 : 82,
+              horizontalMargin: compact ? 10 : 14,
+              columnSpacing: compact ? 16 : 22,
+              dividerThickness: 0.8,
+              headingRowColor: WidgetStatePropertyAll(
+                _background.withValues(alpha: 0.92),
+              ),
+              headingTextStyle: TextStyle(
+                color: _textSecondary,
+                fontSize: compact ? 11.5 : 12.5,
+                fontWeight: FontWeight.w800,
+              ),
+              dataTextStyle: TextStyle(
+                color: _textPrimary,
+                fontSize: compact ? 12 : 13,
+                fontWeight: FontWeight.w600,
+              ),
+              columns: const [
+                DataColumn(label: Text('COMMANDE')),
+                DataColumn(label: Text('CLIENT')),
+                DataColumn(label: Text('DATE')),
+                DataColumn(label: Text('MONTANT')),
+                DataColumn(label: Text('LIGNES')),
+                DataColumn(label: Text('FACTURE')),
+                DataColumn(label: Text('PAIEMENT')),
+                DataColumn(label: Text('ACTIONS')),
+              ],
+              rows: visible.map((cmd) {
+                final facture = _facturesByCommandeId[cmd.idCommandeClient];
+                final isGenerating = _isGeneratingFor(cmd.idCommandeClient);
+                final generationLocked = _generatingCommandeId != null;
+                final canOpenFacture =
+                    !isGenerating && !(generationLocked && facture == null);
+                final canMarkPayee =
+                    facture != null && !_isFacturePaid(facture.statut);
+
+                return DataRow(
+                  cells: [
+                    DataCell(
+                      SizedBox(
+                        width: 180,
+                        child: Text(
+                          cmd.referenceCommandeClient,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      SizedBox(
+                        width: 160,
+                        child: Text(
+                          cmd.client?.fullName ?? '-',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    DataCell(Text(cmd.dateCommandeFormatted)),
+                    DataCell(Text(_formatAmount(cmd.total))),
+                    DataCell(Text('${cmd.produits.length}')),
+                    DataCell(
+                      facture == null
+                          ? const Text('A generer')
+                          : SizedBox(
+                              width: 150,
+                              child: Text(
+                                facture.referenceFactureClient,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: _primaryDark,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                    ),
+                    DataCell(
+                      facture == null
+                          ? const Text('-')
+                          : _buildFactureStatusChip(
+                              facture.statut,
+                              compact: true,
+                            ),
+                    ),
+                    DataCell(
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          IconButton(
+                            tooltip: 'Details commande',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => _showCommandeDetails(cmd),
+                            icon: const Icon(
+                              Icons.visibility_outlined,
+                              size: 18,
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: facture == null
+                                ? 'Generer la facture'
+                                : 'Ouvrir la facture',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: !canOpenFacture
+                                ? null
+                                : () {
+                                    if (facture != null) {
+                                      _showFactureDetails(cmd, facture);
+                                      return;
+                                    }
+                                    _openFactureFlow(cmd);
+                                  },
+                            icon: isGenerating
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Icon(
+                                    facture == null
+                                        ? Icons.receipt_long_outlined
+                                        : Icons.description_outlined,
+                                    size: 18,
+                                  ),
+                          ),
+                          if (canMarkPayee)
+                            FilledButton.tonal(
+                              onPressed: () =>
+                                  _markFacturePayeeForCommande(cmd, facture),
+                              style: FilledButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 0,
+                                ),
+                              ),
+                              child: const Text('Payer'),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -2569,24 +3819,28 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
     final facture = _facturesByCommandeId[cmd.idCommandeClient];
     final isGenerating = _isGeneratingFor(cmd.idCommandeClient);
     final generationLocked = _generatingCommandeId != null;
+    final compact = AdaptiveSurface.isCompact(context, breakpoint: 430);
 
     return Container(
       decoration: BoxDecoration(
         color: isGenerating ? const Color(0xFFF4F7FF) : _surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(compact ? 16 : 20),
         border: Border.all(
           color: isGenerating ? const Color(0xFFBBC9FF) : _borderLight,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        boxShadow: AdaptiveSurface.shadow(
+          context,
+          breakpoint: 430,
+          compactBlur: 9,
+          compactOffsetY: 4,
+          regularBlur: 14,
+          regularOffsetY: 6,
+          compactColor: const Color(0x08000000),
+          regularColor: const Color(0x08000000),
+        ),
       ),
       child: Padding(
-        padding: EdgeInsets.all(_baseUnit * 2),
+        padding: EdgeInsets.all(compact ? _baseUnit * 1.5 : _baseUnit * 2),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2594,18 +3848,18 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: compact ? 36 : 40,
+                  height: compact ? 36 : 40,
                   decoration: BoxDecoration(
                     color: _primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(compact ? 10 : 12),
                   ),
                   child: const Icon(
                     Icons.receipt_long_outlined,
                     color: _primary,
                   ),
                 ),
-                const SizedBox(width: _baseUnit * 1.25),
+                SizedBox(width: compact ? _baseUnit : _baseUnit * 1.25),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2620,7 +3874,7 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
                           color: _textPrimary,
                         ),
                       ),
-                      const SizedBox(height: 3),
+                      SizedBox(height: compact ? 2 : 3),
                       Text(
                         cmd.dateCommandeFormatted,
                         style: const TextStyle(
@@ -2631,14 +3885,14 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
                     ],
                   ),
                 ),
-                const SizedBox(width: _baseUnit),
+                SizedBox(width: compact ? _baseUnit * 0.75 : _baseUnit),
                 _buildStatusChip(cmd.statut),
               ],
             ),
-            const SizedBox(height: _baseUnit * 1.5),
+            SizedBox(height: compact ? _baseUnit : _baseUnit * 1.5),
             Wrap(
-              spacing: _baseUnit,
-              runSpacing: _baseUnit,
+              spacing: compact ? _baseUnit * 0.75 : _baseUnit,
+              runSpacing: compact ? _baseUnit * 0.75 : _baseUnit,
               children: [
                 _buildMetaTile(
                   icon: Icons.person_outline,
@@ -2657,16 +3911,16 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
                 ),
               ],
             ),
-            const SizedBox(height: _baseUnit * 1.5),
+            SizedBox(height: compact ? _baseUnit : _baseUnit * 1.5),
             Container(
               width: double.infinity,
               padding: EdgeInsets.symmetric(
-                horizontal: _baseUnit * 1.25,
-                vertical: _baseUnit,
+                horizontal: compact ? _baseUnit : _baseUnit * 1.25,
+                vertical: compact ? _baseUnit * 0.8 : _baseUnit,
               ),
               decoration: BoxDecoration(
                 color: _background,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(compact ? 10 : 12),
                 border: Border.all(color: _borderLight),
               ),
               child: Row(
@@ -2691,11 +3945,11 @@ class _CommercialFacturesSectionState extends State<CommercialFacturesSection> {
                 ],
               ),
             ),
-            const SizedBox(height: _baseUnit * 1.5),
+            SizedBox(height: compact ? _baseUnit : _baseUnit * 1.5),
             Wrap(
               alignment: WrapAlignment.end,
-              spacing: _baseUnit,
-              runSpacing: _baseUnit,
+              spacing: compact ? _baseUnit * 0.75 : _baseUnit,
+              runSpacing: compact ? _baseUnit * 0.75 : _baseUnit,
               children: [
                 OutlinedButton.icon(
                   onPressed: () => _showCommandeDetails(cmd),

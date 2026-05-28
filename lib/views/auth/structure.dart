@@ -42,6 +42,7 @@ class AuthScaffold extends StatelessWidget {
     required this.subtitle,
     required this.child,
     this.showBackButton = true,
+    this.hideSurfaceOnPhone = false,
   });
 
   // Configuration, dependances et etat local de l'interface.
@@ -50,6 +51,7 @@ class AuthScaffold extends StatelessWidget {
   final String subtitle;
   final Widget child;
   final bool showBackButton;
+  final bool hideSurfaceOnPhone;
 
   // Construction de l'interface.
 
@@ -57,6 +59,8 @@ class AuthScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canGoBack = showBackButton && Navigator.of(context).canPop();
+    final isPhone = MediaQuery.sizeOf(context).width < 560;
+    final useFlatPhoneLayout = hideSurfaceOnPhone && isPhone;
     final horizontalPadding = AdaptiveLayout.horizontalPadding(
       context,
       phone: 16,
@@ -64,6 +68,53 @@ class AuthScaffold extends StatelessWidget {
       desktop: 28,
     );
     final cardPadding = MediaQuery.sizeOf(context).width < 380 ? 20.0 : 28.0;
+    final headerGap = useFlatPhoneLayout ? 12.0 : 16.0;
+    final subtitleGap = useFlatPhoneLayout ? 6.0 : 8.0;
+    final sectionGap = useFlatPhoneLayout ? 18.0 : 24.0;
+
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (eyebrow != null) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              eyebrow!,
+              style: const TextStyle(
+                color: AuthPalette.primary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          SizedBox(height: headerGap),
+        ],
+        Text(
+          title,
+          style: TextStyle(
+            color: AuthPalette.ink,
+            fontSize: useFlatPhoneLayout ? 26 : 28,
+            fontWeight: FontWeight.w700,
+            height: 1.1,
+          ),
+        ),
+        SizedBox(height: subtitleGap),
+        Text(
+          subtitle,
+          style: TextStyle(
+            color: AuthPalette.muted,
+            fontSize: useFlatPhoneLayout ? 13.5 : 14,
+            height: 1.5,
+          ),
+        ),
+        SizedBox(height: sectionGap),
+        child,
+      ],
+    );
 
     return Scaffold(
       backgroundColor: AuthPalette.backgroundTop,
@@ -98,77 +149,34 @@ class AuthScaffold extends StatelessWidget {
               child: SingleChildScrollView(
                 padding: EdgeInsets.fromLTRB(
                   horizontalPadding,
-                  canGoBack ? 76 : 24,
+                  canGoBack ? 76 : (useFlatPhoneLayout ? 18 : 24),
                   horizontalPadding,
-                  24,
+                  useFlatPhoneLayout ? 20 : 24,
                 ),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 430),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AuthPalette.surface.withValues(alpha: 0.90),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.60),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0x1F0F172A),
-                          blurRadius: 24,
-                          offset: const Offset(0, 14),
+                  child: useFlatPhoneLayout
+                      ? content
+                      : Container(
+                          decoration: BoxDecoration(
+                            color: AuthPalette.surface.withValues(alpha: 0.90),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.60),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0x1F0F172A),
+                                blurRadius: 24,
+                                offset: const Offset(0, 14),
+                              ),
+                            ],
+                          ),
+                          child: Padding(
+                            padding: EdgeInsets.all(cardPadding),
+                            child: content,
+                          ),
                         ),
-                      ],
-                    ),
-                    child: Padding(
-                      padding: EdgeInsets.all(cardPadding),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (eyebrow != null) ...[
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 7,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEFF6FF),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                eyebrow!,
-                                style: const TextStyle(
-                                  color: AuthPalette.primary,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-                          Text(
-                            title,
-                            style: const TextStyle(
-                              color: AuthPalette.ink,
-                              fontSize: 28,
-                              fontWeight: FontWeight.w700,
-                              height: 1.1,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            subtitle,
-                            style: const TextStyle(
-                              color: AuthPalette.muted,
-                              fontSize: 14,
-                              height: 1.5,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          child,
-                        ],
-                      ),
-                    ),
-                  ),
                 ),
               ),
             ),

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:invera_mobile/config/routes.dart';
+import 'package:invera_mobile/core/ui/dialogues.dart';
 import 'package:invera_mobile/core/ui/mise_en_page.dart';
 import 'package:invera_mobile/models/client.dart';
 import 'package:invera_mobile/models/commande.dart';
@@ -163,8 +164,8 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
               icon: Icons.paid_outlined,
             ),
             CommercialSidebarItem(
-              id: 'factures_generees',
-              label: 'Facturation',
+              id: 'factures',
+              label: 'Factures',
               icon: Icons.receipt_long_outlined,
             ),
           ],
@@ -204,7 +205,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
       case 'factures_generees':
         return 'Factures';
       case 'factures':
-        return 'Facturation vente';
+        return 'Factures';
       default:
         return widget.analyticsTitle;
     }
@@ -226,7 +227,7 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
       case 'factures_generees':
         return 'Liste des factures generees a partir des ventes';
       case 'factures':
-        return 'Generation, recherche et controle des factures commerciales';
+        return 'Liste des factures generees a partir des ventes';
       default:
         return widget.analyticsSubtitle;
     }
@@ -263,25 +264,16 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
 
   /// Methode utilitaire pour la confirmation de deconnexion.
   Future<void> _confirmLogout() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Deconnexion'),
-          content: const Text('Voulez-vous vraiment vous deconnecter ?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Annuler'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Deconnecter'),
-            ),
-          ],
-        );
-      },
+    final confirmed = await showAppConfirmationDialog(
+      context,
+      title: 'Deconnexion',
+      message: 'Voulez-vous vraiment vous deconnecter ?',
+      confirmLabel: 'Deconnecter',
+      confirmColor: const Color(0xFFEF4444),
+      accentColor: _ventePrimary,
+      icon: Icons.logout_rounded,
+      helper:
+          'Vous devrez vous reconnecter pour acceder de nouveau a votre espace.',
     );
 
     if (confirmed == true) {
@@ -577,11 +569,12 @@ class _CommercialDashboardState extends State<CommercialDashboard> {
           title: 'Ventes',
           subtitle:
               'Commandes client validees. Consultez les ventes et generez les factures.',
+          showHeroHeader: false,
         );
       case 'factures_generees':
         return const CommercialFacturesGenereesSection();
       case 'factures':
-        return const CommercialFacturesSection();
+        return const CommercialFacturesGenereesSection();
       default:
         return _CommercialAnalyticsDashboard(
           title: widget.analyticsTitle,
@@ -959,7 +952,7 @@ class _CommercialAnalyticsDashboardState
 
   List<ClientModel> _clients = <ClientModel>[];
   List<CommandeModel> _commandes = <CommandeModel>[];
-  DateTime? _lastSync;
+  DateTimeRange? _selectedDateRange;
 
   static const Set<String> _confirmedStatuses = {'CONFIRMEE', 'VALIDEE'};
   static const Set<String> _pendingStatuses = {'EN_ATTENTE'};
@@ -991,7 +984,6 @@ class _CommercialAnalyticsDashboardState
       setState(() {
         _clients = (results[0] as List<ClientModel>);
         _commandes = (results[1] as List<CommandeModel>);
-        _lastSync = DateTime.now();
         _loading = false;
         _refreshing = false;
         _error = null;
@@ -1006,18 +998,33 @@ class _CommercialAnalyticsDashboardState
     }
   }
 
-  int get _clientsCount => _clients.length;
-  int get _ordersCount => _commandes.length;
+  DateTime _dayOnly(DateTime value) =>
+      DateTime(value.year, value.month, value.day);
 
-  List<CommandeModel> get _confirmedOrders => _commandes
+  int get _clientsCount {
+    if (_selectedDateRange == null) return _clients.length;
+    return _filteredClientIds.length;
+  }
+
+  int get _ordersCount => _filteredCommandes.length;
+
+  List<CommandeModel> get _filteredCommandes =>
+      _commandes.where((c) => _belongsToSelectedPeriod(c)).toList();
+
+  Set<int> get _filteredClientIds => _filteredCommandes
+      .map((c) => c.client?.idClient)
+      .whereType<int>()
+      .toSet();
+
+  List<CommandeModel> get _confirmedOrders => _filteredCommandes
       .where((c) => _confirmedStatuses.contains(c.statut.trim().toUpperCase()))
       .toList();
 
   int get _confirmedCount => _confirmedOrders.length;
-  int get _pendingCount => _commandes
+  int get _pendingCount => _filteredCommandes
       .where((c) => _pendingStatuses.contains(c.statut.trim().toUpperCase()))
       .length;
-  int get _canceledCount => _commandes
+  int get _canceledCount => _filteredCommandes
       .where((c) => _canceledStatuses.contains(c.statut.trim().toUpperCase()))
       .length;
 
@@ -1026,29 +1033,7 @@ class _CommercialAnalyticsDashboardState
   double get _avgTicket =>
       _confirmedCount == 0 ? 0 : _revenue / _confirmedCount;
 
-  int get _activeClientCount {
-    final ids = _confirmedOrders
-        .map((c) => c.client?.idClient)
-        .whereType<int>()
-        .toSet();
-    return ids.length;
-  }
-
-  double get _conversionRate {
-    if (_ordersCount == 0) return 0;
-    return (_confirmedCount / _ordersCount) * 100;
-  }
-
   String _money(double value) => '${value.toStringAsFixed(2)} DT';
-
-  String _syncStamp(DateTime? value) {
-    if (value == null) return '-';
-    final dd = value.day.toString().padLeft(2, '0');
-    final mm = value.month.toString().padLeft(2, '0');
-    final hh = value.hour.toString().padLeft(2, '0');
-    final mn = value.minute.toString().padLeft(2, '0');
-    return '$dd/$mm $hh:$mn';
-  }
 
   DateTime? _parseCommandeDate(String raw) {
     final value = raw.trim();
@@ -1092,10 +1077,285 @@ class _CommercialAnalyticsDashboardState
     return null;
   }
 
-  List<_MonthlySalesPoint> _monthlySales() {
+  DateTime? _commandeDate(CommandeModel order) {
+    return _parseCommandeDate(order.dateCommande) ??
+        _parseCommandeDate(order.dateCommandeFormatted);
+  }
+
+  bool _belongsToSelectedPeriod(CommandeModel order, {DateTimeRange? range}) {
+    final activeRange = range ?? _selectedDateRange;
+    if (activeRange == null) return true;
+
+    final date = _commandeDate(order);
+    if (date == null) return false;
+
+    final normalizedDate = _dayOnly(date);
+    final start = _dayOnly(activeRange.start);
+    final end = _dayOnly(activeRange.end);
+    return !normalizedDate.isBefore(start) && !normalizedDate.isAfter(end);
+  }
+
+  DateTimeRange _normalizedRange(DateTime start, DateTime end) {
+    final normalizedStart = _dayOnly(start);
+    final normalizedEnd = _dayOnly(end);
+    if (!normalizedStart.isAfter(normalizedEnd)) {
+      return DateTimeRange(start: normalizedStart, end: normalizedEnd);
+    }
+    return DateTimeRange(start: normalizedEnd, end: normalizedStart);
+  }
+
+  bool _isSameDateRange(DateTimeRange? a, DateTimeRange? b) {
+    if (a == null || b == null) return a == b;
+    return _dayOnly(a.start) == _dayOnly(b.start) &&
+        _dayOnly(a.end) == _dayOnly(b.end);
+  }
+
+  DateTimeRange _lastDaysRange(int days) {
+    final now = _dayOnly(DateTime.now());
+    return _normalizedRange(now.subtract(Duration(days: days - 1)), now);
+  }
+
+  DateTimeRange _currentMonthRange() {
     final now = DateTime.now();
+    return _normalizedRange(
+      DateTime(now.year, now.month, 1),
+      DateTime(now.year, now.month + 1, 0),
+    );
+  }
+
+  DateTimeRange _currentYearRange() {
+    final now = DateTime.now();
+    return _normalizedRange(
+      DateTime(now.year, 1, 1),
+      DateTime(now.year, 12, 31),
+    );
+  }
+
+  DateTimeRange _availableDateBounds() {
+    final dates =
+        _commandes
+            .map(_commandeDate)
+            .whereType<DateTime>()
+            .map(_dayOnly)
+            .toList()
+          ..sort((a, b) => a.compareTo(b));
+
+    if (dates.isEmpty) {
+      final now = _dayOnly(DateTime.now());
+      return DateTimeRange(
+        start: DateTime(now.year - 5, 1, 1),
+        end: DateTime(now.year + 1, 12, 31),
+      );
+    }
+
+    return DateTimeRange(start: dates.first, end: dates.last);
+  }
+
+  String _formatDateForUi(DateTime value) {
+    final day = value.day.toString().padLeft(2, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    return '$day/$month/${value.year}';
+  }
+
+  String _formatShortDate(DateTime value) {
+    final day = value.day.toString().padLeft(2, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    return '$day/$month';
+  }
+
+  String _periodLabel({bool compact = false}) {
+    final selected = _selectedDateRange;
+    if (selected == null) return compact ? 'Toutes' : 'Toutes periodes';
+
+    if (_isSameDateRange(
+      selected,
+      _normalizedRange(DateTime.now(), DateTime.now()),
+    )) {
+      return compact ? 'Auj.' : 'Aujourd\'hui';
+    }
+    if (_isSameDateRange(selected, _lastDaysRange(7))) {
+      return compact ? '7 j' : '7 derniers jours';
+    }
+    if (_isSameDateRange(selected, _lastDaysRange(30))) {
+      return compact ? '30 j' : '30 derniers jours';
+    }
+    if (_isSameDateRange(selected, _currentMonthRange())) {
+      return compact ? 'Ce mois' : 'Ce mois';
+    }
+    if (_isSameDateRange(selected, _currentYearRange())) {
+      return compact ? 'Cette annee' : 'Cette annee';
+    }
+
+    final start = _formatShortDate(selected.start);
+    final end = _formatShortDate(selected.end);
+    return compact ? '$start-$end' : '$start -> $end';
+  }
+
+  String _rangeSummary(DateTimeRange? range) {
+    if (range == null) return 'Toutes les statistiques';
+    return '${_formatDateForUi(range.start)} -> ${_formatDateForUi(range.end)}';
+  }
+
+  Future<void> _openDateFilterSheet() async {
+    final todayRange = _normalizedRange(DateTime.now(), DateTime.now());
+    final last7DaysRange = _lastDaysRange(7);
+    final last30DaysRange = _lastDaysRange(30);
+    final monthRange = _currentMonthRange();
+    final yearRange = _currentYearRange();
+    final bounds = _availableDateBounds();
+
+    DateTimeRange? draftRange = _selectedDateRange;
+
+    Future<void> pickCustomRange(
+      void Function(void Function()) modalSetState,
+    ) async {
+      final initialRange = draftRange ?? monthRange;
+      final picked = await showDateRangePicker(
+        context: context,
+        locale: const Locale('fr', 'FR'),
+        firstDate: bounds.start,
+        lastDate: bounds.end,
+        initialDateRange: _normalizedRange(
+          initialRange.start.isBefore(bounds.start)
+              ? bounds.start
+              : initialRange.start,
+          initialRange.end.isAfter(bounds.end) ? bounds.end : initialRange.end,
+        ),
+        helpText: 'Selectionner une periode',
+        cancelText: 'Annuler',
+        confirmText: 'Appliquer',
+        saveText: 'Appliquer',
+        fieldStartHintText: 'Debut',
+        fieldEndHintText: 'Fin',
+      );
+      if (picked == null) return;
+      modalSetState(() {
+        draftRange = _normalizedRange(picked.start, picked.end);
+      });
+    }
+
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, modalSetState) {
+            Widget quickChip(String label, DateTimeRange? range) {
+              final selected = _isSameDateRange(draftRange, range);
+              return ChoiceChip(
+                label: Text(label),
+                selected: selected,
+                selectedColor: _ventePrimary.withValues(alpha: 0.16),
+                backgroundColor: Colors.white,
+                side: BorderSide(
+                  color: selected ? _ventePrimary : const Color(0xFFDCE5F3),
+                ),
+                labelStyle: TextStyle(
+                  color: selected ? _ventePrimary : const Color(0xFF1F2A44),
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                ),
+                onSelected: (_) => modalSetState(() => draftRange = range),
+              );
+            }
+
+            return SafeArea(
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFE6EAF2)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Filtrer les statistiques',
+                      style: TextStyle(
+                        color: Color(0xFF1F2A44),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      draftRange == null
+                          ? 'Toutes les donnees'
+                          : _rangeSummary(draftRange),
+                      style: const TextStyle(
+                        color: Color(0xFF607089),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        quickChip('Toutes', null),
+                        quickChip('Aujourd\'hui', todayRange),
+                        quickChip('7 jours', last7DaysRange),
+                        quickChip('30 jours', last30DaysRange),
+                        quickChip('Ce mois', monthRange),
+                        quickChip('Cette annee', yearRange),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => pickCustomRange(modalSetState),
+                      icon: const Icon(Icons.date_range_outlined, size: 18),
+                      label: const Text('Choisir des dates'),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            setState(() => _selectedDateRange = null);
+                            Navigator.of(sheetContext).pop();
+                          },
+                          child: const Text('Effacer'),
+                        ),
+                        const Spacer(),
+                        FilledButton(
+                          onPressed: () {
+                            setState(() => _selectedDateRange = draftRange);
+                            Navigator.of(sheetContext).pop();
+                          },
+                          child: const Text('Appliquer'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  List<_MonthlySalesPoint> _monthlySales() {
+    final referenceMonth = _selectedDateRange?.end ?? DateTime.now();
     final months = List<_MonthlySalesPoint>.generate(6, (index) {
-      final d = DateTime(now.year, now.month - (5 - index), 1);
+      final d = DateTime(
+        referenceMonth.year,
+        referenceMonth.month - (5 - index),
+        1,
+      );
       return _MonthlySalesPoint(month: d, value: 0);
     });
 
@@ -1104,7 +1364,7 @@ class _CommercialAnalyticsDashboardState
     };
 
     for (final order in _confirmedOrders) {
-      final date = _parseCommandeDate(order.dateCommandeFormatted);
+      final date = _commandeDate(order);
       if (date == null) continue;
       final key = '${date.year}-${date.month}';
       if (totals.containsKey(key)) {
@@ -1149,7 +1409,11 @@ class _CommercialAnalyticsDashboardState
       for (final type in ClientType.allowedValues) type: 0,
     };
 
-    for (final client in _clients) {
+    final visibleClients = _selectedDateRange == null
+        ? _clients
+        : _clients.where((client) => _filteredClientIds.contains(client.id));
+
+    for (final client in visibleClients) {
       final type = ClientType.normalize(
         client.typeClient,
         fallbackToDefault: true,
@@ -1197,10 +1461,10 @@ class _CommercialAnalyticsDashboardState
   }
 
   List<CommandeModel> _recentOrders() {
-    final copy = List<CommandeModel>.from(_commandes);
+    final copy = List<CommandeModel>.from(_filteredCommandes);
     copy.sort((a, b) {
-      final ad = _parseCommandeDate(a.dateCommandeFormatted);
-      final bd = _parseCommandeDate(b.dateCommandeFormatted);
+      final ad = _commandeDate(a);
+      final bd = _commandeDate(b);
       if (ad != null && bd != null) {
         return bd.compareTo(ad);
       }
@@ -1228,18 +1492,21 @@ class _CommercialAnalyticsDashboardState
     final scale = compact ? _phoneScale(context, min: 0.84) : 1.0;
 
     return Container(
-      padding: EdgeInsets.all(compact ? 12 * scale : 14),
+      padding: EdgeInsets.all(compact ? 10.5 * scale : 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular((compact ? 14 : 16) * scale),
+        borderRadius: BorderRadius.circular((compact ? 13 : 16) * scale),
         border: Border.all(color: const Color(0xFFE6EAF2)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0E000000),
-            blurRadius: 14,
-            offset: Offset(0, 6),
-          ),
-        ],
+        boxShadow: AdaptiveSurface.shadow(
+          context,
+          breakpoint: 600,
+          compactBlur: 9,
+          compactOffsetY: 4,
+          regularBlur: 14,
+          regularOffsetY: 6,
+          compactColor: const Color(0x08000000),
+          regularColor: const Color(0x0E000000),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1285,7 +1552,7 @@ class _CommercialAnalyticsDashboardState
               if (trailing != null) trailing,
             ],
           ),
-          SizedBox(height: 11 * scale),
+          SizedBox(height: (compact ? 9.5 : 11) * scale),
           child,
         ],
       ),
@@ -1354,17 +1621,31 @@ class _CommercialAnalyticsDashboardState
         ? 10.0 * phoneScale
         : (screenWidth < 760 ? 14.0 : 24.0);
     final verticalPadding = screenWidth < 760 ? (isPhone ? 12.0 : 16.0) : 20.0;
-    final kpiColumns = screenWidth < 1100 ? 2 : 4;
+    final kpiColumns = screenWidth < 900 ? 2 : (screenWidth < 1280 ? 3 : 6);
     final kpiAspectRatio = screenWidth < 390
-        ? 1.34
-        : (screenWidth < 700 ? 1.55 : (screenWidth < 1100 ? 2.0 : 2.2));
-    final cardPadding = isPhone ? 12.0 * phoneScale : 14.0;
-    final inlineGap = isPhone ? 8.0 * phoneScale : 10.0;
-    final gridGap = isPhone ? 8.0 * phoneScale : 10.0;
+        ? 1.46
+        : (screenWidth < 700 ? 1.7 : (screenWidth < 1100 ? 2.0 : 2.2));
+    final cardPadding = isPhone ? 10.5 * phoneScale : 14.0;
+    final inlineGap = isPhone ? 7.0 * phoneScale : 10.0;
+    final gridGap = isPhone ? 7.0 * phoneScale : 10.0;
     final topClientsPreview = (isPhone ? topClients.take(4) : topClients)
         .toList();
     final recentOrdersPreview =
         (screenWidth < 640 ? recentOrders.take(3) : recentOrders).toList();
+    final clientsKpiLabel = _selectedDateRange == null ? 'Clients' : 'Actifs';
+    final compactClientsKpiLabel = _selectedDateRange == null
+        ? 'Clients'
+        : 'Actifs';
+    final periodSummary = _rangeSummary(_selectedDateRange);
+    final chartSubtitle = _selectedDateRange == null
+        ? '6 derniers mois confirmes'
+        : '6 derniers mois de la periode';
+    final statusSubtitle = _selectedDateRange == null
+        ? 'Repartition actuelle'
+        : 'Repartition sur la periode';
+    final topClientsSubtitle = _selectedDateRange == null
+        ? 'Classement CA confirme'
+        : 'CA confirme sur la periode';
 
     final statusSegments = <_DonutSegment>[
       _DonutSegment(
@@ -1384,32 +1665,113 @@ class _CommercialAnalyticsDashboardState
       ),
     ];
 
-    return RefreshIndicator(
-      onRefresh: () => _loadDashboard(showLoader: false),
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(
-          parent: BouncingScrollPhysics(),
-        ),
-        padding: EdgeInsets.fromLTRB(
-          horizontalPadding,
-          verticalPadding,
-          horizontalPadding,
-          isPhone ? 18 : 24,
-        ),
-        children: [
-          Container(
+    final refreshControl = isPhone
+        ? Tooltip(
+            message: 'Actualiser',
+            child: InkWell(
+              onTap: _refreshing
+                  ? null
+                  : () => _loadDashboard(showLoader: false),
+              borderRadius: BorderRadius.circular(10 * phoneScale),
+              child: Ink(
+                padding: EdgeInsets.all(8 * phoneScale),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFF),
+                  borderRadius: BorderRadius.circular(10 * phoneScale),
+                  border: Border.all(color: const Color(0xFFDCE5F3)),
+                ),
+                child: _refreshing
+                    ? SizedBox(
+                        width: 14 * phoneScale,
+                        height: 14 * phoneScale,
+                        child: const CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
+                        Icons.refresh,
+                        size: 17 * phoneScale,
+                        color: const Color(0xFF2D47C8),
+                      ),
+              ),
+            ),
+          )
+        : OutlinedButton.icon(
+            onPressed: _refreshing
+                ? null
+                : () => _loadDashboard(showLoader: false),
+            icon: _refreshing
+                ? SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: const CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh, size: 18),
+            label: const Text('Actualiser'),
+          );
+
+    final summaryHeader = isPhone
+        ? Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: 10 * phoneScale,
+              vertical: 9 * phoneScale,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.94),
+              borderRadius: BorderRadius.circular(12 * phoneScale),
+              border: Border.all(color: const Color(0xFFE6EAF2)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: const Color(0xFF1F2A44),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14.2 * phoneScale,
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 8 * phoneScale),
+                    refreshControl,
+                  ],
+                ),
+                SizedBox(height: 7 * phoneScale),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _PeriodFilterChip(
+                        label: _periodLabel(compact: true),
+                        onTap: _openDateFilterSheet,
+                        dense: true,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          )
+        : Container(
             padding: EdgeInsets.all(cardPadding),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(isPhone ? 14 : 16),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(color: const Color(0xFFE6EAF2)),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x0D000000),
-                  blurRadius: 14,
-                  offset: Offset(0, 6),
-                ),
-              ],
+              boxShadow: AdaptiveSurface.shadow(
+                context,
+                breakpoint: 560,
+                compactBlur: 9,
+                compactOffsetY: 4,
+                regularBlur: 14,
+                regularOffsetY: 6,
+                compactColor: const Color(0x08000000),
+                regularColor: const Color(0x0D000000),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1425,34 +1787,19 @@ class _CommercialAnalyticsDashboardState
                           style: TextStyle(
                             color: const Color(0xFF1F2A44),
                             fontWeight: FontWeight.w800,
-                            fontSize: compactHeader
-                                ? (isPhone ? 15 : 16)
-                                : (isPhone ? 17 : 18),
+                            fontSize: compactHeader ? 16 : 18,
                           ),
                         ),
                         SizedBox(height: 2 * phoneScale),
                         Text(
-                          'Vue compacte des indicateurs essentiels.',
-                          style: TextStyle(
+                          periodSummary,
+                          style: const TextStyle(
                             color: Color(0xFF607089),
-                            fontSize: isPhone ? 11.2 : 12,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
-                    );
-
-                    final refreshButton = OutlinedButton.icon(
-                      onPressed: _refreshing
-                          ? null
-                          : () => _loadDashboard(showLoader: false),
-                      icon: _refreshing
-                          ? SizedBox(
-                              width: isPhone ? 12 : 14,
-                              height: isPhone ? 12 : 14,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Icon(Icons.refresh, size: isPhone ? 17 : 18),
-                      label: const Text('Actualiser'),
                     );
 
                     if (compactHeader) {
@@ -1461,7 +1808,7 @@ class _CommercialAnalyticsDashboardState
                         children: [
                           titleBlock,
                           SizedBox(height: inlineGap),
-                          refreshButton,
+                          refreshControl,
                         ],
                       );
                     }
@@ -1469,36 +1816,40 @@ class _CommercialAnalyticsDashboardState
                     return Row(
                       children: [
                         Expanded(child: titleBlock),
-                        refreshButton,
+                        refreshControl,
                       ],
                     );
                   },
                 ),
                 SizedBox(height: inlineGap),
                 Wrap(
-                  spacing: isPhone ? 6 * phoneScale : 8,
-                  runSpacing: isPhone ? 6 * phoneScale : 8,
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
-                    _HeaderStatPill(
-                      icon: Icons.people_alt_outlined,
-                      label: 'Actifs',
-                      value: '$_activeClientCount',
-                    ),
-                    _HeaderStatPill(
-                      icon: Icons.check_circle_outline,
-                      label: 'Conversion',
-                      value: '${_conversionRate.toStringAsFixed(1)}%',
-                    ),
-                    _HeaderStatPill(
-                      icon: Icons.schedule_outlined,
-                      label: 'Sync',
-                      value: _syncStamp(_lastSync),
+                    _PeriodFilterChip(
+                      label: _periodLabel(),
+                      onTap: _openDateFilterSheet,
                     ),
                   ],
                 ),
               ],
             ),
-          ),
+          );
+
+    return RefreshIndicator(
+      onRefresh: () => _loadDashboard(showLoader: false),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        padding: EdgeInsets.fromLTRB(
+          horizontalPadding,
+          verticalPadding,
+          horizontalPadding,
+          isPhone ? 18 : 24,
+        ),
+        children: [
+          summaryHeader,
           if (_error != null) ...[
             SizedBox(height: inlineGap),
             Container(
@@ -1530,40 +1881,120 @@ class _CommercialAnalyticsDashboardState
             ),
           ],
           SizedBox(height: inlineGap),
-          GridView.count(
-            crossAxisCount: kpiColumns,
-            crossAxisSpacing: gridGap,
-            mainAxisSpacing: gridGap,
-            childAspectRatio: kpiAspectRatio,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            children: [
-              _KpiTile(
-                label: 'Clients',
-                value: '$_clientsCount',
-                icon: Icons.people_outline,
-                color: const Color(0xFF0284C7),
+          if (isPhone)
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 110 * phoneScale,
+                    child: _CompactKpiTile(
+                      label: compactClientsKpiLabel,
+                      value: '$_clientsCount',
+                      icon: Icons.people_outline,
+                      color: const Color(0xFF0284C7),
+                    ),
+                  ),
+                  SizedBox(width: gridGap),
+                  SizedBox(
+                    width: 110 * phoneScale,
+                    child: _CompactKpiTile(
+                      label: 'Cmd',
+                      value: '$_ordersCount',
+                      icon: Icons.shopping_cart_outlined,
+                      color: const Color(0xFFEA580C),
+                    ),
+                  ),
+                  SizedBox(width: gridGap),
+                  SizedBox(
+                    width: 120 * phoneScale,
+                    child: _CompactKpiTile(
+                      label: 'En attente',
+                      value: '$_pendingCount',
+                      icon: Icons.hourglass_top_outlined,
+                      color: const Color(0xFFD97706),
+                    ),
+                  ),
+                  SizedBox(width: gridGap),
+                  SizedBox(
+                    width: 136 * phoneScale,
+                    child: _CompactKpiTile(
+                      label: 'Confirmees',
+                      value: '$_confirmedCount',
+                      icon: Icons.verified_outlined,
+                      color: const Color(0xFF16A34A),
+                    ),
+                  ),
+                  SizedBox(width: gridGap),
+                  SizedBox(
+                    width: 126 * phoneScale,
+                    child: _CompactKpiTile(
+                      label: 'CA',
+                      value: _money(_revenue),
+                      icon: Icons.payments_outlined,
+                      color: const Color(0xFF16A34A),
+                    ),
+                  ),
+                  SizedBox(width: gridGap),
+                  SizedBox(
+                    width: 126 * phoneScale,
+                    child: _CompactKpiTile(
+                      label: 'Panier',
+                      value: _money(_avgTicket),
+                      icon: Icons.trending_up_outlined,
+                      color: const Color(0xFF7C3AED),
+                    ),
+                  ),
+                ],
               ),
-              _KpiTile(
-                label: 'Commandes',
-                value: '$_ordersCount',
-                icon: Icons.shopping_cart_outlined,
-                color: const Color(0xFFEA580C),
-              ),
-              _KpiTile(
-                label: 'CA confirme',
-                value: _money(_revenue),
-                icon: Icons.payments_outlined,
-                color: const Color(0xFF16A34A),
-              ),
-              _KpiTile(
-                label: 'Panier moyen',
-                value: _money(_avgTicket),
-                icon: Icons.trending_up_outlined,
-                color: const Color(0xFF7C3AED),
-              ),
-            ],
-          ),
+            )
+          else
+            GridView.count(
+              crossAxisCount: kpiColumns,
+              crossAxisSpacing: gridGap,
+              mainAxisSpacing: gridGap,
+              childAspectRatio: kpiAspectRatio,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                _KpiTile(
+                  label: clientsKpiLabel,
+                  value: '$_clientsCount',
+                  icon: Icons.people_outline,
+                  color: const Color(0xFF0284C7),
+                ),
+                _KpiTile(
+                  label: 'Commandes',
+                  value: '$_ordersCount',
+                  icon: Icons.shopping_cart_outlined,
+                  color: const Color(0xFFEA580C),
+                ),
+                _KpiTile(
+                  label: 'En attente',
+                  value: '$_pendingCount',
+                  icon: Icons.hourglass_top_outlined,
+                  color: const Color(0xFFD97706),
+                ),
+                _KpiTile(
+                  label: 'Cmd confirmees',
+                  value: '$_confirmedCount',
+                  icon: Icons.verified_outlined,
+                  color: const Color(0xFF16A34A),
+                ),
+                _KpiTile(
+                  label: 'CA confirme',
+                  value: _money(_revenue),
+                  icon: Icons.payments_outlined,
+                  color: const Color(0xFF16A34A),
+                ),
+                _KpiTile(
+                  label: 'Panier moyen',
+                  value: _money(_avgTicket),
+                  icon: Icons.trending_up_outlined,
+                  color: const Color(0xFF7C3AED),
+                ),
+              ],
+            ),
           SizedBox(height: isPhone ? 10 * phoneScale : 12),
           if (isWide)
             Row(
@@ -1573,7 +2004,7 @@ class _CommercialAnalyticsDashboardState
                   flex: 2,
                   child: _panelCard(
                     title: 'Evolution des ventes',
-                    subtitle: '6 derniers mois confirmes',
+                    subtitle: chartSubtitle,
                     icon: Icons.show_chart_rounded,
                     child: _SalesTrendChart(
                       values: salesValues,
@@ -1587,7 +2018,7 @@ class _CommercialAnalyticsDashboardState
                 Expanded(
                   child: _panelCard(
                     title: 'Statut des commandes',
-                    subtitle: 'Repartition actuelle',
+                    subtitle: statusSubtitle,
                     icon: Icons.donut_small_rounded,
                     child: _StatusDonutCard(
                       segments: statusSegments,
@@ -1600,7 +2031,7 @@ class _CommercialAnalyticsDashboardState
           else ...[
             _panelCard(
               title: 'Evolution des ventes',
-              subtitle: '6 derniers mois confirmes',
+              subtitle: chartSubtitle,
               icon: Icons.show_chart_rounded,
               child: _SalesTrendChart(
                 values: salesValues,
@@ -1610,7 +2041,7 @@ class _CommercialAnalyticsDashboardState
             SizedBox(height: inlineGap),
             _panelCard(
               title: 'Statut des commandes',
-              subtitle: 'Repartition actuelle',
+              subtitle: statusSubtitle,
               icon: Icons.donut_small_rounded,
               child: _StatusDonutCard(
                 segments: statusSegments,
@@ -1635,7 +2066,7 @@ class _CommercialAnalyticsDashboardState
                 Expanded(
                   child: _panelCard(
                     title: 'Top clients',
-                    subtitle: 'Classement CA confirme',
+                    subtitle: topClientsSubtitle,
                     icon: Icons.workspace_premium_outlined,
                     child: _TopClientsList(
                       data: topClientsPreview,
@@ -1655,14 +2086,14 @@ class _CommercialAnalyticsDashboardState
             SizedBox(height: inlineGap),
             _panelCard(
               title: 'Top clients',
-              subtitle: 'Classement CA confirme',
+              subtitle: topClientsSubtitle,
               icon: Icons.workspace_premium_outlined,
               child: _TopClientsList(data: topClientsPreview, money: _money),
             ),
           ] else ...[
             _panelCard(
               title: 'Top clients',
-              subtitle: 'Classement CA confirme',
+              subtitle: topClientsSubtitle,
               icon: Icons.workspace_premium_outlined,
               child: _TopClientsList(data: topClientsPreview, money: _money),
             ),
@@ -1671,8 +2102,8 @@ class _CommercialAnalyticsDashboardState
           _panelCard(
             title: 'Commandes recentes',
             subtitle: isPhone
-                ? 'Derniers dossiers prioritaires'
-                : 'Derniers mouvements du portefeuille',
+                ? 'Derniers dossiers de la periode'
+                : 'Derniers mouvements de la periode',
             icon: Icons.history_toggle_off_rounded,
             child: _RecentOrdersList(
               orders: recentOrdersPreview,
@@ -1718,52 +2149,139 @@ class _ClientRevenuePoint {
   });
 }
 
-/// Widget qui affiche la pastille statistique d'en-tete.
-class _HeaderStatPill extends StatelessWidget {
-  // Configuration, dependances et etat local de l'interface.
-  final IconData icon;
+/// Widget qui affiche le filtre de periode compact.
+class _PeriodFilterChip extends StatelessWidget {
   final String label;
-  final String value;
+  final VoidCallback onTap;
+  final bool dense;
 
-  const _HeaderStatPill({
-    required this.icon,
+  const _PeriodFilterChip({
     required this.label,
-    required this.value,
+    required this.onTap,
+    this.dense = false,
   });
 
-  // Construction de l'interface.
+  @override
+  Widget build(BuildContext context) {
+    final scale = _phoneScale(context, min: 0.84);
+    final active = label != 'Toutes' && label != 'Toutes periodes';
 
-  /// Construit l'interface visible de ce widget.
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular((dense ? 9.5 : 11) * scale),
+        child: Ink(
+          padding: EdgeInsets.symmetric(
+            horizontal: (dense ? 7.5 : 9) * scale,
+            vertical: (dense ? 5.5 : 7) * scale,
+          ),
+          decoration: BoxDecoration(
+            color: active ? const Color(0xFFEFF4FF) : const Color(0xFFF8FAFF),
+            borderRadius: BorderRadius.circular((dense ? 9.5 : 11) * scale),
+            border: Border.all(
+              color: active ? const Color(0xFFBFD1FF) : const Color(0xFFDCE5F3),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.date_range_outlined,
+                size: (dense ? 13.5 : 14.5) * scale,
+                color: const Color(0xFF2D47C8),
+              ),
+              SizedBox(width: (dense ? 5 : 6) * scale),
+              Text(
+                dense ? label : 'Periode: $label',
+                style: TextStyle(
+                  color: const Color(0xFF1F2A44),
+                  fontSize: (dense ? 10.2 : 11) * scale,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              SizedBox(width: (dense ? 2 : 4) * scale),
+              Icon(
+                Icons.expand_more_rounded,
+                size: (dense ? 14 : 16) * scale,
+                color: const Color(0xFF607089),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Widget qui affiche un indicateur mobile tres compact.
+class _CompactKpiTile extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const _CompactKpiTile({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
   @override
   Widget build(BuildContext context) {
     final scale = _phoneScale(context, min: 0.84);
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 9 * scale, vertical: 7 * scale),
+      padding: EdgeInsets.all(9 * scale),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFF),
-        borderRadius: BorderRadius.circular(11 * scale),
-        border: Border.all(color: const Color(0xFFDCE5F3)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12 * scale),
+        border: Border.all(color: const Color(0xFFE6EAF2)),
+        boxShadow: AdaptiveSurface.shadow(
+          context,
+          breakpoint: 600,
+          compactBlur: 8,
+          compactOffsetY: 3,
+          regularBlur: 12,
+          regularOffsetY: 6,
+          compactColor: const Color(0x06000000),
+          regularColor: const Color(0x0C000000),
+        ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 13.5 * scale, color: const Color(0xFF2D47C8)),
-          SizedBox(width: 6 * scale),
+          Container(
+            width: 28 * scale,
+            height: 28 * scale,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(8 * scale),
+            ),
+            child: Icon(icon, color: color, size: 14.5 * scale),
+          ),
+          SizedBox(height: 8 * scale),
           Text(
-            '$label: ',
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: Color(0xFF607089),
-              fontSize: 11 * scale,
+              color: const Color(0xFF607089),
+              fontSize: 10.6 * scale,
               fontWeight: FontWeight.w600,
             ),
           ),
+          SizedBox(height: 3 * scale),
           Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: Color(0xFF1F2A44),
-              fontSize: 11 * scale,
+              color: const Color(0xFF1F2A44),
               fontWeight: FontWeight.w800,
+              fontSize: 13.5 * scale,
+              height: 1.1,
             ),
           ),
         ],
@@ -1800,18 +2318,21 @@ class _KpiTile extends StatelessWidget {
 
         return Container(
           width: double.infinity,
-          padding: EdgeInsets.all((compact ? 11.5 : 13) * scale),
+          padding: EdgeInsets.all((compact ? 10.5 : 13) * scale),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular((compact ? 13 : 14) * scale),
+            borderRadius: BorderRadius.circular((compact ? 12 : 14) * scale),
             border: Border.all(color: const Color(0xFFE6EAF2)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x0D000000),
-                blurRadius: 12,
-                offset: Offset(0, 6),
-              ),
-            ],
+            boxShadow: AdaptiveSurface.shadow(
+              context,
+              breakpoint: 600,
+              compactBlur: 8,
+              compactOffsetY: 4,
+              regularBlur: 12,
+              regularOffsetY: 6,
+              compactColor: const Color(0x07000000),
+              regularColor: const Color(0x0D000000),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1842,7 +2363,7 @@ class _KpiTile extends StatelessWidget {
                   ),
                 ],
               ),
-              SizedBox(height: (compact ? 9 : 12) * scale),
+              SizedBox(height: (compact ? 8 : 12) * scale),
               Text(
                 label,
                 maxLines: 1,
@@ -2586,4 +3107,3 @@ class _RecentOrdersList extends StatelessWidget {
     );
   }
 }
-

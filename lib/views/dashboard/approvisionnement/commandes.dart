@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:invera_mobile/core/ui/mise_en_page.dart';
 import 'package:invera_mobile/models/approvisionnement.dart';
 import 'package:invera_mobile/services/approvisionnement.dart';
-import 'package:invera_mobile/views/dashboard/approvisionnement/facture_pdf.dart';
 import 'package:invera_mobile/views/dashboard/approvisionnement/formulaire_commande.dart';
 import 'package:invera_mobile/views/dashboard/approvisionnement/commun.dart';
 import 'package:invera_mobile/widgets/approvisionnement/details_commande.dart';
@@ -25,41 +24,33 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
   String? _error;
   bool _showArchived = false;
   String _statusFilter = '';
-  int _currentPage = 1;
-  int _itemsPerPage = 10;
+  bool _sortDateDescending = true;
   String? _actionInProgress;
 
   List<ProcurementOrder> _orders = const [];
   List<ProcurementSupplier> _suppliers = const [];
   List<ProcurementProduct> _products = const [];
 
-  ProcurementUserRole get _role => ProcurementRoleStore.instance.role;
+  ProcurementUserRole get _role => ProcurementUserRole.responsableAchat;
 
   static const double _colOrder = 170;
   static const double _colSupplier = 220;
   static const double _colDate = 170;
   static const double _colTotal = 150;
-  static const double _colStatus = 210;
-  static const double _colActions = 236;
+  static const double _colStatus = 250;
+  static const double _colActions = 170;
   static const double _rowHorizontalPadding = 18;
 
   @override
   void initState() {
     super.initState();
-    ProcurementRoleStore.instance.addListener(_onRoleChanged);
     _loadData();
   }
 
   @override
   void dispose() {
-    ProcurementRoleStore.instance.removeListener(_onRoleChanged);
     _searchController.dispose();
     super.dispose();
-  }
-
-  void _onRoleChanged() {
-    if (!mounted) return;
-    setState(() {});
   }
 
   Future<void> _loadData() async {
@@ -113,25 +104,45 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     filtered.sort((a, b) {
       final left = a.dateCommande ?? DateTime.fromMillisecondsSinceEpoch(0);
       final right = b.dateCommande ?? DateTime.fromMillisecondsSinceEpoch(0);
-      return right.compareTo(left);
+      return _sortDateDescending
+          ? right.compareTo(left)
+          : left.compareTo(right);
     });
 
     return filtered;
   }
 
-  int get _totalPages {
-    final total = _filteredOrders.length;
-    if (total == 0) return 1;
-    return (total / _itemsPerPage).ceil();
+  List<String> get _statusOptions {
+    final options = <String>[...ProcurementOrderStatus.responsableAchatFlow];
+    for (final order in _orders) {
+      final status = order.normalizedStatus;
+      if (status.isNotEmpty && !options.contains(status)) {
+        options.add(status);
+      }
+    }
+    return options;
   }
 
-  List<ProcurementOrder> get _paginatedOrders {
-    final filtered = _filteredOrders;
-    final safePage = _currentPage.clamp(1, _totalPages);
-    final start = (safePage - 1) * _itemsPerPage;
-    final end = (start + _itemsPerPage).clamp(0, filtered.length);
-    if (start >= filtered.length) return const [];
-    return filtered.sublist(start, end);
+  bool get _hasActiveToolbarFilters =>
+      _searchController.text.trim().isNotEmpty ||
+      _statusFilter.isNotEmpty ||
+      _showArchived;
+
+  int get _activeToolbarFilterCount {
+    var count = 0;
+    if (_searchController.text.trim().isNotEmpty) count++;
+    if (_statusFilter.isNotEmpty) count++;
+    if (_showArchived) count++;
+    return count;
+  }
+
+  void _resetToolbarFilters() {
+    _searchController.clear();
+    setState(() {
+      _statusFilter = '';
+      _showArchived = false;
+    });
+    _loadData();
   }
 
   Future<void> _showOrderDialog({ProcurementOrder? initial}) async {
@@ -144,15 +155,35 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
       return;
     }
 
-    final result = await showDialog<ProcurementOrderDialogResult>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => ProcurementOrderFormDialog(
-        suppliers: _suppliers,
-        products: _products,
-        initialOrder: initial,
-      ),
-    );
+    Future<ProcurementOrderDialogResult?> openOrderFormDialog() {
+      final useBottomSheet = MediaQuery.of(context).size.width < 600;
+
+      if (useBottomSheet) {
+        return showModalBottomSheet<ProcurementOrderDialogResult>(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => ProcurementOrderFormDialog(
+            suppliers: _suppliers,
+            products: _products,
+            initialOrder: initial,
+            isBottomSheet: true,
+          ),
+        );
+      }
+
+      return showDialog<ProcurementOrderDialogResult>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => ProcurementOrderFormDialog(
+          suppliers: _suppliers,
+          products: _products,
+          initialOrder: initial,
+        ),
+      );
+    }
+
+    final result = await openOrderFormDialog();
 
     if (result == null) return;
 
@@ -162,7 +193,6 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
         if (!mounted) return;
         setState(() {
           _orders = [created, ..._orders];
-          _currentPage = 1;
         });
         showMessage(context, 'Commande creee avec succes.');
       } else if (result.updatePayload != null && initial != null) {
@@ -197,39 +227,6 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
       context: context,
       builder: (_) => CommandeDetailsModal(order: order),
     );
-  }
-
-  Future<void> _deleteOrder(ProcurementOrder order) async {
-    final confirmed = await showConfirmationDialog(
-      context,
-      title: 'Supprimer la commande',
-      message: 'Supprimer ${order.referenceCommande} des commandes actives ?',
-      confirmLabel: 'Supprimer',
-      confirmColor: Colors.red,
-    );
-
-    if (confirmed != true) return;
-
-    try {
-      await _service.deleteOrder(order.idCommandeFournisseur);
-      if (!mounted) return;
-      setState(() {
-        _orders = _orders
-            .where(
-              (item) =>
-                  item.idCommandeFournisseur != order.idCommandeFournisseur,
-            )
-            .toList();
-      });
-      showMessage(context, 'Commande archivee avec succes.');
-    } catch (error) {
-      if (!mounted) return;
-      showMessage(
-        context,
-        error.toString().replaceFirst('Exception: ', ''),
-        error: true,
-      );
-    }
   }
 
   Future<void> _restoreOrder(ProcurementOrder order) async {
@@ -312,56 +309,151 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
 
   Future<void> _rejectOrder(ProcurementOrder order) async {
     final controller = TextEditingController();
+    final useBottomSheet = MediaQuery.sizeOf(context).width < 600;
 
-    final motif = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: Text('Rejeter ${order.referenceCommande}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Motif du rejet',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+    final motif = useBottomSheet
+        ? await showModalBottomSheet<String>(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (dialogContext) {
+              return Padding(
+                padding: EdgeInsets.fromLTRB(
+                  12,
+                  12,
+                  12,
+                  MediaQuery.viewInsetsOf(dialogContext).bottom > 0
+                      ? MediaQuery.viewInsetsOf(dialogContext).bottom
+                      : 12,
                 ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: controller,
-                minLines: 3,
-                maxLines: 5,
-                decoration: const InputDecoration(
-                  hintText: 'Expliquez le motif du rejet...',
-                  border: OutlineInputBorder(),
+                child: SafeArea(
+                  top: false,
+                  child: Material(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Rejeter ${order.referenceCommande}',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: procurementInk,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () => Navigator.pop(dialogContext),
+                                visualDensity: VisualDensity.compact,
+                                icon: const Icon(Icons.close),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Motif du rejet',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: controller,
+                            minLines: 3,
+                            maxLines: 5,
+                            decoration: const InputDecoration(
+                              hintText: 'Expliquez le motif du rejet...',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: () => Navigator.pop(dialogContext),
+                                  child: const Text('Annuler'),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: FilledButton(
+                                  onPressed: () {
+                                    final value = controller.text.trim();
+                                    if (value.isEmpty) return;
+                                    Navigator.pop(dialogContext, value);
+                                  },
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: procurementWarning,
+                                  ),
+                                  child: const Text('Rejeter'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Annuler'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final value = controller.text.trim();
-                if (value.isEmpty) return;
-                Navigator.pop(dialogContext, value);
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: procurementWarning,
-              ),
-              child: const Text('Rejeter'),
-            ),
-          ],
-        );
-      },
-    );
+              );
+            },
+          )
+        : await showDialog<String>(
+            context: context,
+            builder: (dialogContext) {
+              return AlertDialog(
+                title: Text('Rejeter ${order.referenceCommande}'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Motif du rejet',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: controller,
+                      minLines: 3,
+                      maxLines: 5,
+                      decoration: const InputDecoration(
+                        hintText: 'Expliquez le motif du rejet...',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Annuler'),
+                  ),
+                  FilledButton(
+                    onPressed: () {
+                      final value = controller.text.trim();
+                      if (value.isEmpty) return;
+                      Navigator.pop(dialogContext, value);
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: procurementWarning,
+                    ),
+                    child: const Text('Rejeter'),
+                  ),
+                ],
+              );
+            },
+          );
 
     controller.dispose();
+    if (!mounted) return;
 
     if (motif == null || motif.isEmpty) return;
 
@@ -400,12 +492,22 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
   }
 
   Future<void> _receiveOrder(ProcurementOrder order) async {
-    final payload = await showDialog<ReceptionModalResult>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => ReceptionModal(order: order),
-    );
+    final useBottomSheet = MediaQuery.sizeOf(context).width < 600;
 
+    final payload = useBottomSheet
+        ? await showModalBottomSheet<ReceptionModalResult>(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (_) => ReceptionModal(order: order, isBottomSheet: true),
+          )
+        : await showDialog<ReceptionModalResult>(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => ReceptionModal(order: order),
+          );
+
+    if (!mounted) return;
     if (payload == null) return;
 
     setState(() {
@@ -444,81 +546,6 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     }
   }
 
-  Future<void> _invoiceOrder(ProcurementOrder order) async {
-    final confirmed = await showConfirmationDialog(
-      context,
-      title: 'Facturer la commande',
-      message: 'Marquer ${order.referenceCommande} comme facturee ?',
-      confirmLabel: 'Facturer',
-      confirmColor: procurementPurple,
-    );
-
-    if (confirmed != true) return;
-
-    final billedAt = DateTime.now();
-
-    setState(() {
-      _actionInProgress = 'invoice-${order.idCommandeFournisseur}';
-    });
-
-    try {
-      final updated = await _service.invoiceOrder(order.idCommandeFournisseur);
-      if (!mounted) return;
-
-      setState(() {
-        _orders = [
-          for (final item in _orders)
-            if (item.idCommandeFournisseur == updated.idCommandeFournisseur)
-              updated
-            else
-              item,
-        ];
-        _actionInProgress = null;
-      });
-
-      try {
-        await _exportInvoicePdf(
-          updated,
-          billedAt: billedAt,
-          showSuccess: false,
-        );
-        if (!mounted) return;
-        showMessage(context, 'Commande facturee. PDF pret.');
-      } catch (error) {
-        if (!mounted) return;
-        showMessage(
-          context,
-          'Commande facturee, mais le PDF n\'a pas pu etre genere: ${error.toString().replaceFirst('Exception: ', '')}',
-          error: true,
-        );
-      }
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _actionInProgress = null;
-      });
-      showMessage(
-        context,
-        error.toString().replaceFirst('Exception: ', ''),
-        error: true,
-      );
-    }
-  }
-
-  Future<void> _exportInvoicePdf(
-    ProcurementOrder order, {
-    DateTime? billedAt,
-    bool showSuccess = true,
-  }) async {
-    final facture = buildProcurementFactureModelFromOrder(
-      order,
-      billedAt: billedAt,
-    );
-    await exportProcurementInvoicePdf(order, facture);
-    if (!mounted || !showSuccess) return;
-    showMessage(context, 'PDF ${facture.referenceFactureClient} genere.');
-  }
-
   String _formatCompactAmount(num value) {
     if (value.abs() >= 1000) {
       return '${(value / 1000).toStringAsFixed(1)}k TND';
@@ -534,6 +561,113 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
 
   double get _visibleTotalAmount =>
       _filteredOrders.fold<double>(0, (sum, order) => sum + order.totalTTC);
+
+  Future<void> _openCompactToolbarSheet() async {
+    var draftStatus = _statusFilter;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, modalSetState) {
+            void resetDraft() {
+              modalSetState(() {
+                draftStatus = '';
+              });
+            }
+
+            return SafeArea(
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: procurementSurface,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: procurementLine),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x140D1B2A),
+                      blurRadius: 22,
+                      offset: Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text(
+                          'Filtres commandes',
+                          style: TextStyle(
+                            color: procurementInk,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (draftStatus.isNotEmpty)
+                          TextButton(
+                            onPressed: resetDraft,
+                            child: const Text('Effacer'),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      key: ValueKey<String>('orders-sheet-status-$draftStatus'),
+                      initialValue: draftStatus.isEmpty ? null : draftStatus,
+                      decoration: const InputDecoration(labelText: 'Statut'),
+                      items: [
+                        const DropdownMenuItem<String>(
+                          value: '',
+                          child: Text('Tous les statuts'),
+                        ),
+                        ..._statusOptions.map(
+                          (status) => DropdownMenuItem<String>(
+                            value: status,
+                            child: Text(orderStatusLabel(status)),
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        modalSetState(() {
+                          draftStatus = value ?? '';
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(sheetContext).pop(),
+                          child: const Text('Fermer'),
+                        ),
+                        const Spacer(),
+                        FilledButton(
+                          onPressed: () {
+                            setState(() {
+                              _statusFilter = draftStatus;
+                            });
+                            Navigator.of(sheetContext).pop();
+                          },
+                          child: const Text('Appliquer'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   List<Widget> _buildActions(ProcurementOrder order) {
     final widgets = <Widget>[];
@@ -587,11 +721,6 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
       widgets.add(Tooltip(message: tooltip, child: button));
     }
 
-    final canDelete = ProcurementOrderActionPolicy.canDelete(
-      order,
-      _role,
-      showArchives: isArchived,
-    );
     final canEdit = ProcurementOrderActionPolicy.canEdit(
       order,
       _role,
@@ -622,23 +751,9 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
       _role,
       showArchives: isArchived,
     );
-    final canInvoice = ProcurementOrderActionPolicy.canInvoice(
-      order,
-      _role,
-      showArchives: isArchived,
-    );
     final canRestore = ProcurementOrderActionPolicy.canRestore(
       showArchives: isArchived,
     );
-
-    if (canDelete) {
-      addIcon(
-        icon: Icons.delete_outline,
-        tooltip: 'Supprimer',
-        color: procurementDanger,
-        onPressed: () => _deleteOrder(order),
-      );
-    }
 
     if (canEdit) {
       addIcon(
@@ -736,27 +851,6 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
       onPressed: () => _showOrderDetails(order),
     );
 
-    if (canInvoice) {
-      addIcon(
-        icon: order.normalizedStatus == ProcurementOrderStatus.facturee
-            ? Icons.picture_as_pdf_outlined
-            : Icons.receipt_long_outlined,
-        tooltip: order.normalizedStatus == ProcurementOrderStatus.facturee
-            ? 'PDF facture'
-            : 'Facturer',
-        color: procurementPurple,
-        onPressed: _actionInProgress == 'invoice-$id'
-            ? null
-            : () {
-                if (order.normalizedStatus == ProcurementOrderStatus.facturee) {
-                  _exportInvoicePdf(order);
-                } else {
-                  _invoiceOrder(order);
-                }
-              },
-      );
-    }
-
     if (canRestore) {
       addIcon(
         icon: Icons.restore_outlined,
@@ -772,206 +866,213 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
   Widget _buildToolbar() {
     final isPhone = AdaptiveLayout.isPhone(context);
 
-    return SectionSurface(
-      title: 'Pilotage des commandes',
-      subtitle:
-          'Recherche, filtres, pagination et actions adaptees au telephone comme au web',
-      child: Column(
+    if (isPhone) {
+      return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (isPhone) ...[
-            TextField(
-              controller: _searchController,
-              onChanged: (_) {
-                setState(() {
-                  _currentPage = 1;
-                });
-              },
-              decoration: const InputDecoration(
-                hintText: 'Rechercher par numero ou fournisseur...',
-                prefixIcon: Icon(Icons.search),
+          TextField(
+            controller: _searchController,
+            onChanged: (_) {
+              setState(() {});
+            },
+            decoration: const InputDecoration(
+              hintText: 'Rechercher par numero ou fournisseur...',
+              prefixIcon: Icon(Icons.search, size: 20),
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _openCompactToolbarSheet,
+                icon: Icon(
+                  Icons.tune_rounded,
+                  size: 18,
+                  color: _hasActiveToolbarFilters
+                      ? procurementPrimary
+                      : procurementMuted,
+                ),
+                label: Text(
+                  _hasActiveToolbarFilters
+                      ? 'Filtres ($_activeToolbarFilterCount)'
+                      : 'Filtres',
+                ),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: _hasActiveToolbarFilters
+                      ? procurementPrimary.withValues(alpha: 0.10)
+                      : procurementSoftBackground,
+                  side: BorderSide(
+                    color: _hasActiveToolbarFilters
+                        ? procurementPrimary.withValues(alpha: 0.28)
+                        : procurementLine,
+                  ),
+                  foregroundColor: _hasActiveToolbarFilters
+                      ? procurementPrimaryDark
+                      : procurementInk,
+                  visualDensity: VisualDensity.compact,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _statusFilter.isEmpty ? null : _statusFilter,
-                    decoration: const InputDecoration(labelText: 'Statut'),
-                    items: [
-                      const DropdownMenuItem<String>(
-                        value: '',
-                        child: Text('Tous les statuts'),
-                      ),
-                      ...ProcurementOrderStatus.all.map(
-                        (status) => DropdownMenuItem<String>(
-                          value: status,
-                          child: Text(orderStatusLabel(status)),
-                        ),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _statusFilter = value ?? '';
-                        _currentPage = 1;
-                      });
-                    },
+              FilterChip(
+                selected: _showArchived,
+                visualDensity: VisualDensity.compact,
+                onSelected: (value) async {
+                  setState(() {
+                    _showArchived = value;
+                  });
+                  await _loadData();
+                },
+                label: Text(_showArchived ? 'Archives' : 'Actives'),
+                avatar: Icon(
+                  _showArchived
+                      ? Icons.unarchive_outlined
+                      : Icons.archive_outlined,
+                  size: 17,
+                  color: _showArchived ? procurementPrimary : procurementMuted,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: procurementSoftBackground,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: procurementLine),
+                ),
+                child: Text(
+                  '${_filteredOrders.length} commandes',
+                  style: const TextStyle(
+                    color: procurementMuted,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<int>(
-                    initialValue: _itemsPerPage,
-                    decoration: const InputDecoration(labelText: 'Par page'),
-                    items: const [
-                      DropdownMenuItem(value: 5, child: Text('5')),
-                      DropdownMenuItem(value: 10, child: Text('10')),
-                      DropdownMenuItem(value: 20, child: Text('20')),
-                      DropdownMenuItem(value: 50, child: Text('50')),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setState(() {
-                        _itemsPerPage = value;
-                        _currentPage = 1;
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
+              ),
+              if (_hasActiveToolbarFilters)
                 OutlinedButton.icon(
+                  onPressed: _resetToolbarFilters,
+                  icon: const Icon(Icons.filter_alt_off_outlined),
+                  label: const Text('Reset'),
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
                   onPressed: _loadData,
                   icon: const Icon(Icons.refresh),
                   label: const Text('Actualiser'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    setState(() {
-                      _showArchived = !_showArchived;
-                      _currentPage = 1;
-                    });
-                    await _loadData();
-                  },
-                  icon: Icon(
-                    _showArchived
-                        ? Icons.unarchive_outlined
-                        : Icons.archive_outlined,
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
                   ),
-                  label: Text(_showArchived ? 'Retour actives' : 'Archives'),
                 ),
-                if (_role == ProcurementUserRole.responsableAchat &&
-                    !_showArchived)
-                  FilledButton.icon(
+              ),
+              if (_role == ProcurementUserRole.responsableAchat &&
+                  !_showArchived) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.icon(
                     onPressed: () => _showOrderDialog(),
                     icon: const Icon(Icons.add),
                     label: const Text('Nouvelle'),
                   ),
+                ),
               ],
-            ),
-          ] else
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                SizedBox(
-                  width: 320,
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (_) {
-                      setState(() {
-                        _currentPage = 1;
-                      });
-                    },
-                    decoration: const InputDecoration(
-                      hintText: 'Rechercher par numero ou fournisseur...',
-                      prefixIcon: Icon(Icons.search),
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  width: 220,
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _statusFilter.isEmpty ? null : _statusFilter,
-                    decoration: const InputDecoration(labelText: 'Statut'),
-                    items: [
-                      const DropdownMenuItem<String>(
-                        value: '',
-                        child: Text('Tous les statuts'),
-                      ),
-                      ...ProcurementOrderStatus.all.map(
-                        (status) => DropdownMenuItem<String>(
-                          value: status,
-                          child: Text(orderStatusLabel(status)),
-                        ),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _statusFilter = value ?? '';
-                        _currentPage = 1;
-                      });
-                    },
-                  ),
-                ),
-                SizedBox(
-                  width: 140,
-                  child: DropdownButtonFormField<int>(
-                    initialValue: _itemsPerPage,
-                    decoration: const InputDecoration(labelText: 'Par page'),
-                    items: const [
-                      DropdownMenuItem(value: 5, child: Text('5')),
-                      DropdownMenuItem(value: 10, child: Text('10')),
-                      DropdownMenuItem(value: 20, child: Text('20')),
-                      DropdownMenuItem(value: 50, child: Text('50')),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setState(() {
-                        _itemsPerPage = value;
-                        _currentPage = 1;
-                      });
-                    },
-                  ),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _loadData,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Actualiser'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    setState(() {
-                      _showArchived = !_showArchived;
-                      _currentPage = 1;
-                    });
-                    await _loadData();
+            ],
+          ),
+        ],
+      );
+    }
+
+    return SectionSurface(
+      title: 'Pilotage des commandes',
+      subtitle:
+          'Recherche, filtres et actions adaptees au telephone comme au web',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              SizedBox(
+                width: 320,
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (_) {
+                    setState(() {});
                   },
-                  icon: Icon(
-                    _showArchived
-                        ? Icons.unarchive_outlined
-                        : Icons.archive_outlined,
-                  ),
-                  label: Text(
-                    _showArchived ? 'Retour aux actives' : 'Afficher archives',
+                  decoration: const InputDecoration(
+                    hintText: 'Rechercher par numero ou fournisseur...',
+                    prefixIcon: Icon(Icons.search),
                   ),
                 ),
-                if (_role == ProcurementUserRole.responsableAchat &&
-                    !_showArchived)
-                  FilledButton.icon(
-                    onPressed: () => _showOrderDialog(),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Nouvelle commande'),
-                  ),
-              ],
-            ),
+              ),
+              SizedBox(
+                width: 220,
+                child: DropdownButtonFormField<String>(
+                  initialValue: _statusFilter.isEmpty ? null : _statusFilter,
+                  decoration: const InputDecoration(labelText: 'Statut'),
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: '',
+                      child: Text('Tous les statuts'),
+                    ),
+                    ..._statusOptions.map(
+                      (status) => DropdownMenuItem<String>(
+                        value: status,
+                        child: Text(orderStatusLabel(status)),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _statusFilter = value ?? '';
+                    });
+                  },
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: _loadData,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Actualiser'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  setState(() {
+                    _showArchived = !_showArchived;
+                  });
+                  await _loadData();
+                },
+                icon: Icon(
+                  _showArchived
+                      ? Icons.unarchive_outlined
+                      : Icons.archive_outlined,
+                ),
+                label: Text(
+                  _showArchived ? 'Retour aux actives' : 'Afficher archives',
+                ),
+              ),
+              if (_role == ProcurementUserRole.responsableAchat &&
+                  !_showArchived)
+                FilledButton.icon(
+                  onPressed: () => _showOrderDialog(),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Nouvelle commande'),
+                ),
+            ],
+          ),
           const SizedBox(height: 16),
           Wrap(
             spacing: 10,
@@ -1016,12 +1117,12 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
         color: Color(0xFFF8FAFC),
         border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
       ),
-      child: const Row(
+      child: Row(
         children: [
           SizedBox(
             width: _colOrder,
             child: Text(
-              'No commande',
+              'N° commande',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -1042,16 +1143,35 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
           ),
           SizedBox(
             width: _colDate,
-            child: Text(
-              'Date commande',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: procurementMuted,
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _sortDateDescending = !_sortDateDescending;
+                });
+              },
+              child: Row(
+                children: [
+                  const Text(
+                    'Date commande',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: procurementMuted,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(
+                    _sortDateDescending
+                        ? Icons.arrow_downward_rounded
+                        : Icons.arrow_upward_rounded,
+                    size: 16,
+                    color: procurementPrimary,
+                  ),
+                ],
               ),
             ),
           ),
-          SizedBox(
+          const SizedBox(
             width: _colTotal,
             child: Text(
               'Total TTC',
@@ -1062,7 +1182,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
               ),
             ),
           ),
-          SizedBox(
+          const SizedBox(
             width: _colStatus,
             child: Text(
               'Statut',
@@ -1073,7 +1193,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
               ),
             ),
           ),
-          SizedBox(
+          const SizedBox(
             width: _colActions,
             child: Text(
               'Actions',
@@ -1115,17 +1235,6 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
                     color: procurementInk,
                   ),
                 ),
-                if (order.motifRejet?.trim().isNotEmpty == true)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      'Motif: ${order.motifRejet!}',
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        color: procurementDanger,
-                      ),
-                    ),
-                  ),
               ],
             ),
           ),
@@ -1173,6 +1282,25 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
               runSpacing: 8,
               children: [
                 ProcurementStatusBadge(status: order.statut),
+                if (order.motifRejet?.trim().isNotEmpty == true)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: procurementDanger.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Motif du rejet : ${order.motifRejet!}',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: procurementDanger,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                 if (_showArchived)
                   const StatusPill(label: 'Archivee', color: Color(0xFF64748B)),
               ],
@@ -1195,200 +1323,8 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     );
   }
 
-  Widget _buildOrderMeta(String label, String value, {Color? valueColor}) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: procurementMist,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: procurementLine),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: procurementMuted,
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: TextStyle(
-              color: valueColor ?? procurementInk,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOrderCard(ProcurementOrder order) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _showArchived ? const Color(0xFFF8FAFC) : Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: procurementLine),
-        boxShadow: procurementCardShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      order.referenceCommande,
-                      style: const TextStyle(
-                        color: procurementInk,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      order.partenaireNom,
-                      style: const TextStyle(
-                        color: procurementMuted,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: procurementPrimary.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: procurementPrimary.withValues(alpha: 0.12),
-                  ),
-                ),
-                child: Text(
-                  formatPrice(order.totalTTC),
-                  style: const TextStyle(
-                    color: procurementPrimary,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (order.motifRejet?.trim().isNotEmpty == true) ...[
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: procurementDanger.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: procurementDanger.withValues(alpha: 0.14),
-                ),
-              ),
-              child: Text(
-                'Motif du rejet: ${order.motifRejet!}',
-                style: const TextStyle(
-                  color: procurementDanger,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ProcurementStatusBadge(status: order.statut),
-              StatusPill(
-                label: formatDate(order.dateCommande, withTime: true),
-                color: procurementPrimary,
-              ),
-              if (_showArchived)
-                const StatusPill(label: 'Archivee', color: Color(0xFF64748B)),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: _buildOrderMeta('Fournisseur', order.partenaireNom),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _buildOrderMeta(
-                  'Email',
-                  order.fournisseur?.email.trim().isNotEmpty == true
-                      ? order.fournisseur!.email
-                      : 'Non renseigne',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'Actions rapides',
-            style: TextStyle(
-              color: procurementInk.withValues(alpha: 0.78),
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(spacing: 8, runSpacing: 8, children: _buildActions(order)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCompactList() {
-    final rows = _paginatedOrders;
-
-    if (rows.isEmpty) {
-      return EmptyPanel(
-        title: _showArchived
-            ? 'Aucune commande archivee'
-            : 'Aucune commande trouvee',
-        message: _showArchived
-            ? 'Les commandes supprimees apparaitront ici.'
-            : 'Aucune commande ne correspond aux filtres actuels.',
-      );
-    }
-
-    return Column(
-      children: [
-        for (final order in rows) _buildOrderCard(order),
-        Container(
-          decoration: BoxDecoration(
-            color: procurementSurface,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: procurementLine),
-            boxShadow: procurementCardShadow,
-          ),
-          child: _buildPaginationFooter(compact: true),
-        ),
-      ],
-    );
-  }
-
   Widget _buildTable() {
-    final rows = _paginatedOrders;
+    final rows = _filteredOrders;
 
     if (rows.isEmpty) {
       return EmptyPanel(
@@ -1418,113 +1354,19 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
         border: Border.all(color: procurementLine),
         boxShadow: procurementCardShadow,
       ),
-      child: Column(
-        children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SizedBox(
-              width: tableWidth,
-              child: Column(
-                children: [
-                  _buildHeaderRow(),
-                  for (final order in rows) _buildOrderRow(order),
-                ],
-              ),
-            ),
-          ),
-          _buildPaginationFooter(compact: false),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPaginationFooter({required bool compact}) {
-    final totalItems = _filteredOrders.length;
-    final startIndex = totalItems == 0
-        ? 0
-        : ((_currentPage - 1) * _itemsPerPage) + 1;
-    final endIndex =
-        ((_currentPage - 1) * _itemsPerPage + _paginatedOrders.length).clamp(
-          0,
-          totalItems,
-        );
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-      decoration: const BoxDecoration(
-        color: Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
-      ),
-      child: Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        runSpacing: 12,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Text(
-            'Affichage de $startIndex a $endIndex sur $totalItems commandes',
-            style: const TextStyle(color: procurementMuted, fontSize: 12.5),
-          ),
-          Wrap(
-            spacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(
+          width: tableWidth,
+          child: Column(
             children: [
-              if (!compact)
-                IconButton(
-                  onPressed: _currentPage > 1
-                      ? () => setState(() => _currentPage = 1)
-                      : null,
-                  icon: const Icon(Icons.first_page),
-                ),
-              IconButton(
-                onPressed: _currentPage > 1
-                    ? () => setState(() => _currentPage -= 1)
-                    : null,
-                icon: const Icon(Icons.chevron_left),
-              ),
-              for (final page in _visiblePageNumbers(
-                maxVisible: compact ? 3 : 5,
-              ))
-                FilledButton.tonal(
-                  onPressed: () => setState(() => _currentPage = page),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _currentPage == page
-                        ? procurementPrimary.withValues(alpha: 0.15)
-                        : null,
-                  ),
-                  child: Text('$page'),
-                ),
-              IconButton(
-                onPressed: _currentPage < _totalPages
-                    ? () => setState(() => _currentPage += 1)
-                    : null,
-                icon: const Icon(Icons.chevron_right),
-              ),
-              if (!compact)
-                IconButton(
-                  onPressed: _currentPage < _totalPages
-                      ? () => setState(() => _currentPage = _totalPages)
-                      : null,
-                  icon: const Icon(Icons.last_page),
-                ),
+              _buildHeaderRow(),
+              for (final order in rows) _buildOrderRow(order),
             ],
           ),
-        ],
+        ),
       ),
     );
-  }
-
-  List<int> _visiblePageNumbers({required int maxVisible}) {
-    var startPage = _currentPage - (maxVisible ~/ 2);
-    if (startPage < 1) startPage = 1;
-
-    var endPage = startPage + maxVisible - 1;
-    if (endPage > _totalPages) {
-      endPage = _totalPages;
-      startPage = (endPage - maxVisible + 1).clamp(1, endPage);
-    }
-
-    return [for (int i = startPage; i <= endPage; i++) i];
   }
 
   @override
@@ -1543,21 +1385,12 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final useCompactLayout = constraints.maxWidth < 880;
-
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ProcurementRoleSwitchCard(
-              currentRole: _role,
-              onChanged: (role) {
-                ProcurementRoleStore.instance.setRole(role);
-              },
-            ),
-            const SizedBox(height: 16),
             _buildToolbar(),
             const SizedBox(height: 20),
-            useCompactLayout ? _buildCompactList() : _buildTable(),
+            _buildTable(),
           ],
         );
       },

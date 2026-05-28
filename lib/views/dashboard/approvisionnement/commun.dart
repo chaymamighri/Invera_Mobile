@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:invera_mobile/core/ui/dialogues.dart';
+import 'package:invera_mobile/core/ui/mise_en_page.dart';
 import 'package:invera_mobile/config/api.dart';
 import 'package:invera_mobile/models/approvisionnement.dart';
 import 'package:invera_mobile/widgets/approvisionnement/image_produit.dart';
@@ -38,6 +40,15 @@ abstract final class ProcurementOrderStatus {
     recue,
     facturee,
     annulee,
+    rejetee,
+  ];
+
+  // Visible workflow in the procurement web dashboard for responsable achat.
+  static const List<String> responsableAchatFlow = <String>[
+    brouillon,
+    validee,
+    envoyee,
+    recue,
     rejetee,
   ];
 }
@@ -159,7 +170,8 @@ class ProcurementOrderActionPolicy {
   }) {
     if (showArchives) return false;
     return role == ProcurementUserRole.responsableAchat &&
-        order.normalizedStatus == ProcurementOrderStatus.rejetee;
+        (order.normalizedStatus == ProcurementOrderStatus.brouillon ||
+            order.normalizedStatus == ProcurementOrderStatus.rejetee);
   }
 
   static bool canValidate(
@@ -235,15 +247,28 @@ class LoadingPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = AdaptiveSurface.isCompact(context, breakpoint: 430);
     return Center(
       child: Container(
         constraints: const BoxConstraints(maxWidth: 340),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 18 : 24,
+          vertical: compact ? 18 : 22,
+        ),
         decoration: BoxDecoration(
           color: procurementSurface.withValues(alpha: 0.96),
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(compact ? 18 : 24),
           border: Border.all(color: procurementLine),
-          boxShadow: procurementCardShadow,
+          boxShadow: AdaptiveSurface.shadow(
+            context,
+            breakpoint: 430,
+            compactBlur: 10,
+            compactOffsetY: 4,
+            regularBlur: 18,
+            regularOffsetY: 8,
+            compactColor: const Color(0x080D1B2A),
+            regularColor: const Color(0x120D1B2A),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -267,7 +292,7 @@ class LoadingPanel extends StatelessWidget {
                 child: CircularProgressIndicator(strokeWidth: 2.8),
               ),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: compact ? 12 : 14),
             const Text(
               'Chargement en cours',
               style: TextStyle(
@@ -276,7 +301,7 @@ class LoadingPanel extends StatelessWidget {
                 fontSize: 16,
               ),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: compact ? 5 : 6),
             Text(
               message,
               textAlign: TextAlign.center,
@@ -378,6 +403,7 @@ class SectionSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final marker = _sectionMarker(title);
+    final compact = AdaptiveSurface.isCompact(context, breakpoint: 560);
 
     return Container(
       width: double.infinity,
@@ -388,9 +414,18 @@ class SectionSurface extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [Color(0xFFFFFFFF), Color(0xFFF9FBFF)],
         ),
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(compact ? 18 : 26),
         border: Border.all(color: procurementLine),
-        boxShadow: procurementCardShadow,
+        boxShadow: AdaptiveSurface.shadow(
+          context,
+          breakpoint: 560,
+          compactBlur: 10,
+          compactOffsetY: 4,
+          regularBlur: 18,
+          regularOffsetY: 8,
+          compactColor: const Color(0x080D1B2A),
+          regularColor: const Color(0x120D1B2A),
+        ),
       ),
       child: Stack(
         children: [
@@ -424,7 +459,7 @@ class SectionSurface extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(22),
+            padding: EdgeInsets.all(compact ? 16 : 22),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -453,25 +488,25 @@ class SectionSurface extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 14),
+                    SizedBox(width: compact ? 10 : 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             title,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: procurementInk,
                               fontWeight: FontWeight.w800,
-                              fontSize: 18,
+                              fontSize: compact ? 16 : 18,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          SizedBox(height: compact ? 3 : 4),
                           Text(
                             subtitle,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: procurementMuted,
-                              fontSize: 13,
+                              fontSize: compact ? 12 : 13,
                               height: 1.35,
                             ),
                           ),
@@ -480,7 +515,7 @@ class SectionSurface extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 18),
+                SizedBox(height: compact ? 14 : 18),
                 child,
               ],
             ),
@@ -499,13 +534,14 @@ class EmptyPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = AdaptiveSurface.isCompact(context, breakpoint: 430);
     return Center(
       child: Container(
         constraints: const BoxConstraints(maxWidth: 380),
-        padding: const EdgeInsets.all(22),
+        padding: EdgeInsets.all(compact ? 18 : 22),
         decoration: BoxDecoration(
           color: procurementMist,
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(compact ? 18 : 22),
           border: Border.all(color: procurementLine),
         ),
         child: Column(
@@ -529,7 +565,7 @@ class EmptyPanel extends StatelessWidget {
                 color: procurementPrimary,
               ),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: compact ? 12 : 14),
             Text(
               title,
               textAlign: TextAlign.center,
@@ -539,7 +575,7 @@ class EmptyPanel extends StatelessWidget {
                 fontSize: 16,
               ),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: compact ? 5 : 6),
             Text(
               message,
               textAlign: TextAlign.center,
@@ -755,18 +791,28 @@ class ProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final stockColor = productStatusColor(product.status);
+    final compact = AdaptiveSurface.isCompact(context, breakpoint: 480);
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(compact ? 12 : 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(compact ? 14 : 18),
         border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: procurementCardShadow,
+        boxShadow: AdaptiveSurface.shadow(
+          context,
+          breakpoint: 480,
+          compactBlur: 9,
+          compactOffsetY: 4,
+          regularBlur: 18,
+          regularOffsetY: 8,
+          compactColor: const Color(0x080D1B2A),
+          regularColor: const Color(0x120D1B2A),
+        ),
       ),
       child: Row(
         children: [
           ProductAvatar(imageUrl: product.imageUrl, product: product),
-          const SizedBox(width: 12),
+          SizedBox(width: compact ? 10 : 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -778,15 +824,15 @@ class ProductCard extends StatelessWidget {
                     color: procurementInk,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: compact ? 3 : 4),
                 Text(
                   product.categorieLabel,
                   style: const TextStyle(color: procurementMuted),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: compact ? 5 : 6),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: compact ? 6 : 8,
+                  runSpacing: compact ? 6 : 8,
                   children: [
                     StatusPill(
                       label: product.stockStatusLabel,
@@ -800,7 +846,7 @@ class ProductCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: compact ? 5 : 6),
                 Text(
                   formatMoney(product.prixVente),
                   style: const TextStyle(
@@ -846,14 +892,24 @@ class InfoStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = AdaptiveSurface.isCompact(context, breakpoint: 430);
     return Container(
       width: 250,
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(compact ? 13 : 16),
       decoration: BoxDecoration(
         color: procurementSurface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(compact ? 16 : 20),
         border: Border.all(color: procurementLine),
-        boxShadow: procurementCardShadow,
+        boxShadow: AdaptiveSurface.shadow(
+          context,
+          breakpoint: 430,
+          compactBlur: 9,
+          compactOffsetY: 4,
+          regularBlur: 18,
+          regularOffsetY: 8,
+          compactColor: const Color(0x080D1B2A),
+          regularColor: const Color(0x120D1B2A),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -880,7 +936,7 @@ class InfoStatCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: compact ? 10 : 12),
           Text(
             label,
             style: const TextStyle(
@@ -888,7 +944,7 @@ class InfoStatCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: compact ? 3 : 4),
           Text(
             helper,
             style: const TextStyle(color: procurementMuted, fontSize: 12.5),
@@ -907,18 +963,19 @@ class LowStockTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = productStatusColor(product.status);
+    final compact = AdaptiveSurface.isCompact(context, breakpoint: 430);
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
+      margin: EdgeInsets.only(bottom: compact ? 10 : 12),
+      padding: EdgeInsets.all(compact ? 12 : 14),
       decoration: BoxDecoration(
         color: procurementMist,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(compact ? 14 : 16),
         border: Border.all(color: procurementLine),
       ),
       child: Row(
         children: [
           ProductAvatar(imageUrl: product.imageUrl, product: product, size: 52),
-          const SizedBox(width: 12),
+          SizedBox(width: compact ? 10 : 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -938,10 +995,10 @@ class LowStockTile extends StatelessWidget {
                     fontSize: 12.5,
                   ),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: compact ? 5 : 6),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: compact ? 6 : 8,
+                  runSpacing: compact ? 6 : 8,
                   children: [
                     StatusPill(label: product.stockStatusLabel, color: color),
                     StatusPill(
@@ -967,12 +1024,13 @@ class OrderSummaryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = AdaptiveSurface.isCompact(context, breakpoint: 430);
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
+      margin: EdgeInsets.only(bottom: compact ? 10 : 12),
+      padding: EdgeInsets.all(compact ? 12 : 14),
       decoration: BoxDecoration(
         color: procurementMist,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(compact ? 14 : 16),
         border: Border.all(color: procurementLine),
       ),
       child: Row(
@@ -990,7 +1048,7 @@ class OrderSummaryTile extends StatelessWidget {
               color: orderStatusColor(order.statut),
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: compact ? 10 : 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1010,10 +1068,10 @@ class OrderSummaryTile extends StatelessWidget {
                     fontSize: 12.5,
                   ),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: compact ? 5 : 6),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: compact ? 6 : 8,
+                  runSpacing: compact ? 6 : 8,
                   children: [
                     ProcurementStatusBadge(status: order.statut),
                     StatusPill(
@@ -1025,7 +1083,7 @@ class OrderSummaryTile extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: compact ? 10 : 12),
           Text(
             formatMoney(order.totalTTC),
             style: const TextStyle(
@@ -1053,11 +1111,15 @@ class MiniMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = AdaptiveSurface.isCompact(context, breakpoint: 430);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 12 : 14,
+        vertical: compact ? 10 : 12,
+      ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(compact ? 12 : 14),
         border: Border.all(color: color.withValues(alpha: 0.15)),
       ),
       child: Column(
@@ -1067,7 +1129,7 @@ class MiniMetric extends StatelessWidget {
             label,
             style: const TextStyle(color: procurementMuted, fontSize: 12),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: compact ? 3 : 4),
           Text(
             value,
             style: TextStyle(
@@ -1129,12 +1191,13 @@ class StatusBreakdownCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = AdaptiveSurface.isCompact(context, breakpoint: 430);
     return Container(
       width: 150,
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(compact ? 12 : 14),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(compact ? 14 : 16),
         border: Border.all(color: color.withValues(alpha: 0.15)),
       ),
       child: Column(
@@ -1144,7 +1207,7 @@ class StatusBreakdownCard extends StatelessWidget {
             label,
             style: const TextStyle(color: procurementMuted, fontSize: 12),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: compact ? 6 : 8),
           Text(
             '$value',
             style: TextStyle(
@@ -1166,25 +1229,16 @@ Future<bool?> showConfirmationDialog(
   required String confirmLabel,
   required Color confirmColor,
 }) {
-  return showDialog<bool>(
-    context: context,
-    builder: (dialogContext) {
-      return AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: ElevatedButton.styleFrom(backgroundColor: confirmColor),
-            child: Text(confirmLabel),
-          ),
-        ],
-      );
-    },
+  return showAppConfirmationDialog(
+    context,
+    title: title,
+    message: message,
+    confirmLabel: confirmLabel,
+    confirmColor: confirmColor,
+    accentColor: procurementPrimary,
+    icon: confirmColor == procurementDanger
+        ? Icons.delete_outline_rounded
+        : Icons.warning_amber_rounded,
   );
 }
 

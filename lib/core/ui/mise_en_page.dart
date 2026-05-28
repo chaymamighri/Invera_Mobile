@@ -68,3 +68,66 @@ class AdaptiveLayout {
     return math.min(max, screenWidth * ratio);
   }
 }
+
+/// Utilitaires partages pour densifier les surfaces sur mobile.
+class AdaptiveSurface {
+  const AdaptiveSurface._();
+
+  /// Retourne vrai lorsqu'une surface doit adopter une densite compacte.
+  static bool isCompact(BuildContext context, {double breakpoint = 560}) {
+    return MediaQuery.sizeOf(context).width < breakpoint;
+  }
+
+  /// Retourne un rayon adapte a la largeur courante.
+  static double radius(
+    BuildContext context, {
+    double compact = 14,
+    double regular = 20,
+    double breakpoint = 560,
+  }) {
+    return isCompact(context, breakpoint: breakpoint) ? compact : regular;
+  }
+
+  /// Retourne un padding uniforme adapte a la largeur courante.
+  static EdgeInsets allPadding(
+    BuildContext context, {
+    double compact = 12,
+    double regular = 16,
+    double breakpoint = 560,
+  }) {
+    return EdgeInsets.all(
+      isCompact(context, breakpoint: breakpoint) ? compact : regular,
+    );
+  }
+
+  /// Retourne un espacement adapte a la largeur courante.
+  static double gap(
+    BuildContext context, {
+    double compact = 8,
+    double regular = 12,
+    double breakpoint = 560,
+  }) {
+    return isCompact(context, breakpoint: breakpoint) ? compact : regular;
+  }
+
+  /// Retourne une ombre plus legere sur mobile pour limiter l'effet volumineux.
+  static List<BoxShadow> shadow(
+    BuildContext context, {
+    double breakpoint = 560,
+    double compactBlur = 10,
+    double compactOffsetY = 4,
+    double regularBlur = 18,
+    double regularOffsetY = 8,
+    Color compactColor = const Color(0x080D1B2A),
+    Color regularColor = const Color(0x120D1B2A),
+  }) {
+    final compact = isCompact(context, breakpoint: breakpoint);
+    return [
+      BoxShadow(
+        color: compact ? compactColor : regularColor,
+        blurRadius: compact ? compactBlur : regularBlur,
+        offset: Offset(0, compact ? compactOffsetY : regularOffsetY),
+      ),
+    ];
+  }
+}

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -154,6 +155,95 @@ class FactureService {
     throw Exception(
       'Generation terminee mais la facture de la commande $commandeId est introuvable.',
     );
+  }
+
+  Future<FactureModel?> markFacturePayee(
+    int factureId, {
+    int? commandeId,
+  }) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.facturesPrefix}/$factureId/payer',
+    );
+
+    final response = await http
+        .put(uri, headers: await _buildHeaders())
+        .timeout(const Duration(milliseconds: ApiConfig.connectionTimeout));
+
+    final decoded = _decodeResponse(response);
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(
+        _httpErrorMessage(
+          response,
+          decoded,
+          fallback: 'Erreur lors du marquage de la facture comme payee',
+        ),
+      );
+    }
+
+    if (decoded is Map<String, dynamic>) {
+      final success = decoded['success'];
+      if (success == false) {
+        throw Exception(
+          _extractMessage(
+            decoded,
+            fallback: 'Mise a jour du statut de la facture echouee',
+          ),
+        );
+      }
+
+      final data = decoded['data'];
+      if (data is Map<String, dynamic>) {
+        try {
+          return FactureModel.fromJson(data);
+        } catch (_) {
+          // Fall back to reloading by commande below.
+        }
+      }
+
+      if (_looksLikeFacturePayload(decoded)) {
+        try {
+          return FactureModel.fromJson(decoded);
+        } catch (_) {
+          // Fall back to reloading by commande below.
+        }
+      }
+    }
+
+    if (commandeId != null) {
+      try {
+        return await getFactureByCommandeId(commandeId);
+      } catch (_) {
+        // Return null so the caller can still update local UI optimistically.
+      }
+    }
+
+    return null;
+  }
+
+  Future<Uint8List> downloadFacturePdf(int factureId) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.facturesPrefix}/$factureId/pdf',
+    );
+    final headers = await _buildHeaders();
+    headers['Accept'] = 'application/pdf';
+
+    final response = await http
+        .get(uri, headers: headers)
+        .timeout(const Duration(milliseconds: ApiConfig.connectionTimeout));
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final decoded = _decodeResponse(response);
+      throw Exception(
+        _httpErrorMessage(
+          response,
+          decoded,
+          fallback: 'Erreur lors du telechargement du PDF',
+        ),
+      );
+    }
+
+    return response.bodyBytes;
   }
 
   dynamic _decodeResponse(http.Response response) {
