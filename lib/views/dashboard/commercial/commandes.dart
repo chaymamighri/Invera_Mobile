@@ -1031,6 +1031,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     int? selectedClientId = initialCommande?.client?.idClient;
     String clientSearchTerm = '';
     String productSearchTerm = '';
+    bool isLoadingClientRemise = false;
     ClientModel? findClientById(int? clientId) {
       if (clientId == null) return null;
       try {
@@ -1077,13 +1078,38 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
               return findClientById(selectedClientId);
             }
 
-            void syncSelectedClient(int? clientId) {
-              selectedClientId = clientId;
-              remiseCtrl.text = clientRemisePercent(
+            Future<void> syncSelectedClient(int? clientId) async {
+              final fallbackRemise = clientRemisePercent(
                 findClientById(clientId),
-              ).toStringAsFixed(2);
-              if (!isEdit && clientId != null) {
-                currentStep = 1;
+              );
+              final clientType = findClientById(clientId)?.typeClient;
+              setModal(() {
+                selectedClientId = clientId;
+                remiseCtrl.text = fallbackRemise.toStringAsFixed(2);
+                isLoadingClientRemise =
+                    clientId != null &&
+                    (clientType?.trim().isNotEmpty ?? false);
+                if (!isEdit && clientId != null) {
+                  currentStep = 1;
+                }
+              });
+
+              if (!isLoadingClientRemise) return;
+
+              try {
+                final fetchedRemise = await _clientService.getRemiseByType(
+                  clientType,
+                );
+                if (!ctx.mounted || selectedClientId != clientId) return;
+                setModal(() {
+                  remiseCtrl.text = fetchedRemise.toStringAsFixed(2);
+                  isLoadingClientRemise = false;
+                });
+              } catch (_) {
+                if (!ctx.mounted || selectedClientId != clientId) return;
+                setModal(() {
+                  isLoadingClientRemise = false;
+                });
               }
             }
 
@@ -1381,8 +1407,9 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                                       ),
                                       _InfoBadge(
                                         label: 'Remise',
-                                        value:
-                                            '${remiseValue().toStringAsFixed(2)}%',
+                                        value: isLoadingClientRemise
+                                            ? '...'
+                                            : '${remiseValue().toStringAsFixed(2)}%',
                                         compact: true,
                                       ),
                                     ],
@@ -1439,9 +1466,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
 
                                   return InkWell(
                                     borderRadius: BorderRadius.circular(16),
-                                    onTap: () => setModal(
-                                      () => syncSelectedClient(client.id),
-                                    ),
+                                    onTap: () => syncSelectedClient(client.id),
                                     child: Container(
                                       padding: const EdgeInsets.all(
                                         _baseUnit * 1.5,

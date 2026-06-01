@@ -41,6 +41,15 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
   static const double _colActions = 170;
   static const double _rowHorizontalPadding = 18;
 
+  bool get _isCompactTable => MediaQuery.sizeOf(context).width < 600;
+  double get _tableRowPadding => _isCompactTable ? 12 : _rowHorizontalPadding;
+  double get _tableColOrder => _isCompactTable ? 146 : _colOrder;
+  double get _tableColSupplier => _isCompactTable ? 176 : _colSupplier;
+  double get _tableColDate => _isCompactTable ? 136 : _colDate;
+  double get _tableColTotal => _isCompactTable ? 122 : _colTotal;
+  double get _tableColStatus => _isCompactTable ? 170 : _colStatus;
+  double get _tableColActions => _isCompactTable ? 124 : _colActions;
+
   @override
   void initState() {
     super.initState();
@@ -223,6 +232,18 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
   }
 
   Future<void> _showOrderDetails(ProcurementOrder order) async {
+    final useBottomSheet = MediaQuery.sizeOf(context).width < 600;
+
+    if (useBottomSheet) {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => CommandeDetailsModal(order: order, isBottomSheet: true),
+      );
+      return;
+    }
+
     await showDialog<void>(
       context: context,
       builder: (_) => CommandeDetailsModal(order: order),
@@ -1109,10 +1130,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
 
   Widget _buildHeaderRow() {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: _rowHorizontalPadding,
-        vertical: 16,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: _tableRowPadding, vertical: 16),
       decoration: const BoxDecoration(
         color: Color(0xFFF8FAFC),
         border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
@@ -1120,7 +1138,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
       child: Row(
         children: [
           SizedBox(
-            width: _colOrder,
+            width: _tableColOrder,
             child: Text(
               'N° commande',
               style: TextStyle(
@@ -1131,7 +1149,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
             ),
           ),
           SizedBox(
-            width: _colSupplier,
+            width: _tableColSupplier,
             child: Text(
               'Fournisseur',
               style: TextStyle(
@@ -1142,7 +1160,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
             ),
           ),
           SizedBox(
-            width: _colDate,
+            width: _tableColDate,
             child: InkWell(
               onTap: () {
                 setState(() {
@@ -1171,8 +1189,8 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
               ),
             ),
           ),
-          const SizedBox(
-            width: _colTotal,
+          SizedBox(
+            width: _tableColTotal,
             child: Text(
               'Total TTC',
               style: TextStyle(
@@ -1182,8 +1200,8 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
               ),
             ),
           ),
-          const SizedBox(
-            width: _colStatus,
+          SizedBox(
+            width: _tableColStatus,
             child: Text(
               'Statut',
               style: TextStyle(
@@ -1193,8 +1211,8 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
               ),
             ),
           ),
-          const SizedBox(
-            width: _colActions,
+          SizedBox(
+            width: _tableColActions,
             child: Text(
               'Actions',
               textAlign: TextAlign.right,
@@ -1212,9 +1230,9 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
 
   Widget _buildOrderRow(ProcurementOrder order) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: _rowHorizontalPadding,
-        vertical: 14,
+      padding: EdgeInsets.symmetric(
+        horizontal: _tableRowPadding,
+        vertical: _isCompactTable ? 12 : 14,
       ),
       decoration: BoxDecoration(
         color: _showArchived ? const Color(0xFFF8FAFC) : Colors.white,
@@ -1224,7 +1242,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: _colOrder,
+            width: _tableColOrder,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1239,7 +1257,7 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
             ),
           ),
           SizedBox(
-            width: _colSupplier,
+            width: _tableColSupplier,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1259,14 +1277,14 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
             ),
           ),
           SizedBox(
-            width: _colDate,
+            width: _tableColDate,
             child: Text(
               formatDate(order.dateCommande, withTime: true),
               style: const TextStyle(color: procurementMuted),
             ),
           ),
           SizedBox(
-            width: _colTotal,
+            width: _tableColTotal,
             child: Text(
               formatPrice(order.totalTTC),
               style: const TextStyle(
@@ -1276,10 +1294,10 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
             ),
           ),
           SizedBox(
-            width: _colStatus,
+            width: _tableColStatus,
             child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: _isCompactTable ? 6 : 8,
+              runSpacing: _isCompactTable ? 6 : 8,
               children: [
                 ProcurementStatusBadge(status: order.statut),
                 if (order.motifRejet?.trim().isNotEmpty == true)
@@ -1307,12 +1325,12 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
             ),
           ),
           SizedBox(
-            width: _colActions,
+            width: _tableColActions,
             child: Align(
               alignment: Alignment.centerRight,
               child: Wrap(
-                spacing: 4,
-                runSpacing: 4,
+                spacing: _isCompactTable ? 3 : 4,
+                runSpacing: _isCompactTable ? 3 : 4,
                 alignment: WrapAlignment.end,
                 children: _buildActions(order),
               ),
@@ -1338,13 +1356,13 @@ class _ProcurementOrdersSectionState extends State<ProcurementOrdersSection> {
     }
 
     final tableWidth =
-        (_rowHorizontalPadding * 2) +
-        _colOrder +
-        _colSupplier +
-        _colDate +
-        _colTotal +
-        _colStatus +
-        _colActions;
+        (_tableRowPadding * 2) +
+        _tableColOrder +
+        _tableColSupplier +
+        _tableColDate +
+        _tableColTotal +
+        _tableColStatus +
+        _tableColActions;
 
     return Container(
       width: double.infinity,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:invera_mobile/config/globals.dart';
 import 'package:invera_mobile/core/ui/mise_en_page.dart';
 import 'package:invera_mobile/models/client.dart';
+import 'package:invera_mobile/models/commande.dart';
 import 'package:invera_mobile/services/commandes.dart';
 import 'package:invera_mobile/services/clients.dart';
 
@@ -327,6 +328,34 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
     }
   }
 
+  Future<void> _showClientDetails(ClientModel client) {
+    final useBottomSheet = MediaQuery.of(context).size.width < 600;
+    final commandesFuture = _commandeService.getCommandes(clientId: client.id);
+
+    if (useBottomSheet) {
+      return showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => _ClientDetailsSurface(
+          client: client,
+          commandesFuture: commandesFuture,
+          isBottomSheet: true,
+        ),
+      );
+    }
+
+    return showDialog<void>(
+      context: context,
+      builder: (_) => _ClientDetailsSurface(
+        client: client,
+        commandesFuture: commandesFuture,
+        isBottomSheet: false,
+      ),
+    );
+  }
+
+  // ignore: unused_element
   Future<void> _onDeleteClient(ClientModel client) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -1428,6 +1457,18 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                         runSpacing: 4,
                         children: [
                           IconButton(
+                            tooltip: 'Consulter',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: _isBusy
+                                ? null
+                                : () => _showClientDetails(client),
+                            icon: const Icon(
+                              Icons.visibility_outlined,
+                              size: 18,
+                            ),
+                            color: _textSecondary,
+                          ),
+                          IconButton(
                             tooltip: 'Modifier',
                             visualDensity: VisualDensity.compact,
                             onPressed: _isBusy
@@ -1435,15 +1476,6 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                                 : () => _onEditClient(client),
                             icon: const Icon(Icons.edit_outlined, size: 18),
                             color: _primary,
-                          ),
-                          IconButton(
-                            tooltip: 'Supprimer',
-                            visualDensity: VisualDensity.compact,
-                            onPressed: _isBusy
-                                ? null
-                                : () => _onDeleteClient(client),
-                            icon: const Icon(Icons.delete_outline, size: 18),
-                            color: _error,
                           ),
                         ],
                       ),
@@ -1515,7 +1547,9 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                           ? _primary.withValues(alpha: 0.03)
                           : Colors.transparent,
                       child: ListTile(
-                        onTap: _isBusy ? null : () => _onEditClient(client),
+                        onTap: _isBusy
+                            ? null
+                            : () => _showClientDetails(client),
                         contentPadding: EdgeInsets.symmetric(
                           horizontal: _baseUnit * 2,
                           vertical: _baseUnit * 0.75,
@@ -1577,6 +1611,16 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
                                   IconButton(
+                                    tooltip: 'Consulter',
+                                    onPressed: _isBusy
+                                        ? null
+                                        : () => _showClientDetails(client),
+                                    icon: Icon(
+                                      Icons.visibility_outlined,
+                                      color: _textSecondary,
+                                    ),
+                                  ),
+                                  IconButton(
                                     tooltip: 'Modifier',
                                     onPressed: _isBusy
                                         ? null
@@ -1584,16 +1628,6 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                                     icon: Icon(
                                       Icons.edit_outlined,
                                       color: _primary,
-                                    ),
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Supprimer',
-                                    onPressed: _isBusy
-                                        ? null
-                                        : () => _onDeleteClient(client),
-                                    icon: Icon(
-                                      Icons.delete_outline,
-                                      color: _error,
                                     ),
                                   ),
                                 ],
@@ -1708,7 +1742,7 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
       color: _surface,
       borderRadius: BorderRadius.circular(compact ? 10 : 12),
       child: InkWell(
-        onTap: _isBusy ? null : () => _onEditClient(client),
+        onTap: _isBusy ? null : () => _showClientDetails(client),
         borderRadius: BorderRadius.circular(compact ? 10 : 12),
         child: Container(
           padding: EdgeInsets.all(compact ? _baseUnit : _baseUnit * 1.25),
@@ -1783,18 +1817,22 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                 runSpacing: compact ? 3 : 4,
                 children: [
                   TextButton.icon(
+                    onPressed: _isBusy
+                        ? null
+                        : () => _showClientDetails(client),
+                    icon: Icon(
+                      Icons.visibility_outlined,
+                      color: _textSecondary,
+                      size: 18,
+                    ),
+                    label: const Text('Consulter'),
+                    style: actionStyle,
+                  ),
+                  TextButton.icon(
                     onPressed: _isBusy ? null : () => _onEditClient(client),
                     icon: Icon(Icons.edit_outlined, color: _primary, size: 18),
                     label: const Text('Modifier'),
                     style: actionStyle,
-                  ),
-                  TextButton.icon(
-                    onPressed: _isBusy ? null : () => _onDeleteClient(client),
-                    icon: Icon(Icons.delete_outline, color: _error, size: 18),
-                    label: const Text('Supprimer'),
-                    style: actionStyle.copyWith(
-                      foregroundColor: const WidgetStatePropertyAll(_error),
-                    ),
                   ),
                 ],
               ),
@@ -1853,15 +1891,19 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
                   runSpacing: _baseUnit,
                   children: [
                     OutlinedButton.icon(
+                      onPressed: _isBusy
+                          ? null
+                          : () => _showClientDetails(client),
+                      icon: Icon(
+                        Icons.visibility_outlined,
+                        color: _textSecondary,
+                      ),
+                      label: const Text('Consulter'),
+                    ),
+                    OutlinedButton.icon(
                       onPressed: _isBusy ? null : () => _onEditClient(client),
                       icon: Icon(Icons.edit_outlined, color: _primary),
                       label: const Text('Modifier'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _isBusy ? null : () => _onDeleteClient(client),
-                      icon: Icon(Icons.delete_outline, color: _error),
-                      label: const Text('Supprimer'),
-                      style: OutlinedButton.styleFrom(foregroundColor: _error),
                     ),
                   ],
                 ),
@@ -1882,6 +1924,544 @@ class _CommercialClientsSectionState extends State<CommercialClientsSection>
       c.dispose();
     }
     super.dispose();
+  }
+}
+
+class _ClientDetailsSurface extends StatelessWidget {
+  final ClientModel client;
+  final Future<List<CommandeModel>> commandesFuture;
+  final bool isBottomSheet;
+
+  const _ClientDetailsSurface({
+    required this.client,
+    required this.commandesFuture,
+    required this.isBottomSheet,
+  });
+
+  static String _formatAmount(double value) {
+    return '${value.toStringAsFixed(3).replaceAll('.', ',')} DT';
+  }
+
+  static DateTime? _parseCommandeDate(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+    return DateTime.tryParse(trimmed);
+  }
+
+  String _typeLabel() {
+    return ClientType.label(client.typeClient, fallbackToDefault: true);
+  }
+
+  Color _typeColor() {
+    switch (ClientType.normalize(client.typeClient, fallbackToDefault: true)) {
+      case ClientType.vip:
+        return const Color(0xFF7C3AED);
+      case ClientType.fidel:
+        return _accent;
+      case ClientType.entreprise:
+        return const Color(0xFFEA580C);
+      case ClientType.particulier:
+      default:
+        return _primary;
+    }
+  }
+
+  String _formatDate(CommandeModel commande) {
+    final formatted = commande.dateCommandeFormatted.trim();
+    if (formatted.isNotEmpty && formatted != commande.dateCommande.trim()) {
+      return formatted;
+    }
+    final parsed = _parseCommandeDate(commande.dateCommande);
+    if (parsed == null) return '-';
+    final day = parsed.day.toString().padLeft(2, '0');
+    final month = parsed.month.toString().padLeft(2, '0');
+    final year = parsed.year.toString();
+    return '$day/$month/$year';
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 17, color: _textSecondary),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: _textSecondary,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: _textPrimary,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                  height: 1.25,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMiniStat({
+    required String label,
+    required String value,
+    Color accent = _primary,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: _textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: TextStyle(
+              color: accent,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrderPreviewRow(CommandeModel order, {required bool phone}) {
+    final metaParts = <String>[
+      _formatDate(order),
+      if (order.statutDisplay.trim().isNotEmpty) order.statutDisplay.trim(),
+    ].where((value) => value.trim().isNotEmpty && value.trim() != '-').toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                order.referenceCommandeClient,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: _textPrimary,
+                  fontSize: phone ? 13.2 : 13.8,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _formatAmount(order.total),
+              style: TextStyle(
+                color: _primary,
+                fontSize: phone ? 12.4 : 12.8,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        if (metaParts.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            metaParts.join(' • '),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: _textSecondary,
+              fontSize: phone ? 11.6 : 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final phone = MediaQuery.sizeOf(context).width < 600;
+    final availableHeight = MediaQuery.sizeOf(context).height;
+    final typeColor = _typeColor();
+
+    final surface = Container(
+      width: isBottomSheet
+          ? double.infinity
+          : AdaptiveLayout.dialogWidth(context, max: 540, sideMargin: 16),
+      constraints: BoxConstraints(
+        maxHeight: isBottomSheet
+            ? availableHeight * 0.68
+            : availableHeight * 0.76,
+      ),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(phone ? 20 : 22),
+        border: Border.all(color: _borderLight),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: phone ? 18 : 24,
+            offset: Offset(0, phone ? 8 : 12),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(phone ? 20 : 22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: EdgeInsets.fromLTRB(
+                phone ? 14 : 20,
+                phone ? 12 : 16,
+                phone ? 10 : 16,
+                phone ? 12 : 16,
+              ),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [_primaryDark, _primary],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: phone ? 40 : 46,
+                    height: phone ? 40 : 46,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.person_outline_rounded,
+                      color: Colors.white,
+                      size: phone ? 22 : 24,
+                    ),
+                  ),
+                  SizedBox(width: phone ? 10 : 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          client.fullName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: phone ? 16 : 18,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Consultation rapide',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.88),
+                            fontSize: phone ? 12 : 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.close, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: FutureBuilder<List<CommandeModel>>(
+                future: commandesFuture,
+                builder: (context, snapshot) {
+                  final orders = snapshot.data ?? const <CommandeModel>[];
+                  final sortedOrders = orders.toList()
+                    ..sort((a, b) {
+                      final aDate =
+                          _parseCommandeDate(a.dateCommande) ??
+                          DateTime.fromMillisecondsSinceEpoch(0);
+                      final bDate =
+                          _parseCommandeDate(b.dateCommande) ??
+                          DateTime.fromMillisecondsSinceEpoch(0);
+                      return bDate.compareTo(aDate);
+                    });
+                  final recentOrders = sortedOrders
+                      .take(phone ? 5 : 10)
+                      .toList(growable: false);
+                  final totalSpent = orders.fold<double>(
+                    0,
+                    (sum, order) => sum + order.total,
+                  );
+
+                  return SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(
+                      phone ? 14 : 20,
+                      phone ? 14 : 18,
+                      phone ? 14 : 20,
+                      phone ? 14 : 18,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _StatusChip(label: _typeLabel(), color: typeColor),
+                        SizedBox(height: phone ? 12 : 14),
+                        _buildInfoRow(
+                          Icons.phone_outlined,
+                          'Telephone',
+                          client.telephone,
+                        ),
+                        if ((client.email ?? '').trim().isNotEmpty) ...[
+                          SizedBox(height: phone ? 10 : 12),
+                          _buildInfoRow(
+                            Icons.email_outlined,
+                            'Email',
+                            client.email!.trim(),
+                          ),
+                        ],
+                        if ((client.adresse ?? '').trim().isNotEmpty) ...[
+                          SizedBox(height: phone ? 10 : 12),
+                          _buildInfoRow(
+                            Icons.location_on_outlined,
+                            'Adresse',
+                            client.adresse!.trim(),
+                          ),
+                        ],
+                        if (client.typeClient == ClientType.entreprise &&
+                            (client.matriculeFiscale ?? '')
+                                .trim()
+                                .isNotEmpty) ...[
+                          SizedBox(height: phone ? 10 : 12),
+                          _buildInfoRow(
+                            Icons.badge_outlined,
+                            'Matricule fiscal',
+                            client.matriculeFiscale!.trim(),
+                          ),
+                        ],
+                        SizedBox(height: phone ? 14 : 16),
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final stack = constraints.maxWidth < 320;
+                            final stats = <Widget>[
+                              Expanded(
+                                child: _buildMiniStat(
+                                  label: 'Commandes',
+                                  value: '${orders.length}',
+                                  accent: _primary,
+                                ),
+                              ),
+                              Expanded(
+                                child: _buildMiniStat(
+                                  label: 'Total',
+                                  value: _formatAmount(totalSpent),
+                                  accent: _accent,
+                                ),
+                              ),
+                            ];
+
+                            if (stack) {
+                              return Column(
+                                children: [
+                                  stats[0],
+                                  const SizedBox(height: 8),
+                                  stats[1],
+                                ],
+                              );
+                            }
+
+                            return Row(
+                              children: [
+                                stats[0],
+                                const SizedBox(width: 8),
+                                stats[1],
+                              ],
+                            );
+                          },
+                        ),
+                        SizedBox(height: phone ? 12 : 14),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: _background,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: _borderLight),
+                          ),
+                          child:
+                              snapshot.connectionState ==
+                                  ConnectionState.waiting
+                              ? const Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                    SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        'Chargement du resume des commandes...',
+                                        style: TextStyle(
+                                          color: _textSecondary,
+                                          fontSize: 12.5,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : snapshot.hasError
+                              ? const Text(
+                                  'Resume des commandes indisponible pour le moment.',
+                                  style: TextStyle(
+                                    color: _textSecondary,
+                                    fontSize: 12.5,
+                                  ),
+                                )
+                              : recentOrders.isEmpty
+                              ? const Text(
+                                  'Aucune commande enregistree pour ce client.',
+                                  style: TextStyle(
+                                    color: _textSecondary,
+                                    fontSize: 12.5,
+                                  ),
+                                )
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Expanded(
+                                          child: Text(
+                                            'Dernieres commandes',
+                                            style: TextStyle(
+                                              color: _textSecondary,
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                        Text(
+                                          '${recentOrders.length}/${orders.length}',
+                                          style: const TextStyle(
+                                            color: _textSecondary,
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      recentOrders
+                                          .first
+                                          .referenceCommandeClient,
+                                      style: const TextStyle(
+                                        color: _textPrimary,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      '${_formatDate(recentOrders.first)} • ${_formatAmount(recentOrders.first.total)}',
+                                      style: const TextStyle(
+                                        color: _textSecondary,
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    if (recentOrders.length > 1) ...[
+                                      const SizedBox(height: 10),
+                                      for (
+                                        var index = 1;
+                                        index < recentOrders.length;
+                                        index++
+                                      ) ...[
+                                        Divider(
+                                          height: 1,
+                                          color: _borderLight.withValues(
+                                            alpha: 0.9,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        _buildOrderPreviewRow(
+                                          recentOrders[index],
+                                          phone: phone,
+                                        ),
+                                        if (index != recentOrders.length - 1)
+                                          const SizedBox(height: 8),
+                                      ],
+                                    ],
+                                    if (orders.length >
+                                        recentOrders.length) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Affichage des ${recentOrders.length} commandes les plus recentes.',
+                                        style: TextStyle(
+                                          color: _textSecondary.withValues(
+                                            alpha: 0.9,
+                                          ),
+                                          fontSize: 11.4,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (isBottomSheet) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+        child: SafeArea(top: false, child: surface),
+      );
+    }
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(20),
+      child: surface,
+    );
   }
 }
 
@@ -2070,12 +2650,16 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
   // Construction de l'interface.
 
   /// Construit le libelle d'un champ.
-  Widget _buildFieldLabel(String label, {bool required = false}) {
+  Widget _buildFieldLabel(
+    String label, {
+    bool required = false,
+    bool compact = false,
+  }) {
     return RichText(
       text: TextSpan(
-        style: const TextStyle(
+        style: TextStyle(
           color: _textPrimary,
-          fontSize: 13,
+          fontSize: compact ? 12 : 13,
           fontWeight: FontWeight.w700,
         ),
         children: [
@@ -2091,32 +2675,38 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
   }
 
   /// Construit la decoration d'un champ.
-  InputDecoration _fieldDecoration({String? hintText}) {
+  InputDecoration _fieldDecoration({String? hintText, bool compact = false}) {
     return InputDecoration(
       hintText: hintText,
-      hintStyle: const TextStyle(color: Color(0xFF98A2B3), fontSize: 13),
+      hintStyle: TextStyle(
+        color: const Color(0xFF98A2B3),
+        fontSize: compact ? 12.5 : 13,
+      ),
       isDense: true,
       filled: true,
       fillColor: _surface,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: compact ? 12 : 14,
+        vertical: compact ? 11 : 14,
+      ),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(compact ? 11 : 12),
         borderSide: const BorderSide(color: _borderLight),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(compact ? 11 : 12),
         borderSide: const BorderSide(color: _borderLight),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(compact ? 11 : 12),
         borderSide: const BorderSide(color: _primary, width: 1.4),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(compact ? 11 : 12),
         borderSide: const BorderSide(color: _error),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(compact ? 11 : 12),
         borderSide: const BorderSide(color: _error, width: 1.2),
       ),
     );
@@ -2128,6 +2718,7 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
     required TextEditingController controller,
     String? hintText,
     bool required = false,
+    bool compact = false,
     TextInputType keyboardType = TextInputType.text,
     int maxLines = 1,
     String? Function(String?)? validator,
@@ -2136,27 +2727,32 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildFieldLabel(label, required: required),
-        const SizedBox(height: 8),
+        _buildFieldLabel(label, required: required, compact: compact),
+        SizedBox(height: compact ? 6 : 8),
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
           maxLines: maxLines,
           textCapitalization: textCapitalization,
-          decoration: _fieldDecoration(hintText: hintText),
+          decoration: _fieldDecoration(hintText: hintText, compact: compact),
           validator: validator,
+          style: TextStyle(fontSize: compact ? 13 : 14),
         ),
       ],
     );
   }
 
   /// Construit une ligne de deux champs adaptable.
-  Widget _buildFieldPair({required Widget left, required Widget right}) {
+  Widget _buildFieldPair({
+    required Widget left,
+    required Widget right,
+    bool compact = false,
+  }) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final stackVertically = constraints.maxWidth < 350;
+        final stackVertically = constraints.maxWidth < (compact ? 305 : 350);
         final spacing = constraints.maxWidth < 420
-            ? _baseUnit * 1.25
+            ? (compact ? _baseUnit : _baseUnit * 1.25)
             : _baseUnit * 2;
 
         if (stackVertically) {
@@ -2182,12 +2778,16 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
   }
 
   /// Construit l'en-tete d'une section.
-  Widget _buildSectionHeader(String title, Color accent) {
+  Widget _buildSectionHeader(
+    String title,
+    Color accent, {
+    bool compact = false,
+  }) {
     return Row(
       children: [
         Container(
           width: 4,
-          height: 26,
+          height: compact ? 22 : 26,
           decoration: BoxDecoration(
             color: accent,
             borderRadius: BorderRadius.circular(999),
@@ -2198,7 +2798,7 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
           title,
           style: TextStyle(
             color: accent,
-            fontSize: 16,
+            fontSize: compact ? 14 : 16,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -2211,19 +2811,20 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
     required String title,
     required Color accent,
     required Widget child,
+    bool compact = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader(title, accent),
-        SizedBox(height: _baseUnit * 1.25),
+        _buildSectionHeader(title, accent, compact: compact),
+        SizedBox(height: compact ? _baseUnit : _baseUnit * 1.25),
         child,
       ],
     );
   }
 
   /// Construit le formulaire.
-  Widget _buildForm() {
+  Widget _buildForm({required bool isCompact}) {
     return Form(
       key: _formKey,
       child: Column(
@@ -2233,28 +2834,34 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
           _buildSection(
             title: 'Identite',
             accent: _identityAccent,
+            compact: isCompact,
             child: _buildFieldPair(
               left: _buildTextField(
                 label: _nomFieldLabel,
                 controller: _nomCtrl,
                 required: true,
+                compact: isCompact,
                 validator: (v) => _validateRequired(v, _nomFieldLabel),
               ),
               right: _buildTextField(
                 label: _prenomFieldLabel,
                 controller: _prenomCtrl,
+                compact: isCompact,
               ),
+              compact: isCompact,
             ),
           ),
-          SizedBox(height: _baseUnit * 2),
+          SizedBox(height: isCompact ? _baseUnit * 1.25 : _baseUnit * 2),
           _buildSection(
             title: 'Contact',
             accent: _contactAccent,
+            compact: isCompact,
             child: _buildFieldPair(
               left: _buildTextField(
                 label: _emailFieldLabel,
                 controller: _emailCtrl,
                 required: true,
+                compact: isCompact,
                 keyboardType: TextInputType.emailAddress,
                 validator: _validateEmail,
               ),
@@ -2262,36 +2869,49 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
                 label: _telephoneFieldLabel,
                 controller: _telCtrl,
                 required: true,
+                compact: isCompact,
                 keyboardType: TextInputType.phone,
                 validator: (v) => _validateRequired(v, _telephoneFieldLabel),
               ),
+              compact: isCompact,
             ),
           ),
-          SizedBox(height: _baseUnit * 2),
+          SizedBox(height: isCompact ? _baseUnit * 1.25 : _baseUnit * 2),
           _buildSection(
             title: 'Adresse',
             accent: _addressAccent,
+            compact: isCompact,
             child: _buildTextField(
               label: _adresseFieldLabel,
               controller: _addrCtrl,
               required: true,
-              maxLines: 3,
+              compact: isCompact,
+              maxLines: isCompact ? 2 : 3,
               validator: (v) => _validateRequired(v, _adresseFieldLabel),
             ),
           ),
-          SizedBox(height: _baseUnit * 2),
+          SizedBox(height: isCompact ? _baseUnit * 1.25 : _baseUnit * 2),
           _buildSection(
             title: 'Categorie',
             accent: _categoryAccent,
+            compact: isCompact,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildFieldLabel(_typeClientFieldLabel, required: true),
-                const SizedBox(height: 10),
+                _buildFieldLabel(
+                  _typeClientFieldLabel,
+                  required: true,
+                  compact: isCompact,
+                ),
+                SizedBox(height: isCompact ? 6 : 10),
                 DropdownButtonFormField<String>(
                   initialValue: _selectedClientType,
                   isExpanded: true,
-                  decoration: _fieldDecoration(),
+                  decoration: _fieldDecoration(compact: isCompact),
+                  style: TextStyle(
+                    fontSize: isCompact ? 13 : 14,
+                    color: _textPrimary,
+                  ),
                   items: _availableTypes.map((type) {
                     return DropdownMenuItem(
                       value: type,
@@ -2313,10 +2933,11 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
             ),
           ),
           if (_isEntreprise) ...[
-            SizedBox(height: _baseUnit * 2),
+            SizedBox(height: isCompact ? _baseUnit * 1.25 : _baseUnit * 2),
             _buildSection(
               title: 'Informations entreprise',
               accent: _companyAccent,
+              compact: isCompact,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -2325,15 +2946,17 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
                     controller: _raisonSocialeCtrl,
                     hintText: 'Nom de l entreprise',
                     required: true,
+                    compact: isCompact,
                     textCapitalization: TextCapitalization.words,
                     validator: _validateRaisonSociale,
                   ),
-                  SizedBox(height: _baseUnit * 1.5),
+                  SizedBox(height: isCompact ? _baseUnit : _baseUnit * 1.5),
                   _buildTextField(
                     label: _matriculeFiscaleFieldLabel,
                     controller: _matriculeFiscaleCtrl,
                     hintText: '1234567X',
                     required: true,
+                    compact: isCompact,
                     validator: _validateMatriculeFiscale,
                   ),
                 ],
@@ -2349,34 +2972,34 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
   Widget _buildHeader({required String title, required bool isCompact}) {
     return Container(
       padding: EdgeInsets.fromLTRB(
-        isCompact ? 18 : 24,
-        isCompact ? 18 : 20,
-        isCompact ? 14 : 18,
-        isCompact ? 18 : 20,
+        isCompact ? 14 : 24,
+        isCompact ? 12 : 20,
+        isCompact ? 10 : 18,
+        isCompact ? 12 : 20,
       ),
       decoration: const BoxDecoration(gradient: _headerGradient),
       child: Row(
         children: [
           Container(
-            width: isCompact ? 52 : 56,
-            height: isCompact ? 52 : 56,
+            width: isCompact ? 42 : 56,
+            height: isCompact ? 42 : 56,
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(isCompact ? 12 : 14),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.person_add_alt_1_outlined,
               color: Colors.white,
-              size: 28,
+              size: isCompact ? 22 : 28,
             ),
           ),
-          SizedBox(width: _baseUnit * 1.75),
+          SizedBox(width: isCompact ? _baseUnit * 1.25 : _baseUnit * 1.75),
           Expanded(
             child: Text(
               title,
               style: TextStyle(
                 color: Colors.white,
-                fontSize: isCompact ? 17 : 19,
+                fontSize: isCompact ? 15.5 : 19,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -2392,19 +3015,19 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
   }
 
   /// Construit le contenu scrollable du formulaire.
-  Widget _buildBody() {
+  Widget _buildBody({required bool isCompact}) {
     return Padding(
       padding: EdgeInsets.fromLTRB(
-        _baseUnit * 2,
-        _baseUnit * 1.75,
-        _baseUnit * 2,
+        isCompact ? _baseUnit * 1.5 : _baseUnit * 2,
+        isCompact ? _baseUnit * 1.25 : _baseUnit * 1.75,
+        isCompact ? _baseUnit * 1.5 : _baseUnit * 2,
         0,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildForm(),
-          SizedBox(height: _baseUnit * 1.5),
+          _buildForm(isCompact: isCompact),
+          SizedBox(height: isCompact ? _baseUnit : _baseUnit * 1.5),
         ],
       ),
     );
@@ -2479,18 +3102,18 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
       constraints: BoxConstraints(maxHeight: maxHeight ?? double.infinity),
       decoration: BoxDecoration(
         color: _surface,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(isCompact ? 20 : 22),
         border: Border.all(color: _borderLight),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
+            blurRadius: isCompact ? 18 : 24,
+            offset: Offset(0, isCompact ? 8 : 12),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(isCompact ? 20 : 22),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2501,16 +3124,16 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
                 child: SingleChildScrollView(
                   keyboardDismissBehavior:
                       ScrollViewKeyboardDismissBehavior.onDrag,
-                  child: _buildBody(),
+                  child: _buildBody(isCompact: isCompact),
                 ),
               ),
             ),
             Padding(
               padding: EdgeInsets.fromLTRB(
-                _baseUnit * 2,
-                _baseUnit,
-                _baseUnit * 2,
-                _baseUnit * 1.75,
+                isCompact ? _baseUnit * 1.5 : _baseUnit * 2,
+                isCompact ? _baseUnit * 0.75 : _baseUnit,
+                isCompact ? _baseUnit * 1.5 : _baseUnit * 2,
+                isCompact ? _baseUnit * 1.25 : _baseUnit * 1.75,
               ),
               child: _buildFormActions(isCompact: isCompact),
             ),
@@ -2532,18 +3155,18 @@ class _ClientFormSurfaceState extends State<_ClientFormSurface> {
       return Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.viewInsetsOf(context).bottom,
-          left: _baseUnit * 2,
-          right: _baseUnit * 2,
-          top: _baseUnit * 2,
+          left: _baseUnit,
+          right: _baseUnit,
+          top: _baseUnit,
         ),
         child: SafeArea(
           top: false,
           child: SizedBox(
-            height: availableHeight * 0.82,
+            height: availableHeight * 0.78,
             child: _buildModalSurface(
               title: title,
               isCompact: true,
-              maxHeight: availableHeight * 0.82,
+              maxHeight: availableHeight * 0.78,
             ),
           ),
         ),

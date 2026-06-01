@@ -42,6 +42,41 @@ class ClientService {
     return List<String>.from(ClientType.allowedValues);
   }
 
+  Future<double> getRemiseByType(String? typeClient) async {
+    final normalizedType = ClientType.normalize(
+      typeClient,
+      fallbackToDefault: false,
+    );
+    if (normalizedType.trim().isEmpty) return 0;
+
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.clientsPrefix}/remise/$normalizedType',
+    );
+    final response = await http
+        .get(uri, headers: await _buildHeaders())
+        .timeout(const Duration(milliseconds: ApiConfig.connectionTimeout));
+
+    final body = _decodeResponse(response);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(
+        _extractMessage(body, 'Erreur lors du chargement de la remise client'),
+      );
+    }
+
+    final rawValue = body['remise'];
+    if (rawValue is num) {
+      return rawValue.toDouble().clamp(0, 100).toDouble();
+    }
+    if (rawValue is String) {
+      final parsed = double.tryParse(rawValue.trim());
+      if (parsed != null) {
+        return parsed.clamp(0, 100).toDouble();
+      }
+    }
+
+    return 0;
+  }
+
   Future<ClientModel> createClient(NouveauClientPayload payload) async {
     final uri = Uri.parse(
       '${ApiConfig.baseUrl}${ApiConfig.createClientEndpoint}',

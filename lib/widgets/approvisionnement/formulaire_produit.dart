@@ -192,49 +192,63 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
     String? hint,
     String? helper,
   }) {
+    final compact =
+        widget.isBottomSheet || MediaQuery.sizeOf(context).width < 560;
+
     return InputDecoration(
       labelText: label,
       hintText: hint,
       helperText: helper,
       filled: true,
       fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      labelStyle: const TextStyle(
-        color: Color(0xFF334155),
-        fontWeight: FontWeight.w600,
+      isDense: compact,
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: compact ? 14 : 16,
+        vertical: compact ? 13 : 16,
       ),
-      hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+      labelStyle: TextStyle(
+        color: const Color(0xFF334155),
+        fontWeight: FontWeight.w600,
+        fontSize: compact ? 13 : 14,
+      ),
+      hintStyle: TextStyle(
+        color: const Color(0xFF94A3B8),
+        fontSize: compact ? 13 : 14,
+      ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(compact ? 12 : 14),
         borderSide: const BorderSide(color: Color(0xFFD7DEEA)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(compact ? 12 : 14),
         borderSide: const BorderSide(color: procurementPrimary, width: 1.8),
       ),
       disabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(compact ? 12 : 14),
         borderSide: const BorderSide(color: Color(0xFFD7DEEA)),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(compact ? 12 : 14),
         borderSide: const BorderSide(color: procurementDanger),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(compact ? 12 : 14),
         borderSide: const BorderSide(color: procurementDanger, width: 1.8),
       ),
     );
   }
 
   Widget _buildFieldTitle(String text, {bool required = false}) {
+    final compact =
+        widget.isBottomSheet || MediaQuery.sizeOf(context).width < 560;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.only(bottom: compact ? 6 : 8),
       child: RichText(
         text: TextSpan(
-          style: const TextStyle(
+          style: TextStyle(
             color: procurementInk,
-            fontSize: 14,
+            fontSize: compact ? 13.2 : 14,
             fontWeight: FontWeight.w600,
           ),
           children: [
@@ -251,19 +265,22 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
   }
 
   Widget _buildSectionTitle(String title, {IconData? icon}) {
+    final compact =
+        widget.isBottomSheet || MediaQuery.sizeOf(context).width < 560;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: EdgeInsets.only(bottom: compact ? 10 : 14),
       child: Row(
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 20, color: procurementPrimaryDark),
-            const SizedBox(width: 10),
+            Icon(icon, size: compact ? 18 : 20, color: procurementPrimaryDark),
+            SizedBox(width: compact ? 8 : 10),
           ],
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               color: procurementInk,
-              fontSize: 18,
+              fontSize: compact ? 16 : 18,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -290,13 +307,15 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
   }
 
   Widget _buildSupplierCard() {
+    final compact =
+        widget.isBottomSheet || MediaQuery.sizeOf(context).width < 560;
     final supplier = _selectedSupplier;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(compact ? 14 : 18),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(compact ? 16 : 18),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Column(
@@ -305,6 +324,9 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
           _buildFieldTitle('Fournisseur', required: true),
           DropdownButtonFormField<int>(
             initialValue: _supplierId,
+            isExpanded: true,
+            menuMaxHeight: compact ? 280 : 360,
+            iconSize: compact ? 20 : 24,
             decoration: _inputDecoration(
               label: '',
               hint: '-- Sélectionner un fournisseur --',
@@ -320,6 +342,18 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                   ),
                 )
                 .toList(),
+            selectedItemBuilder: (context) => widget.suppliers
+                .map(
+                  (item) => Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      item.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .toList(),
             onChanged: (value) {
               setState(() {
                 _supplierId = value;
@@ -329,13 +363,13 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                 value == null ? 'Le fournisseur est requis' : null,
           ),
           if (supplier != null) ...[
-            const SizedBox(height: 14),
+            SizedBox(height: compact ? 10 : 14),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(14),
+              padding: EdgeInsets.all(compact ? 12 : 14),
               decoration: BoxDecoration(
                 color: const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(compact ? 12 : 14),
                 border: Border.all(color: const Color(0xFFBFDBFE)),
               ),
               child: Column(
@@ -354,23 +388,29 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                     supplier.email.isEmpty
                         ? 'Email non renseigné'
                         : supplier.email,
-                    style: const TextStyle(color: procurementInk, fontSize: 13),
+                    style: TextStyle(
+                      color: procurementInk,
+                      fontSize: compact ? 12.5 : 13,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     supplier.telephone.isEmpty
                         ? 'Téléphone non renseigné'
                         : supplier.telephone,
-                    style: const TextStyle(color: procurementInk, fontSize: 13),
+                    style: TextStyle(
+                      color: procurementInk,
+                      fontSize: compact ? 12.5 : 13,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     supplier.adresse.isEmpty
                         ? 'Adresse non renseignée'
                         : supplier.adresse,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: procurementMuted,
-                      fontSize: 12.5,
+                      fontSize: compact ? 12 : 12.5,
                     ),
                   ),
                 ],
@@ -648,17 +688,17 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
-        12,
-        12,
-        12,
-        viewInsets.bottom > 0 ? viewInsets.bottom : 12,
+        phone ? 10 : 12,
+        phone ? 10 : 12,
+        phone ? 10 : 12,
+        viewInsets.bottom > 0 ? viewInsets.bottom : (phone ? 10 : 12),
       ),
       child: SafeArea(
         top: false,
         child: Container(
           width: double.infinity,
           constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.9,
+            maxHeight: MediaQuery.sizeOf(context).height * (phone ? 0.92 : 0.9),
           ),
           decoration: BoxDecoration(
             color: Colors.white,
@@ -679,7 +719,12 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
               child: Column(
                 children: [
                   Container(
-                    padding: const EdgeInsets.fromLTRB(18, 18, 10, 14),
+                    padding: EdgeInsets.fromLTRB(
+                      phone ? 16 : 18,
+                      phone ? 14 : 18,
+                      10,
+                      phone ? 12 : 14,
+                    ),
                     decoration: const BoxDecoration(
                       border: Border(
                         bottom: BorderSide(color: Color(0xFFE5E7EB)),
@@ -692,9 +737,9 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                             title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: procurementInk,
-                              fontSize: 18,
+                              fontSize: phone ? 16.5 : 18,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -715,7 +760,12 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                     child: SingleChildScrollView(
                       keyboardDismissBehavior:
                           ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+                      padding: EdgeInsets.fromLTRB(
+                        phone ? 14 : 18,
+                        phone ? 14 : 18,
+                        phone ? 14 : 18,
+                        phone ? 12 : 14,
+                      ),
                       child: Form(
                         key: _formKey,
                         child: Column(
@@ -801,6 +851,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                             _buildFieldTitle('Categorie', required: true),
                             DropdownButtonFormField<int>(
                               initialValue: _categoryId,
+                              isExpanded: true,
                               decoration: _inputDecoration(
                                 label: '',
                                 hint: 'Selectionner une categorie',
@@ -874,6 +925,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                             _buildFieldTitle('Unite de mesure', required: true),
                             DropdownButtonFormField<String>(
                               initialValue: _unit,
+                              isExpanded: true,
                               decoration: _inputDecoration(
                                 label: '',
                               ).copyWith(labelText: null),
@@ -970,7 +1022,12 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+                    padding: EdgeInsets.fromLTRB(
+                      phone ? 14 : 18,
+                      phone ? 12 : 14,
+                      phone ? 14 : 18,
+                      phone ? 14 : 18,
+                    ),
                     decoration: const BoxDecoration(
                       border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
                     ),
@@ -982,7 +1039,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                             style: OutlinedButton.styleFrom(
                               foregroundColor: const Color(0xFF334155),
                               side: const BorderSide(color: Color(0xFFD1D5DB)),
-                              minimumSize: const Size(0, 42),
+                              minimumSize: Size(0, phone ? 40 : 42),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14),
                               ),
@@ -997,7 +1054,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                             style: FilledButton.styleFrom(
                               backgroundColor: const Color(0xFF15803D),
                               foregroundColor: Colors.white,
-                              minimumSize: const Size(0, 42),
+                              minimumSize: Size(0, phone ? 40 : 42),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14),
                               ),
