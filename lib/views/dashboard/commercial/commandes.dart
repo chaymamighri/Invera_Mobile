@@ -303,6 +303,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
     }
   }
 
+  // Méthode _onEdit conservée (non utilisée mais pas supprimée)
   Future<void> _onEdit(CommandeModel cmd) async {
     if (!cmd.canEdit) {
       _showMessage(
@@ -4206,6 +4207,7 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
       child: Scrollbar(
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(),
+          controller: ScrollController(),
           slivers: [
             SliverToBoxAdapter(child: _buildHeader()),
             if (_isBusy)
@@ -5045,7 +5047,6 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                 DataColumn(label: Text('ACTIONS')),
               ],
               rows: _commandes.map((cmd) {
-                final canEdit = !_isBusy && cmd.canEdit;
                 final canCancel = !_isBusy && cmd.canCancel;
                 final canConfirm = _canConfirm(cmd);
 
@@ -5098,12 +5099,6 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                               Icons.visibility_outlined,
                               size: 18,
                             ),
-                          ),
-                          IconButton(
-                            tooltip: 'Modifier',
-                            visualDensity: VisualDensity.compact,
-                            onPressed: canEdit ? () => _onEdit(cmd) : null,
-                            icon: const Icon(Icons.edit_outlined, size: 18),
                           ),
                           IconButton(
                             tooltip: 'Confirmer',
@@ -5187,7 +5182,6 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
   }
 
   Widget _buildOrderCard(CommandeModel cmd, {required bool grid}) {
-    final canEdit = !_isBusy && cmd.canEdit;
     final canCancel = !_isBusy && cmd.canCancel;
     final canConfirm = _canConfirm(cmd);
     final isPhone = _isPhoneWidth(context, breakpoint: 480);
@@ -5378,14 +5372,6 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                               ),
                             ),
                             const SizedBox(width: _baseUnit * 0.75),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: canEdit ? () => _onEdit(cmd) : null,
-                                icon: const Icon(Icons.edit_outlined, size: 15),
-                                label: const Text('Modifier'),
-                                style: _compactOutlinedButtonStyle(dense: true),
-                              ),
-                            ),
                           ],
                         ),
                         const SizedBox(height: _baseUnit * 0.75),
@@ -5464,12 +5450,6 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                           style: _compactOutlinedButtonStyle(),
                         ),
                         OutlinedButton.icon(
-                          onPressed: canEdit ? () => _onEdit(cmd) : null,
-                          icon: const Icon(Icons.edit_outlined, size: 16),
-                          label: const Text('Modifier'),
-                          style: _compactOutlinedButtonStyle(),
-                        ),
-                        OutlinedButton.icon(
                           onPressed: canConfirm ? () => _onConfirm(cmd) : null,
                           icon: const Icon(
                             Icons.check_circle_outline,
@@ -5499,12 +5479,6 @@ class _CommercialCommandesSectionState extends State<CommercialCommandesSection>
                         tooltip: 'Details',
                         onPressed: () => _onDetails(cmd),
                         icon: const Icon(Icons.visibility_outlined),
-                      ),
-                      IconButton(
-                        tooltip: 'Modifier',
-                        visualDensity: VisualDensity.compact,
-                        onPressed: canEdit ? () => _onEdit(cmd) : null,
-                        icon: const Icon(Icons.edit_outlined, size: 20),
                       ),
                       IconButton(
                         tooltip: 'Confirmer',
